@@ -2,13 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* CAD Studio Design System - Professional Dark Theme
+/* CAD Studio Design System - Modern Dark Theme with Gradients
    All colors are HSL for consistency
 */
 
 @layer base {
   :root {
-    /* Light mode - fallback */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -28,9 +27,8 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
-    --radius: 0.25rem;
+    --radius: 0.5rem;
     
-    /* Sidebar */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -40,7 +38,6 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
     
-    /* CAD-specific tokens */
     --cad-toolbar: 220 15% 95%;
     --cad-toolbar-foreground: 220 15% 20%;
     --cad-active: 210 100% 50%;
@@ -53,63 +50,73 @@
   }
 
   .dark {
-    /* Main background - deep charcoal */
-    --background: 220 20% 10%;
-    --foreground: 220 15% 90%;
+    /* Deep space background */
+    --background: 230 25% 7%;
+    --foreground: 220 20% 95%;
     
-    /* Card - slightly elevated surface */
-    --card: 220 18% 13%;
-    --card-foreground: 220 15% 90%;
+    /* Elevated surfaces */
+    --card: 230 22% 11%;
+    --card-foreground: 220 20% 95%;
     
     /* Popover - floating elements */
-    --popover: 220 20% 12%;
-    --popover-foreground: 220 15% 90%;
+    --popover: 230 25% 10%;
+    --popover-foreground: 220 20% 95%;
     
-    /* Primary - CAD blue accent */
-    --primary: 210 100% 55%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary - vibrant cyan-blue */
+    --primary: 200 100% 55%;
+    --primary-foreground: 230 25% 7%;
     
-    /* Secondary - muted surface */
-    --secondary: 220 18% 18%;
-    --secondary-foreground: 220 15% 85%;
+    /* Secondary - muted surface with better contrast */
+    --secondary: 230 20% 16%;
+    --secondary-foreground: 220 20% 90%;
     
     /* Muted - subtle backgrounds */
-    --muted: 220 15% 15%;
-    --muted-foreground: 220 10% 60%;
+    --muted: 230 18% 14%;
+    --muted-foreground: 220 15% 55%;
     
-    /* Accent - interactive highlights */
-    --accent: 210 80% 45%;
+    /* Accent - purple highlight */
+    --accent: 270 80% 60%;
     --accent-foreground: 0 0% 100%;
     
-    /* Destructive */
-    --destructive: 0 70% 50%;
+    /* Destructive - vivid red */
+    --destructive: 0 85% 60%;
     --destructive-foreground: 0 0% 100%;
     
-    /* Borders and inputs */
-    --border: 220 15% 20%;
-    --input: 220 15% 18%;
-    --ring: 210 100% 55%;
+    /* Borders and inputs - more visible */
+    --border: 230 18% 22%;
+    --input: 230 18% 18%;
+    --ring: 200 100% 55%;
     
     /* Sidebar - feature tree area */
-    --sidebar-background: 220 20% 11%;
-    --sidebar-foreground: 220 15% 85%;
-    --sidebar-primary: 210 100% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 18% 16%;
-    --sidebar-accent-foreground: 220 15% 90%;
-    --sidebar-border: 220 15% 18%;
-    --sidebar-ring: 210 100% 55%;
+    --sidebar-background: 230 25% 9%;
+    --sidebar-foreground: 220 20% 85%;
+    --sidebar-primary: 200 100% 55%;
+    --sidebar-primary-foreground: 230 25% 7%;
+    --sidebar-accent: 230 20% 15%;
+    --sidebar-accent-foreground: 220 20% 95%;
+    --sidebar-border: 230 18% 20%;
+    --sidebar-ring: 200 100% 55%;
     
     /* CAD-specific tokens */
-    --cad-toolbar: 220 18% 14%;
-    --cad-toolbar-foreground: 220 15% 85%;
-    --cad-active: 210 100% 55%;
-    --cad-active-foreground: 0 0% 100%;
-    --cad-canvas: 220 20% 8%;
-    --cad-grid: 220 15% 12%;
-    --cad-divider: 220 15% 22%;
-    --cad-header: 220 25% 8%;
-    --cad-header-foreground: 220 15% 95%;
+    --cad-toolbar: 230 22% 12%;
+    --cad-toolbar-foreground: 220 20% 80%;
+    --cad-active: 200 100% 55%;
+    --cad-active-foreground: 230 25% 7%;
+    --cad-canvas: 230 28% 5%;
+    --cad-grid: 230 20% 12%;
+    --cad-divider: 230 18% 25%;
+    --cad-header: 230 25% 8%;
+    --cad-header-foreground: 220 20% 95%;
+    
+    /* Gradient colors */
+    --gradient-start: 200 100% 55%;
+    --gradient-mid: 260 80% 55%;
+    --gradient-end: 320 80% 55%;
+    
+    /* Status colors */
+    --success: 150 80% 45%;
+    --warning: 40 95% 55%;
+    --info: 200 100% 55%;
   }
 }
 
@@ -122,22 +129,61 @@
     @apply bg-background text-foreground;
   }
   
-  /* Force dark mode for CAD application */
   html {
     @apply dark;
   }
 }
 
-/* Custom scrollbar for CAD interface */
+/* Gradient utilities */
 @layer utilities {
+  .gradient-border {
+    position: relative;
+  }
+  
+  .gradient-border::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-mid)) 50%,
+      hsl(var(--gradient-end)) 100%
+    );
+  }
+
+  .gradient-text {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-mid)) 50%,
+      hsl(var(--gradient-end)) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-bg {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--gradient-start)) 0%,
+      hsl(var(--gradient-mid)) 50%,
+      hsl(var(--gradient-end)) 100%
+    );
+  }
+
   .scrollbar-cad {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
   
   .scrollbar-cad::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
   
   .scrollbar-cad::-webkit-scrollbar-track {
@@ -146,7 +192,7 @@
   
   .scrollbar-cad::-webkit-scrollbar-thumb {
     background-color: hsl(var(--border));
-    border-radius: 4px;
+    border-radius: 3px;
   }
   
   .scrollbar-cad::-webkit-scrollbar-thumb:hover {

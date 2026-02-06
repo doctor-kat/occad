@@ -57,7 +57,6 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-        // CAD-specific colors
         cad: {
           toolbar: "hsl(var(--cad-toolbar))",
           "toolbar-foreground": "hsl(var(--cad-toolbar-foreground))",
@@ -69,6 +68,10 @@ export default {
           header: "hsl(var(--cad-header))",
           "header-foreground": "hsl(var(--cad-header-foreground))",
         },
+        // Semantic status colors
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
+        info: "hsl(var(--info))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -84,10 +87,15 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "pulse-glow": {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0.7" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
       },
     },
   },
