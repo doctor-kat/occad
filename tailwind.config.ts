@@ -57,6 +57,18 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // CAD-specific colors
+        cad: {
+          toolbar: "hsl(var(--cad-toolbar))",
+          "toolbar-foreground": "hsl(var(--cad-toolbar-foreground))",
+          active: "hsl(var(--cad-active))",
+          "active-foreground": "hsl(var(--cad-active-foreground))",
+          canvas: "hsl(var(--cad-canvas))",
+          grid: "hsl(var(--cad-grid))",
+          divider: "hsl(var(--cad-divider))",
+          header: "hsl(var(--cad-header))",
+          "header-foreground": "hsl(var(--cad-header-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,20 +77,12 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
         },
       },
       animation: {
