@@ -9,7 +9,7 @@ A professional CAD application interface with a modern dark theme, featuring a c
 ## Layout Structure
 
 ### 1. Top Header Bar (Thin)
-- **Left section**: Application logo + "CAD Studio" name
+- **Left section**: Application logo + "OCCAD" name
 - **Right section**: Icon buttons for Open, Save, Export (with tooltips)
 - Dark background with subtle border separation
 

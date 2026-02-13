@@ -1,203 +1,274 @@
-import { 
-  Box, 
-  FolderOpen, 
-  Save, 
-  Download, 
-  RotateCcw, 
-  RotateCw, 
-  ZoomIn, 
-  ZoomOut, 
-  Maximize2,
-  Grid3X3,
-  Eye
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { Separator } from '@/components/ui/separator';
+  Cube,
+  FolderOpen,
+  FloppyDisk,
+  DownloadSimple,
+  ArrowCounterClockwise,
+  ArrowClockwise,
+  MagnifyingGlassPlus,
+  MagnifyingGlassMinus,
+  FrameCorners,
+  GridFour,
+  Eye,
+  FilePlus
+} from '@phosphor-icons/react';
+import { Button, Tooltip, Divider, Group, Box, Text, useMantineTheme } from '@mantine/core';
 
 interface HeaderBarProps {
   projectName: string;
+  onNew: () => void;
   onOpen: () => void;
   onSave: () => void;
   onExport: () => void;
 }
 
-export function HeaderBar({ projectName, onOpen, onSave, onExport }: HeaderBarProps) {
-  return (
-    <header className="gradient-border flex h-12 items-center justify-between bg-cad-header px-4">
-      <TooltipProvider delayDuration={200}>
-        <div className="flex items-center gap-4">
-          {/* Logo and App Name */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-bg shadow-lg shadow-primary/20">
-              <Box className="h-4.5 w-4.5 text-white" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold tracking-tight gradient-text">
-                CAD Studio
-              </span>
-              <span className="text-[10px] text-muted-foreground leading-none">
-                {projectName}
-              </span>
-            </div>
-          </div>
+const iconButtonStyle = {
+  height: 32,
+  width: 32,
+  padding: 0,
+};
 
-          <Separator orientation="vertical" className="h-6 bg-cad-divider" />
+const fileButtonStyle = {
+  height: 32,
+  paddingLeft: 12,
+  paddingRight: 12,
+};
+
+const headerLabelStyle = { label: { fontSize: 12 } };
+
+export function HeaderBar({ projectName, onNew, onOpen, onSave, onExport }: HeaderBarProps) {
+  const theme = useMantineTheme();
+
+  return (
+    <Box
+      component="header"
+      h={56}
+      pos="relative"
+      bg={theme.other.colors.cadHeader}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Gradient border at bottom */}
+      <Box
+        pos="absolute"
+        style={{
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 1,
+          background: theme.other.gradients.border,
+        }}
+      />
+
+      {/* Fixed Logo Section */}
+      <Box
+        px={16}
+        bg={theme.other.colors.cadHeader}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexShrink: 0,
+          zIndex: 1,
+        }}
+      >
+        <Group gap={10} align="center">
+          <Box
+            style={{
+              display: 'flex',
+              height: 32,
+              width: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: theme.radius.lg,
+              background: theme.other.gradients.background,
+              boxShadow: `0 4px 12px ${theme.colors.cyan[5]}33`,
+            }}
+          >
+            <Cube size={18} weight="regular" color="white" />
+          </Box>
+          <Box style={{ display: 'flex', flexDirection: 'column' }}>
+            <Text
+              variant="gradient"
+              size="sm"
+              fw={700}
+              style={{ letterSpacing: '-0.02em' }}
+            >
+              OCCAD
+            </Text>
+            <Text
+              size="10px"
+              c={theme.other.colors.mutedForeground}
+              style={{ lineHeight: 1 }}
+            >
+              {projectName}
+            </Text>
+          </Box>
+        </Group>
+      </Box>
+
+      {/* Scrollable Menu Section */}
+      <Box
+        className="cad-header-scroll"
+        pr={16}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          flex: 1,
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          scrollbarWidth: 'thin',
+          scrollbarColor: `${theme.other.colors.border} transparent`,
+        }}
+      >
+        <Group gap={16} align="center" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <Divider orientation="vertical" h={24} />
 
           {/* File operations */}
-          <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-2 px-3 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                  onClick={onOpen}
-                >
-                  <FolderOpen className="h-4 w-4" />
-                  <span className="hidden text-xs sm:inline">Open</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Open Project</TooltipContent>
-            </Tooltip>
+          <Group gap={4} align="center" wrap="nowrap">
+          <Tooltip label="New Project" position="bottom">
+            <Button
+              variant="subtle"
+              size="sm"
+              onClick={onNew}
+              leftSection={<FilePlus size={16} weight="regular" />}
+              style={{ ...fileButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+              styles={headerLabelStyle}
+            >
+              <Box component="span" hiddenFrom="sm">
+                New
+              </Box>
+            </Button>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-2 px-3 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                  onClick={onSave}
-                >
-                  <Save className="h-4 w-4" />
-                  <span className="hidden text-xs sm:inline">Save</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Save Project</TooltipContent>
-            </Tooltip>
+          <Tooltip label="Open Project" position="bottom">
+            <Button
+              variant="subtle"
+              size="sm"
+              onClick={onOpen}
+              leftSection={<FolderOpen size={16} weight="regular" />}
+              style={{ ...fileButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+              styles={headerLabelStyle}
+            >
+              <Box component="span" hiddenFrom="sm">
+                Open
+              </Box>
+            </Button>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 gap-2 px-3 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                  onClick={onExport}
-                >
-                  <Download className="h-4 w-4" />
-                  <span className="hidden text-xs sm:inline">Export</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Export as JSON</TooltipContent>
-            </Tooltip>
-          </div>
+          <Tooltip label="Save Project" position="bottom">
+            <Button
+              variant="subtle"
+              size="sm"
+              onClick={onSave}
+              leftSection={<FloppyDisk size={16} weight="regular" />}
+              style={{ ...fileButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+              styles={headerLabelStyle}
+            >
+              <Box component="span" hiddenFrom="sm">
+                Save
+              </Box>
+            </Button>
+          </Tooltip>
 
-          <Separator orientation="vertical" className="h-6 bg-cad-divider" />
+          <Tooltip label="Export as JSON" position="bottom">
+            <Button
+              variant="subtle"
+              size="sm"
+              onClick={onExport}
+              leftSection={<DownloadSimple size={16} weight="regular" />}
+              style={{ ...fileButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+              styles={headerLabelStyle}
+            >
+              <Box component="span" hiddenFrom="sm">
+                Export
+              </Box>
+            </Button>
+          </Tooltip>
+          </Group>
+
+          <Divider orientation="vertical" h={24} />
 
           {/* View controls */}
-          <div className="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Undo</TooltipContent>
-            </Tooltip>
+          <Group gap={2} align="center" wrap="nowrap">
+          <Tooltip label="Undo" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <ArrowCounterClockwise size={16} weight="regular" />
+            </Button>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                >
-                  <RotateCw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Redo</TooltipContent>
-            </Tooltip>
+          <Tooltip label="Redo" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <ArrowClockwise size={16} weight="regular" />
+            </Button>
+          </Tooltip>
 
-            <div className="mx-1 h-4 w-px bg-cad-divider" />
+          <Divider orientation="vertical" h={16} mx={4} />
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Zoom Out</TooltipContent>
-            </Tooltip>
+          <Tooltip label="Zoom Out" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <MagnifyingGlassMinus size={16} weight="regular" />
+            </Button>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Zoom In</TooltipContent>
-            </Tooltip>
+          <Tooltip label="Zoom In" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <MagnifyingGlassPlus size={16} weight="regular" />
+            </Button>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                >
-                  <Maximize2 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Fit to View</TooltipContent>
-            </Tooltip>
+          <Tooltip label="Fit to View" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <FrameCorners size={16} weight="regular" />
+            </Button>
+          </Tooltip>
 
-            <div className="mx-1 h-4 w-px bg-cad-divider" />
+          <Divider orientation="vertical" h={16} mx={4} />
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                >
-                  <Grid3X3 className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Toggle Grid</TooltipContent>
-            </Tooltip>
+          <Tooltip label="Toggle Grid" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <GridFour size={16} weight="regular" />
+            </Button>
+          </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-cad-header-foreground hover:bg-secondary hover:text-foreground"
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">View Options</TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </TooltipProvider>
-    </header>
+          <Tooltip label="View Options" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <Eye size={16} weight="regular" />
+            </Button>
+          </Tooltip>
+          </Group>
+        </Group>
+      </Box>
+    </Box>
   );
 }

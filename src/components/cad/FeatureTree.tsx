@@ -1,13 +1,59 @@
-import { ChevronRight, ChevronDown, Plane, Crosshair, PenTool, Box } from 'lucide-react';
+import {
+  CaretRight,
+  CaretDown,
+  SidebarSimple,
+  Sidebar,
+  PencilSimple,
+  Trash,
+  Eye,
+  EyeClosed,
+  Perspective,
+  VectorThree,
+  DotsNine,
+  Cube,
+  Pen,
+  Warning
+} from '@phosphor-icons/react';
 import { FeatureTreeItem as TreeItemType } from '@/types/cad';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { Button, Stack, Box, ScrollArea, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
 
 interface FeatureTreeProps {
   items: TreeItemType[];
   selectedItem: string | null;
   onSelectItem: (id: string | null) => void;
   onToggleExpand: (id: string) => void;
+  onToggleVisibility?: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onHoverItem?: (id: string | null) => void;
+  isCompact?: boolean;
+  onToggleSidebar?: () => void;
+}
+
+
+function getItemIcon(item: TreeItemType, theme: any) {
+  const iconSize = 16;
+
+  if (item.type === 'reference-geometry') {
+    if (item.children) {
+      return <Perspective size={iconSize} weight="regular" color={theme.colors.cyan[5]} />;
+    }
+    const data = item.data as { type: string };
+    if (data?.type === 'origin') {
+      return <VectorThree size={iconSize} weight="regular" color={theme.other.colors.warning} />;
+    }
+    return <Perspective size={iconSize} weight="regular" color={theme.other.colors.info} />;
+  }
+
+  if (item.type === 'sketch') {
+    return <DotsNine size={iconSize} weight="regular" color={theme.colors.purple[5]} />;
+  }
+
+  if (item.type === 'feature') {
+    return <Cube size={iconSize} weight="regular" color={theme.other.colors.success} />;
+  }
+
+  return null;
 }
 
 interface TreeItemProps {
@@ -16,73 +62,202 @@ interface TreeItemProps {
   selectedItem: string | null;
   onSelectItem: (id: string | null) => void;
   onToggleExpand: (id: string) => void;
+  onToggleVisibility?: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onHoverItem?: (id: string | null) => void;
+  isCompact?: boolean;
 }
 
-function getItemIcon(item: TreeItemType) {
-  if (item.type === 'reference-geometry') {
-    if (item.children) {
-      return <Plane className="h-4 w-4 text-primary" />;
-    }
-    const data = item.data as { type: string };
-    if (data?.type === 'origin') {
-      return <Crosshair className="h-4 w-4 text-warning" />;
-    }
-    return <Plane className="h-4 w-4 text-info" />;
-  }
-  
-  if (item.type === 'sketch') {
-    return <PenTool className="h-4 w-4 text-accent" />;
-  }
-  
-  if (item.type === 'feature') {
-    return <Box className="h-4 w-4 text-success" />;
-  }
-  
-  return null;
-}
-
-function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand }: TreeItemProps) {
+function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, onHoverItem, isCompact }: TreeItemProps) {
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = item.isExpanded !== false;
   const isSelected = selectedItem === item.id;
+  const isVisible = item.visible !== false;
+  const theme = useMantineTheme();
+
+  // Don't allow editing/deleting reference geometry root
+  const canEdit = item.type !== 'reference-geometry' || !hasChildren;
+  const canDelete = item.type !== 'reference-geometry' || !hasChildren;
+
+  if (isCompact) {
+    // Compact mode: only show icon, no nesting
+    return (
+      <Tooltip label={item.name} position="right">
+        <ActionIcon
+          variant={isSelected ? 'light' : 'subtle'}
+          size="lg"
+          onClick={() => onSelectItem(item.id)}
+          style={{
+            width: '100%',
+            height: 40,
+            borderRadius: theme.radius.sm,
+            transition: 'all 150ms',
+            opacity: isVisible ? 1 : 0.4,
+          }}
+          styles={{
+            root: {
+              '--ai-bg': isSelected ? `${theme.colors.blue[5]}15` : undefined,
+              '--ai-bd': isSelected ? `1px solid ${theme.colors.blue[5]}33` : undefined,
+            },
+          }}
+        >
+          {getItemIcon(item, theme)}
+        </ActionIcon>
+      </Tooltip>
+    );
+  }
 
   return (
-    <div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn(
-          'h-8 w-full justify-start gap-1.5 rounded-md px-2 text-xs font-medium',
-          'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-          'transition-colors duration-150',
-          isSelected && 'bg-primary/15 text-primary ring-1 ring-primary/20 hover:bg-primary/20'
-        )}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
-        onClick={() => onSelectItem(item.id)}
+    <Box>
+      <Group
+        gap={0}
+        wrap="nowrap"
+        className="tree-item-row"
+        data-selected={isSelected}
+        style={{
+          height: 32,
+          paddingLeft: depth * 16 + 8,
+          paddingRight: 4,
+          backgroundColor: isSelected ? `${theme.colors.blue[5]}15` : 'transparent',
+          border: isSelected ? `1px solid ${theme.colors.blue[5]}33` : '1px solid transparent',
+          borderRadius: theme.radius.sm,
+          opacity: isVisible ? 1 : 0.5,
+        }}
+        onMouseEnter={() => onHoverItem?.(item.id)}
+        onMouseLeave={() => onHoverItem?.(null)}
       >
+        {/* Visibility Checkbox */}
+        <ActionIcon
+          variant="subtle"
+          size="xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleVisibility?.(item.id);
+          }}
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: theme.radius.xs,
+            flexShrink: 0,
+          }}
+        >
+          {isVisible ? (
+            <Eye size={14} weight="regular" color={theme.other.colors.mutedForeground} />
+          ) : (
+            <EyeClosed size={14} weight="regular" color={theme.other.colors.mutedForeground} />
+          )}
+        </ActionIcon>
+
+        {/* Expand/Collapse Button */}
         {hasChildren ? (
-          <button
-            className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-border transition-colors"
+          <ActionIcon
+            variant="subtle"
+            size="xs"
             onClick={(e) => {
               e.stopPropagation();
               onToggleExpand(item.id);
             }}
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: theme.radius.xs,
+              flexShrink: 0,
+            }}
           >
             {isExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              <CaretDown size={14} weight="regular" color={theme.other.colors.mutedForeground} />
             ) : (
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <CaretRight size={14} weight="regular" color={theme.other.colors.mutedForeground} />
             )}
-          </button>
+          </ActionIcon>
         ) : (
-          <span className="w-5" />
+          <Box style={{ width: 20, flexShrink: 0 }} />
         )}
-        {getItemIcon(item)}
-        <span className="truncate">{item.name}</span>
-      </Button>
+
+        {/* Icon and Name - Clickable Area */}
+        <Box
+          onClick={() => onSelectItem(item.id)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flex: 1,
+            minWidth: 0,
+            cursor: 'pointer',
+            paddingTop: 4,
+            paddingBottom: 4,
+          }}
+        >
+          {getItemIcon(item, theme)}
+          <Text
+            size="xs"
+            fw={500}
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: isVisible ? theme.other.colors.foreground : theme.other.colors.mutedForeground,
+            }}
+          >
+            {item.name}
+          </Text>
+        </Box>
+
+        {/* Warning icon for rebuild errors */}
+        {item.error && (
+          <Tooltip label={item.error} position="top" multiline maw={300}>
+            <Box style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+              <Warning size={14} weight="fill" color={theme.other.colors.warning} />
+            </Box>
+          </Tooltip>
+        )}
+
+        {/* Edit and Delete Buttons */}
+        <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
+          {canEdit && onEdit && (
+            <Tooltip label="Edit" position="top">
+              <ActionIcon
+                variant="subtle"
+                size="xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(item.id);
+                }}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: theme.radius.xs,
+                }}
+              >
+                <PencilSimple size={12} weight="regular" color={theme.other.colors.mutedForeground} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+          {canDelete && onDelete && (
+            <Tooltip label="Delete" position="top">
+              <ActionIcon
+                variant="subtle"
+                size="xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(item.id);
+                }}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: theme.radius.xs,
+                }}
+              >
+                <Trash size={12} weight="regular" color={theme.colors.red[5]} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      </Group>
 
       {hasChildren && isExpanded && (
-        <div>
+        <Box>
           {item.children!.map((child) => (
             <TreeItem
               key={child.id}
@@ -91,43 +266,169 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand }: T
               selectedItem={selectedItem}
               onSelectItem={onSelectItem}
               onToggleExpand={onToggleExpand}
+              onToggleVisibility={onToggleVisibility}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onHoverItem={onHoverItem}
+              isCompact={isCompact}
             />
           ))}
-        </div>
+        </Box>
       )}
-    </div>
+    </Box>
   );
 }
 
-export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand }: FeatureTreeProps) {
+
+export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, onHoverItem, isCompact, onToggleSidebar }: FeatureTreeProps) {
+  const theme = useMantineTheme();
+
+  if (isCompact) {
+    // Compact mode: icon-only sidebar showing only top-level items
+    return (
+      <Stack gap={0} style={{ height: '100%', width: 56 }}>
+        <Box
+          style={{
+            borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
+            padding: 12,
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          {onToggleSidebar && (
+            <Tooltip label="Expand Feature Tree" position="right">
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={onToggleSidebar}
+                style={{ color: theme.other.colors.mutedForeground }}
+              >
+                <Sidebar size={16} weight="regular" />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Box>
+        <ScrollArea
+          style={{
+            flex: 1,
+            padding: 8,
+          }}
+        >
+          <Stack gap={4}>
+            {items.map((item) => (
+              <TreeItem
+                key={item.id}
+                item={item}
+                depth={0}
+                selectedItem={selectedItem}
+                onSelectItem={onSelectItem}
+                onToggleExpand={onToggleExpand}
+                onToggleVisibility={onToggleVisibility}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onHoverItem={onHoverItem}
+                isCompact={true}
+              />
+            ))}
+          </Stack>
+        </ScrollArea>
+      </Stack>
+    );
+  }
+
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b border-sidebar-border px-4 py-3">
-        <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          Feature Tree
-        </h2>
-      </div>
-      <div className="flex-1 overflow-auto p-2 scrollbar-cad">
-        {items.map((item) => (
-          <TreeItem
-            key={item.id}
-            item={item}
-            depth={0}
-            selectedItem={selectedItem}
-            onSelectItem={onSelectItem}
-            onToggleExpand={onToggleExpand}
-          />
-        ))}
-        
-        {items.length <= 1 && (
-          <div className="mt-4 rounded-lg border border-dashed border-sidebar-border bg-sidebar-accent/30 px-4 py-6 text-center">
-            <PenTool className="mx-auto mb-2 h-6 w-6 text-muted-foreground/50" />
-            <p className="text-xs text-muted-foreground">
-              Create sketches and features to populate the tree
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+    <Stack gap={0} style={{ height: '100%' }}>
+      <Box
+        px={16}
+        py={12}
+        style={{
+          borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
+        }}
+      >
+        <Group gap={8} align="center" justify="space-between" wrap="nowrap">
+          <Text
+            size="xs"
+            fw={700}
+            tt="uppercase"
+            style={{
+              letterSpacing: '0.1em',
+              color: theme.other.colors.mutedForeground,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              flexShrink: 1,
+            }}
+          >
+            Feature Tree
+          </Text>
+          {onToggleSidebar && (
+            <Tooltip label="Collapse Feature Tree" position="right">
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                onClick={onToggleSidebar}
+                style={{ color: theme.other.colors.mutedForeground }}
+              >
+                <SidebarSimple size={16} weight="regular" />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      </Box>
+      <ScrollArea
+        style={{
+          flex: 1,
+          padding: 8,
+        }}
+      >
+        <Stack gap={2}>
+          {items.map((item) => (
+            <TreeItem
+              key={item.id}
+              item={item}
+              depth={0}
+              selectedItem={selectedItem}
+              onSelectItem={onSelectItem}
+              onToggleExpand={onToggleExpand}
+              onToggleVisibility={onToggleVisibility}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onHoverItem={onHoverItem}
+              isCompact={false}
+            />
+          ))}
+
+          {items.length <= 1 && (
+            <Box
+              style={{
+                marginTop: 16,
+                borderRadius: theme.radius.lg,
+                border: `1px dashed ${theme.other.colors.sidebarBorder}`,
+                backgroundColor: `${theme.other.colors.secondary}50`,
+                paddingLeft: 16,
+                paddingRight: 16,
+                paddingTop: 24,
+                paddingBottom: 24,
+                textAlign: 'center',
+              }}
+            >
+              <Pen
+                size={24}
+                style={{
+                  marginLeft: 'auto',
+                  marginRight: 'auto',
+                  marginBottom: 8,
+                  display: 'block',
+                  color: `${theme.other.colors.mutedForeground}80`,
+                }}
+              />
+              <Text size="xs" style={{ color: theme.other.colors.mutedForeground }}>
+                Create sketches and features to populate the tree
+              </Text>
+            </Box>
+          )}
+        </Stack>
+      </ScrollArea>
+    </Stack>
   );
 }

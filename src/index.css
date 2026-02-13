@@ -1,201 +1,95 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* CAD Studio Design System - Modern Dark Theme with Gradients
-   All colors are HSL for consistency
+/* OCCAD Design System - Modern Dark Theme
+   All colors are HSL for consistency and are now managed by Mantine theme
 */
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-    
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-    
-    --cad-toolbar: 220 15% 95%;
-    --cad-toolbar-foreground: 220 15% 20%;
-    --cad-active: 210 100% 50%;
-    --cad-active-foreground: 0 0% 100%;
-    --cad-canvas: 220 15% 90%;
-    --cad-grid: 220 10% 80%;
-    --cad-divider: 220 10% 85%;
-    --cad-header: 220 20% 20%;
-    --cad-header-foreground: 0 0% 95%;
-  }
-
-  .dark {
-    /* Deep space background */
-    --background: 230 25% 7%;
-    --foreground: 220 20% 95%;
-    
-    /* Elevated surfaces */
-    --card: 230 22% 11%;
-    --card-foreground: 220 20% 95%;
-    
-    /* Popover - floating elements */
-    --popover: 230 25% 10%;
-    --popover-foreground: 220 20% 95%;
-    
-    /* Primary - vibrant cyan-blue */
-    --primary: 200 100% 55%;
-    --primary-foreground: 230 25% 7%;
-    
-    /* Secondary - muted surface with better contrast */
-    --secondary: 230 20% 16%;
-    --secondary-foreground: 220 20% 90%;
-    
-    /* Muted - subtle backgrounds */
-    --muted: 230 18% 14%;
-    --muted-foreground: 220 15% 55%;
-    
-    /* Accent - purple highlight */
-    --accent: 270 80% 60%;
-    --accent-foreground: 0 0% 100%;
-    
-    /* Destructive - vivid red */
-    --destructive: 0 85% 60%;
-    --destructive-foreground: 0 0% 100%;
-    
-    /* Borders and inputs - more visible */
-    --border: 230 18% 22%;
-    --input: 230 18% 18%;
-    --ring: 200 100% 55%;
-    
-    /* Sidebar - feature tree area */
-    --sidebar-background: 230 25% 9%;
-    --sidebar-foreground: 220 20% 85%;
-    --sidebar-primary: 200 100% 55%;
-    --sidebar-primary-foreground: 230 25% 7%;
-    --sidebar-accent: 230 20% 15%;
-    --sidebar-accent-foreground: 220 20% 95%;
-    --sidebar-border: 230 18% 20%;
-    --sidebar-ring: 200 100% 55%;
-    
-    /* CAD-specific tokens */
-    --cad-toolbar: 230 22% 12%;
-    --cad-toolbar-foreground: 220 20% 80%;
-    --cad-active: 200 100% 55%;
-    --cad-active-foreground: 230 25% 7%;
-    --cad-canvas: 230 28% 5%;
-    --cad-grid: 230 20% 12%;
-    --cad-divider: 230 18% 25%;
-    --cad-header: 230 25% 8%;
-    --cad-header-foreground: 220 20% 95%;
-    
-    /* Gradient colors */
-    --gradient-start: 200 100% 55%;
-    --gradient-mid: 260 80% 55%;
-    --gradient-end: 320 80% 55%;
-    
-    /* Status colors */
-    --success: 150 80% 45%;
-    --warning: 40 95% 55%;
-    --info: 200 100% 55%;
-  }
+/* Global styles */
+* {
+  box-sizing: border-box;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-  
-  html {
-    @apply dark;
-  }
+html {
+  color-scheme: dark;
 }
 
-/* Gradient utilities */
-@layer utilities {
-  .gradient-border {
-    position: relative;
-  }
-  
-  .gradient-border::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      hsl(var(--gradient-start)) 0%,
-      hsl(var(--gradient-mid)) 50%,
-      hsl(var(--gradient-end)) 100%
-    );
-  }
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+  background-color: hsl(230, 25%, 7%);
+  color: hsl(220, 20%, 95%);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-  .gradient-text {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--gradient-start)) 0%,
-      hsl(var(--gradient-mid)) 50%,
-      hsl(var(--gradient-end)) 100%
-    );
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
+/* Spin animation for loading indicators */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
-  .gradient-bg {
-    background: linear-gradient(
-      135deg,
-      hsl(var(--gradient-start)) 0%,
-      hsl(var(--gradient-mid)) 50%,
-      hsl(var(--gradient-end)) 100%
-    );
-  }
+/* Header scrollable area scrollbar */
+.cad-header-scroll {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: hsl(230, 18%, 22%) transparent;
+}
+.cad-header-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.cad-header-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cad-header-scroll::-webkit-scrollbar-thumb {
+  background: hsl(230, 18%, 22%);
+  border-radius: 2px;
+}
+.cad-header-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(220, 15%, 55%);
+}
 
-  .scrollbar-cad {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--border)) transparent;
-  }
-  
-  .scrollbar-cad::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  
-  .scrollbar-cad::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  
-  .scrollbar-cad::-webkit-scrollbar-thumb {
-    background-color: hsl(var(--border));
-    border-radius: 3px;
-  }
-  
-  .scrollbar-cad::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--muted-foreground));
-  }
+/* ===== Global Hover Styles ===== */
+
+/* Button: subtle variant - orange text on hover */
+.mantine-Button-root[data-variant="subtle"]:hover:not(:disabled):not([data-loading]) {
+  color: #ff8533 !important;
+}
+
+/* Button: outline variant - orange text + border on hover */
+.mantine-Button-root[data-variant="outline"]:hover:not(:disabled):not([data-loading]) {
+  color: #ff8533 !important;
+  --button-bd: 1px solid #ff853380 !important;
+}
+
+/* Button: light variant - blue border on hover */
+.mantine-Button-root[data-variant="light"]:hover:not(:disabled):not([data-loading]) {
+  --button-bd: 1px solid #0dc2ff40 !important;
+}
+
+/* Tabs: inactive tab - orange hover */
+.mantine-Tabs-tab:hover:not([data-active]) {
+  background-color: #ff853315 !important;
+  color: #ff8533 !important;
+}
+
+/* Tabs: active tab - blue hover */
+.mantine-Tabs-tab[data-active]:hover {
+  background-color: #0dc2ff20 !important;
+  color: #0dc2ff !important;
+}
+
+/* Feature tree item row hover */
+.tree-item-row {
+  transition: all 150ms;
+}
+.tree-item-row:hover {
+  background-color: rgba(255, 133, 51, 0.125);
+  border-color: rgba(255, 133, 51, 0.19);
+}
+.tree-item-row[data-selected="true"] {
+  background-color: rgba(13, 194, 255, 0.08);
+  border: 1px solid rgba(13, 194, 255, 0.2);
+}
+.tree-item-row[data-selected="true"]:hover {
+  background-color: rgba(13, 194, 255, 0.125);
+  border-color: rgba(13, 194, 255, 0.2);
 }
