@@ -17,6 +17,7 @@ import {
 import { FeatureTreeItem as TreeItemType } from '@/types/cad';
 import { Button, Stack, Box, ScrollArea, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
 import { useState } from 'react';
+import { useViewportStore } from '@/stores/viewportStore';
 
 interface FeatureTreeProps {
   items: TreeItemType[];
@@ -26,7 +27,6 @@ interface FeatureTreeProps {
   onToggleVisibility?: (id: string) => void;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
-  onHoverItem?: (id: string | null) => void;
   isCompact?: boolean;
   onToggleSidebar?: () => void;
 }
@@ -66,11 +66,11 @@ interface TreeItemProps {
   onToggleVisibility?: (id: string) => void;
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
-  onHoverItem?: (id: string | null) => void;
   isCompact?: boolean;
 }
 
-function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, onHoverItem, isCompact }: TreeItemProps) {
+function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact }: TreeItemProps) {
+  const setHoveredTreeItem = useViewportStore((state) => state.setHoveredTreeItem);
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = item.isExpanded !== false;
   const isSelected = selectedItem === item.id;
@@ -137,11 +137,11 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
         }}
         onMouseEnter={() => {
           setIsHovered(true);
-          onHoverItem?.(item.id);
+          setHoveredTreeItem(item.id);
         }}
         onMouseLeave={() => {
           setIsHovered(false);
-          onHoverItem?.(null);
+          setHoveredTreeItem(null);
         }}
       >
         {/* Visibility Checkbox */}
@@ -287,7 +287,6 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
               onToggleVisibility={onToggleVisibility}
               onEdit={onEdit}
               onDelete={onDelete}
-              onHoverItem={onHoverItem}
               isCompact={isCompact}
             />
           ))}
@@ -298,7 +297,7 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
 }
 
 
-export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, onHoverItem, isCompact, onToggleSidebar }: FeatureTreeProps) {
+export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onToggleSidebar }: FeatureTreeProps) {
   const theme = useMantineTheme();
 
   if (isCompact) {
@@ -344,7 +343,6 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
                 onToggleVisibility={onToggleVisibility}
                 onEdit={onEdit}
                 onDelete={onDelete}
-                onHoverItem={onHoverItem}
                 isCompact={true}
               />
             ))}
@@ -411,7 +409,6 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
               onToggleVisibility={onToggleVisibility}
               onEdit={onEdit}
               onDelete={onDelete}
-              onHoverItem={onHoverItem}
               isCompact={false}
             />
           ))}

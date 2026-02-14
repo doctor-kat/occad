@@ -8,6 +8,7 @@ import { CircleNotch, Check, X, Circle, Minus, NavigationArrow, Dot } from "@pho
 import type { CADProject, Sketch, SketchTool, SketchEdgeData } from "@/types/cad";
 import { SketchOverlay } from "./SketchOverlay";
 import { Button, Box, Stack, Text, Group, Center, Paper, useMantineTheme } from "@mantine/core";
+import { useViewportStore } from "@/stores/viewportStore";
 
 // ---------------------------------------------------------------------------
 // Mesh component — converts raw OCC tessellation buffers into Three geometry
@@ -17,17 +18,17 @@ interface OCCModelProps {
   selectedFaceId?: number | null;
   selectedEdgeIndex?: number | null;
   selectedVertexIndex?: number | null;
-  hoveredFaceId?: number | null;
-  hoveredEdgeIndex?: number | null;
   inSketchMode?: boolean;
   onFaceClick?: (faceId: number) => void;
   onEdgeClick?: (edgeIndex: number) => void;
   onVertexClick?: (vertexIndex: number) => void;
-  onFaceHover?: (faceId: number | null) => void;
-  onEdgeHover?: (edgeIndex: number | null) => void;
 }
 
-function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex, hoveredFaceId, hoveredEdgeIndex, inSketchMode = false, onFaceClick, onEdgeClick, onVertexClick, onFaceHover, onEdgeHover }: OCCModelProps) {
+function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex, inSketchMode = false, onFaceClick, onEdgeClick, onVertexClick }: OCCModelProps) {
+  const hoveredFaceId = useViewportStore((state) => state.hoveredFaceId);
+  const hoveredEdgeIndex = useViewportStore((state) => state.hoveredEdgeIndex);
+  const setHoveredFaceId = useViewportStore((state) => state.setHoveredFaceId);
+  const setHoveredEdgeIndex = useViewportStore((state) => state.setHoveredEdgeIndex);
   const faceRef = useRef<THREE.Mesh>(null);
   const edgeRef = useRef<THREE.LineSegments>(null);
   const highlightRef = useRef<THREE.Mesh>(null);
@@ -145,16 +146,16 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
       const triangleIndex = intersects[0].faceIndex;
       const cadFaceId = mesh.faceMapping[triangleIndex];
       setHoveredCADFaceId(cadFaceId);
-      onFaceHover?.(cadFaceId);
+      setHoveredFaceId(cadFaceId);
     } else {
       setHoveredCADFaceId(null);
-      onFaceHover?.(null);
+      setHoveredFaceId(null);
     }
   };
 
   const handlePointerLeave = () => {
     setHoveredCADFaceId(null);
-    onFaceHover?.(null);
+    setHoveredFaceId(null);
   };
 
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
@@ -221,6 +222,7 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
     if (event.index !== undefined) {
       const edgeIndex = Math.floor(event.index / 2); // Each edge has 2 vertices
       setInternalHoveredEdgeIndex(edgeIndex);
+      setHoveredEdgeIndex(edgeIndex);
     } else {
       // Fallback: try to detect which edge segment was hit
       const point = event.point;
@@ -246,6 +248,7 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
 
         if (closestEdge >= 0) {
           setInternalHoveredEdgeIndex(closestEdge);
+          setHoveredEdgeIndex(closestEdge);
         }
       }
     }
@@ -253,6 +256,7 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
 
   const handleEdgePointerLeave = () => {
     setInternalHoveredEdgeIndex(null);
+    setHoveredEdgeIndex(null);
   };
 
   const handleEdgeClick = (event: ThreeEvent<MouseEvent>) => {
@@ -755,12 +759,9 @@ interface SceneProps {
   project?: CADProject;
   sketchEdges?: Record<string, SketchEdgeData> | null;
   selectedPlaneId: string | null;
-  hoveredPlaneId?: string | null;
   selectedFaceId?: number | null;
   selectedEdgeIndex?: number | null;
   selectedVertexIndex?: number | null;
-  hoveredFaceId?: number | null;
-  hoveredEdgeIndex?: number | null;
   activeSketch?: Sketch | null;
   activeTool?: SketchTool | null;
   activeConstraint?: string;
@@ -768,8 +769,6 @@ interface SceneProps {
   onFaceClick?: (faceId: number) => void;
   onEdgeClick?: (edgeIndex: number) => void;
   onVertexClick?: (vertexIndex: number) => void;
-  onFaceHover?: (faceId: number | null) => void;
-  onEdgeHover?: (edgeIndex: number | null) => void;
   onBackgroundClick?: () => void;
   onUpdateSketch?: (sketchId: string, elements: any[]) => void;
 }
@@ -779,12 +778,9 @@ function Scene({
   project,
   sketchEdges,
   selectedPlaneId,
-  hoveredPlaneId,
   selectedFaceId,
   selectedEdgeIndex,
   selectedVertexIndex,
-  hoveredFaceId,
-  hoveredEdgeIndex,
   activeSketch,
   activeTool,
   activeConstraint,
@@ -792,11 +788,11 @@ function Scene({
   onFaceClick,
   onEdgeClick,
   onVertexClick,
-  onFaceHover,
-  onEdgeHover,
   onBackgroundClick,
   onUpdateSketch
 }: SceneProps) {
+  const hoveredTreeItem = useViewportStore((state) => state.hoveredTreeItem);
+  const hoveredPlaneId = hoveredTreeItem;
   const inSketchMode = !!activeSketch;
 
   // Build visibility map from project reference geometry
@@ -842,14 +838,10 @@ function Scene({
           selectedFaceId={selectedFaceId}
           selectedEdgeIndex={selectedEdgeIndex}
           selectedVertexIndex={selectedVertexIndex}
-          hoveredFaceId={hoveredFaceId}
-          hoveredEdgeIndex={hoveredEdgeIndex}
           inSketchMode={inSketchMode}
           onFaceClick={onFaceClick}
           onEdgeClick={onEdgeClick}
           onVertexClick={onVertexClick}
-          onFaceHover={onFaceHover}
-          onEdgeHover={onEdgeHover}
         />
       )}
 
@@ -954,13 +946,13 @@ function ErrorOverlay({ error, onRetry }: { error: string; onRetry: () => void }
 // ---------------------------------------------------------------------------
 interface SelectionDisplayProps {
   selectedTreeItem?: string | null;
-  selectedFaceId?: number | null;
-  selectedEdgeIndex?: number | null;
-  selectedVertexIndex?: number | null;
   project?: CADProject;
 }
 
-function SelectionDisplay({ selectedTreeItem, selectedFaceId, selectedEdgeIndex, selectedVertexIndex, project }: SelectionDisplayProps) {
+function SelectionDisplay({ selectedTreeItem, project }: SelectionDisplayProps) {
+  const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
+  const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
+  const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
   let displayText = "Nothing selected";
 
   if (selectedTreeItem && project) {
@@ -1022,18 +1014,6 @@ interface OpenCascadeViewportProps {
   project?: CADProject;
   /** Currently selected tree item ID */
   selectedTreeItem?: string | null;
-  /** Currently hovered tree item ID */
-  hoveredTreeItem?: string | null;
-  /** Currently selected face ID */
-  selectedFaceId?: number | null;
-  /** Currently selected edge index */
-  selectedEdgeIndex?: number | null;
-  /** Currently selected vertex index */
-  selectedVertexIndex?: number | null;
-  /** Currently hovered face ID (from external source like EntitiesPanel) */
-  hoveredFaceId?: number | null;
-  /** Currently hovered edge index (from external source like EntitiesPanel) */
-  hoveredEdgeIndex?: number | null;
   /** OpenCascade worker status */
   occStatus: OCCStatus;
   /** OpenCascade progress message */
@@ -1058,10 +1038,6 @@ interface OpenCascadeViewportProps {
   onEdgeClick?: (edgeIndex: number) => void;
   /** Callback when a vertex is clicked */
   onVertexClick?: (vertexIndex: number) => void;
-  /** Callback when a face is hovered */
-  onFaceHover?: (faceId: number | null) => void;
-  /** Callback when an edge is hovered */
-  onEdgeHover?: (edgeIndex: number | null) => void;
   /** Callback when background is clicked (clear selection) */
   onBackgroundClick?: () => void;
   /** Callback when sketch is updated */
@@ -1075,12 +1051,6 @@ interface OpenCascadeViewportProps {
 export function OpenCascadeViewport({
   project,
   selectedTreeItem,
-  hoveredTreeItem,
-  selectedFaceId,
-  selectedEdgeIndex,
-  selectedVertexIndex,
-  hoveredFaceId,
-  hoveredEdgeIndex,
   occStatus,
   occProgress,
   occError,
@@ -1093,13 +1063,15 @@ export function OpenCascadeViewport({
   onFaceClick,
   onEdgeClick,
   onVertexClick,
-  onFaceHover,
-  onEdgeHover,
   onBackgroundClick,
   onUpdateSketch,
   onFinishSketch,
   onCancelSketch
 }: OpenCascadeViewportProps) {
+  // Get viewport interaction state from store
+  const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
+  const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
+  const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
   // Sketch constraints state
   type ConstraintType = 'none' | 'point' | 'edge' | 'midpoint' | 'center';
   const [activeConstraint, setActiveConstraint] = useState<ConstraintType>('none');
@@ -1134,12 +1106,9 @@ export function OpenCascadeViewport({
             project={project}
             sketchEdges={occSketchEdges}
             selectedPlaneId={selectedTreeItem || null}
-            hoveredPlaneId={hoveredTreeItem || null}
             selectedFaceId={selectedFaceId}
             selectedEdgeIndex={selectedEdgeIndex}
             selectedVertexIndex={selectedVertexIndex}
-            hoveredFaceId={hoveredFaceId}
-            hoveredEdgeIndex={hoveredEdgeIndex}
             activeSketch={activeSketch as Sketch | undefined}
             activeTool={activeTool as SketchTool | undefined}
             activeConstraint={activeConstraint}
@@ -1147,8 +1116,6 @@ export function OpenCascadeViewport({
             onFaceClick={onFaceClick}
             onEdgeClick={onEdgeClick}
             onVertexClick={onVertexClick}
-            onFaceHover={onFaceHover}
-            onEdgeHover={onEdgeHover}
             onBackgroundClick={onBackgroundClick}
             onUpdateSketch={onUpdateSketch}
           />
@@ -1279,9 +1246,6 @@ export function OpenCascadeViewport({
       {/* Selection Display */}
       <SelectionDisplay
         selectedTreeItem={selectedTreeItem}
-        selectedFaceId={selectedFaceId}
-        selectedEdgeIndex={selectedEdgeIndex}
-        selectedVertexIndex={selectedVertexIndex}
         project={project}
       />
 

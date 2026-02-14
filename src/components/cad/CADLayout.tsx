@@ -7,6 +7,7 @@ import { ExtrudeDialog } from './ExtrudeDialog';
 import { EntitiesPanel } from './EntitiesPanel';
 import { useCADState } from '@/hooks/useCADState';
 import { useOpenCascade } from '@/hooks/useOpenCascade';
+import { useViewportStore } from '@/stores/viewportStore';
 import { AppShell, Box, useMantineTheme } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -60,20 +61,15 @@ export function CADLayout() {
     clearAllItemErrors,
   } = useCADState();
 
-  // Track selected geometry (separate from tree selection)
-  const [selectedFaceId, setSelectedFaceId] = useState<number | null>(null);
-  const [selectedEdgeIndex, setSelectedEdgeIndex] = useState<number | null>(null);
-  const [selectedVertexIndex, setSelectedVertexIndex] = useState<number | null>(null);
-
-  // Track hovered tree item for plane visibility
-  const [hoveredTreeItem, setHoveredTreeItem] = useState<string | null>(null);
-
-  // Track hovered geometry
-  const [hoveredFaceId, setHoveredFaceId] = useState<number | null>(null);
-  const [hoveredEdgeIndex, setHoveredEdgeIndex] = useState<number | null>(null);
-
-  // Track pending face geometry request for sketch creation
-  const [pendingSketchOnFace, setPendingSketchOnFace] = useState<number | null>(null);
+  // Viewport interaction state (from Zustand store)
+  const pendingSketchOnFace = useViewportStore((state) => state.pendingSketchOnFace);
+  const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
+  const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
+  const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
+  const setPendingSketchOnFace = useViewportStore((state) => state.setPendingSketchOnFace);
+  const setSelectedFaceId = useViewportStore((state) => state.setSelectedFaceId);
+  const setSelectedEdgeIndex = useViewportStore((state) => state.setSelectedEdgeIndex);
+  const setSelectedVertexIndex = useViewportStore((state) => state.setSelectedVertexIndex);
 
   // Single consolidated OpenCascade worker instance — shared by layout & viewport
   const {
@@ -506,7 +502,6 @@ export function CADLayout() {
           onToggleVisibility={toggleTreeItemVisibility}
           onEdit={editTreeItem}
           onDelete={deleteTreeItem}
-          onHoverItem={setHoveredTreeItem}
           isCompact={!isSidebarOpen}
           onToggleSidebar={toggleSidebar}
         />
@@ -527,12 +522,6 @@ export function CADLayout() {
             activeSketchId={activeSketchId}
             activeTool={activeTool as SketchTool}
             selectedTreeItem={selectedTreeItem}
-            hoveredTreeItem={hoveredTreeItem}
-            selectedFaceId={selectedFaceId}
-            selectedEdgeIndex={selectedEdgeIndex}
-            selectedVertexIndex={selectedVertexIndex}
-            hoveredFaceId={hoveredFaceId}
-            hoveredEdgeIndex={hoveredEdgeIndex}
             occStatus={occStatus}
             occProgress={occProgress}
             occError={occError}
@@ -551,22 +540,14 @@ export function CADLayout() {
             onFaceClick={handleFaceClick}
             onEdgeClick={handleEdgeClick}
             onVertexClick={handleVertexClick}
-            onFaceHover={setHoveredFaceId}
-            onEdgeHover={setHoveredEdgeIndex}
             onBackgroundClick={handleBackgroundClick}
           />
 
           {/* Entities Panel */}
           <EntitiesPanel
             mesh={occMesh}
-            selectedFaceId={selectedFaceId}
-            selectedEdgeIndex={selectedEdgeIndex}
-            hoveredFaceId={hoveredFaceId}
-            hoveredEdgeIndex={hoveredEdgeIndex}
             onFaceClick={handleFaceClick}
             onEdgeClick={handleEdgeClick}
-            onFaceHover={setHoveredFaceId}
-            onEdgeHover={setHoveredEdgeIndex}
           />
         </Box>
       </AppShell.Main>

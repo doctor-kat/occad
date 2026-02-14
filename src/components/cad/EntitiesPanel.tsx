@@ -2,30 +2,25 @@ import { Stack, Text, Box, ScrollArea, useMantineTheme, Group, ActionIcon, Badge
 import { CaretRight, CaretDown, Polygon, LineSegment } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { MeshData } from '@/hooks/useOpenCascade';
+import { useViewportStore } from '@/stores/viewportStore';
 
 interface EntitiesPanelProps {
   mesh: MeshData | null;
-  selectedFaceId?: number | null;
-  selectedEdgeIndex?: number | null;
-  hoveredFaceId?: number | null;
-  hoveredEdgeIndex?: number | null;
   onFaceClick?: (faceId: number) => void;
   onEdgeClick?: (edgeIndex: number) => void;
-  onFaceHover?: (faceId: number | null) => void;
-  onEdgeHover?: (edgeIndex: number | null) => void;
 }
 
 export function EntitiesPanel({
   mesh,
-  selectedFaceId,
-  selectedEdgeIndex,
-  hoveredFaceId,
-  hoveredEdgeIndex,
   onFaceClick,
   onEdgeClick,
-  onFaceHover,
-  onEdgeHover,
 }: EntitiesPanelProps) {
+  const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
+  const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
+  const hoveredFaceId = useViewportStore((state) => state.hoveredFaceId);
+  const hoveredEdgeIndex = useViewportStore((state) => state.hoveredEdgeIndex);
+  const setHoveredFaceId = useViewportStore((state) => state.setHoveredFaceId);
+  const setHoveredEdgeIndex = useViewportStore((state) => state.setHoveredEdgeIndex);
   const theme = useMantineTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [facesExpanded, setFacesExpanded] = useState(true);
@@ -190,8 +185,8 @@ export function EntitiesPanel({
                         transition: 'all 150ms',
                       }}
                       onClick={() => onFaceClick?.(i)}
-                      onMouseEnter={() => onFaceHover?.(i)}
-                      onMouseLeave={() => onFaceHover?.(null)}
+                      onMouseEnter={() => setHoveredFaceId(i)}
+                      onMouseLeave={() => setHoveredFaceId(null)}
                     >
                       <Polygon size={16} weight="regular" color={theme.colors.cyan[5]} />
                       <Text
@@ -292,8 +287,8 @@ export function EntitiesPanel({
                         transition: 'all 150ms',
                       }}
                       onClick={() => onEdgeClick?.(i)}
-                      onMouseEnter={() => onEdgeHover?.(i)}
-                      onMouseLeave={() => onEdgeHover?.(null)}
+                      onMouseEnter={() => setHoveredEdgeIndex(i)}
+                      onMouseLeave={() => setHoveredEdgeIndex(null)}
                     >
                       <LineSegment size={16} weight="regular" color={theme.colors.purple[5]} />
                       <Text
