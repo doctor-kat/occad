@@ -531,6 +531,8 @@ export function CADLayout() {
             selectedFaceId={selectedFaceId}
             selectedEdgeIndex={selectedEdgeIndex}
             selectedVertexIndex={selectedVertexIndex}
+            hoveredFaceId={hoveredFaceId}
+            hoveredEdgeIndex={hoveredEdgeIndex}
             occStatus={occStatus}
             occProgress={occProgress}
             occError={occError}

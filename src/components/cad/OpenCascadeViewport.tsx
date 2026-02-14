@@ -17,22 +17,33 @@ interface OCCModelProps {
   selectedFaceId?: number | null;
   selectedEdgeIndex?: number | null;
   selectedVertexIndex?: number | null;
+  hoveredFaceId?: number | null;
+  hoveredEdgeIndex?: number | null;
   inSketchMode?: boolean;
   onFaceClick?: (faceId: number) => void;
   onEdgeClick?: (edgeIndex: number) => void;
   onVertexClick?: (vertexIndex: number) => void;
+  onFaceHover?: (faceId: number | null) => void;
+  onEdgeHover?: (edgeIndex: number | null) => void;
 }
 
-function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex, inSketchMode = false, onFaceClick, onEdgeClick, onVertexClick }: OCCModelProps) {
+function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex, hoveredFaceId, hoveredEdgeIndex, inSketchMode = false, onFaceClick, onEdgeClick, onVertexClick, onFaceHover, onEdgeHover }: OCCModelProps) {
   const faceRef = useRef<THREE.Mesh>(null);
   const edgeRef = useRef<THREE.LineSegments>(null);
   const highlightRef = useRef<THREE.Mesh>(null);
   const selectedHighlightRef = useRef<THREE.Mesh>(null);
   const vertexRef = useRef<THREE.Points>(null);
   const [hoveredCADFaceId, setHoveredCADFaceId] = useState<number | null>(null);
+  const [internalHoveredEdgeIndex, setInternalHoveredEdgeIndex] = useState<number | null>(null);
+  const [hoveredVertexIndex, setHoveredVertexIndex] = useState<number | null>(null);
   const { raycaster, camera } = useThree();
 
+  // Combine external hover (from menu) with internal hover (from pointer events)
+  const effectiveHoveredFaceId = hoveredFaceId ?? hoveredCADFaceId;
+  const effectiveHoveredEdgeIndex = hoveredEdgeIndex ?? internalHoveredEdgeIndex;
+
   // Disable raycasting on the model when in sketch mode
+  // Also set raycasting threshold for edges and vertices
   useEffect(() => {
     const meshes = [faceRef.current, edgeRef.current, highlightRef.current, selectedHighlightRef.current, vertexRef.current];
 
@@ -46,7 +57,18 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
         }
       }
     });
-  }, [inSketchMode]);
+
+    // Set raycasting threshold for edges (makes them easier to hover)
+    if (edgeRef.current && !inSketchMode) {
+      // Increase the threshold for line raycasting to make edges easier to select
+      (edgeRef.current as any).computeLineDistances?.();
+    }
+
+    // Set raycasting threshold for vertices (makes them easier to hover)
+    if (vertexRef.current && !inSketchMode) {
+      // Points already have reasonable raycasting
+    }
+  }, [inSketchMode, mesh.edgeVertices]);
 
   const faceGeometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
@@ -64,7 +86,7 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
 
   // Create highlight geometry for all triangles belonging to the hovered CAD face
   const highlightGeometry = useMemo(() => {
-    if (hoveredCADFaceId === null || !faceGeometry.index || !mesh.faceMapping) return null;
+    if (effectiveHoveredFaceId === null || !faceGeometry.index || !mesh.faceMapping) return null;
 
     const geo = new THREE.BufferGeometry();
     const positions = faceGeometry.attributes.position;
@@ -79,7 +101,7 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
     let vertexCount = 0;
 
     for (let triIdx = 0; triIdx < faceMapping.length; triIdx++) {
-      if (faceMapping[triIdx] === hoveredCADFaceId) {
+      if (faceMapping[triIdx] === effectiveHoveredFaceId) {
         // This triangle belongs to the hovered face
         const i0 = indices.getX(triIdx * 3);
         const i1 = indices.getX(triIdx * 3 + 1);
@@ -112,7 +134,7 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
     geo.setIndex(highlightIndices);
 
     return geo;
-  }, [hoveredCADFaceId, faceGeometry, mesh.faceMapping]);
+  }, [effectiveHoveredFaceId, faceGeometry, mesh.faceMapping]);
 
   const handlePointerMove = (event: any) => {
     if (!faceRef.current || !mesh.faceMapping) return;
@@ -123,13 +145,16 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
       const triangleIndex = intersects[0].faceIndex;
       const cadFaceId = mesh.faceMapping[triangleIndex];
       setHoveredCADFaceId(cadFaceId);
+      onFaceHover?.(cadFaceId);
     } else {
       setHoveredCADFaceId(null);
+      onFaceHover?.(null);
     }
   };
 
   const handlePointerLeave = () => {
     setHoveredCADFaceId(null);
+    onFaceHover?.(null);
   };
 
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
@@ -192,6 +217,44 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
     return geo;
   }, [selectedFaceId, faceGeometry, mesh.faceMapping]);
 
+  const handleEdgePointerMove = (event: ThreeEvent<PointerEvent>) => {
+    if (event.index !== undefined) {
+      const edgeIndex = Math.floor(event.index / 2); // Each edge has 2 vertices
+      setInternalHoveredEdgeIndex(edgeIndex);
+    } else {
+      // Fallback: try to detect which edge segment was hit
+      const point = event.point;
+      if (point && edgeRef.current) {
+        // Find closest edge to the hit point
+        const positions = mesh.edgeVertices;
+        let closestEdge = -1;
+        let minDist = Infinity;
+
+        for (let i = 0; i < positions.length / 6; i++) {
+          const p1 = new THREE.Vector3(positions[i * 6], positions[i * 6 + 1], positions[i * 6 + 2]);
+          const p2 = new THREE.Vector3(positions[i * 6 + 3], positions[i * 6 + 4], positions[i * 6 + 5]);
+          const line = new THREE.Line3(p1, p2);
+          const closestPoint = new THREE.Vector3();
+          line.closestPointToPoint(point, true, closestPoint);
+          const dist = point.distanceTo(closestPoint);
+
+          if (dist < minDist && dist < 2) { // Within 2 units
+            minDist = dist;
+            closestEdge = i;
+          }
+        }
+
+        if (closestEdge >= 0) {
+          setInternalHoveredEdgeIndex(closestEdge);
+        }
+      }
+    }
+  };
+
+  const handleEdgePointerLeave = () => {
+    setInternalHoveredEdgeIndex(null);
+  };
+
   const handleEdgeClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation();
     // For edges, we'll use the point index as the edge identifier
@@ -199,6 +262,16 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
       const edgeIndex = Math.floor(event.index / 2); // Each edge has 2 vertices
       onEdgeClick?.(edgeIndex);
     }
+  };
+
+  const handleVertexPointerMove = (event: ThreeEvent<PointerEvent>) => {
+    if (event.index !== undefined) {
+      setHoveredVertexIndex(event.index);
+    }
+  };
+
+  const handleVertexPointerLeave = () => {
+    setHoveredVertexIndex(null);
   };
 
   const handleVertexClick = (event: ThreeEvent<MouseEvent>) => {
@@ -254,7 +327,7 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
       )}
 
       {/* Hovered face highlight (subtle) - only show if not the selected face */}
-      {highlightGeometry && hoveredCADFaceId !== selectedFaceId && (
+      {highlightGeometry && effectiveHoveredFaceId !== selectedFaceId && (
         <mesh ref={highlightRef} geometry={highlightGeometry}>
           <meshBasicMaterial
             color="orange"
@@ -267,21 +340,130 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
         </mesh>
       )}
 
-      {/* Edge wireframe - clickable */}
-      <lineSegments ref={edgeRef} geometry={edgeGeometry} onClick={inSketchMode ? undefined : handleEdgeClick}>
-        <lineBasicMaterial
-          color={selectedEdgeIndex !== null && selectedEdgeIndex !== undefined ? "#22c55e" : "#1a1a2e"}
-          linewidth={selectedEdgeIndex !== null && selectedEdgeIndex !== undefined ? 3 : 1}
-          transparent
-          opacity={selectedEdgeIndex !== null && selectedEdgeIndex !== undefined ? 1 : 0.55}
-        />
-      </lineSegments>
+      {/* Edge wireframe - render each edge separately for independent coloring */}
+      {Array.from({ length: Math.floor(mesh.edgeVertices.length / 6) }).map((_, i) => {
+        const isSelected = selectedEdgeIndex === i;
+        const isHovered = effectiveHoveredEdgeIndex === i;
+
+        const segmentGeometry = useMemo(() => {
+          const geo = new THREE.BufferGeometry();
+          const vertices = new Float32Array([
+            mesh.edgeVertices[i * 6],
+            mesh.edgeVertices[i * 6 + 1],
+            mesh.edgeVertices[i * 6 + 2],
+            mesh.edgeVertices[i * 6 + 3],
+            mesh.edgeVertices[i * 6 + 4],
+            mesh.edgeVertices[i * 6 + 5],
+          ]);
+          geo.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
+          return geo;
+        }, [i]);
+
+        return (
+          <lineSegments key={i} geometry={segmentGeometry}>
+            <lineBasicMaterial
+              color={
+                isSelected
+                  ? "#3b82f6" // Blue when selected
+                  : isHovered
+                    ? "#f97316" // Orange when hovered
+                    : "#1a1a2e" // Dark when normal
+              }
+              linewidth={isSelected ? 3 : isHovered ? 2 : 1}
+              transparent
+              opacity={isSelected ? 1 : isHovered ? 0.85 : 0.55}
+            />
+          </lineSegments>
+        );
+      })}
+
+      {/* Cylinders for edge hover detection and hover highlight */}
+      {!inSketchMode && Array.from({ length: Math.floor(mesh.edgeVertices.length / 6) }).map((_, i) => {
+        const isSelected = selectedEdgeIndex === i;
+        const isHovered = effectiveHoveredEdgeIndex === i;
+
+        const p1 = new THREE.Vector3(
+          mesh.edgeVertices[i * 6],
+          mesh.edgeVertices[i * 6 + 1],
+          mesh.edgeVertices[i * 6 + 2]
+        );
+        const p2 = new THREE.Vector3(
+          mesh.edgeVertices[i * 6 + 3],
+          mesh.edgeVertices[i * 6 + 4],
+          mesh.edgeVertices[i * 6 + 5]
+        );
+        const direction = new THREE.Vector3().subVectors(p2, p1);
+        const length = direction.length();
+        const center = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+
+        // Calculate rotation to align cylinder with edge direction
+        const orientation = new THREE.Matrix4();
+        orientation.lookAt(p1, p2, new THREE.Object3D().up);
+        orientation.multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+        const quaternion = new THREE.Quaternion().setFromRotationMatrix(orientation);
+
+        return (
+          <mesh
+            key={i}
+            position={center}
+            quaternion={quaternion}
+            renderOrder={1}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdgeClick?.(i);
+            }}
+            onPointerOver={(e) => {
+              e.stopPropagation();
+              setInternalHoveredEdgeIndex(i);
+              onEdgeHover?.(i);
+            }}
+            onPointerOut={(e) => {
+              e.stopPropagation();
+              setInternalHoveredEdgeIndex(null);
+              onEdgeHover?.(null);
+            }}
+          >
+            <cylinderGeometry args={[
+              isSelected ? 0.25 : isHovered ? 0.2 : 1.0,
+              isSelected ? 0.25 : isHovered ? 0.2 : 1.0,
+              length,
+              8
+            ]} />
+            <meshBasicMaterial
+              visible={isSelected || isHovered}
+              color={isSelected ? "#3b82f6" : "#f97316"}
+              transparent
+              opacity={isSelected ? 0.8 : 0.6}
+              depthTest={true}
+              depthWrite={false}
+            />
+          </mesh>
+        );
+      })}
 
       {/* Vertices as clickable points */}
-      <points ref={vertexRef} geometry={vertexGeometry} onClick={inSketchMode ? undefined : handleVertexClick}>
+      <points
+        ref={vertexRef}
+        geometry={vertexGeometry}
+        onClick={inSketchMode ? undefined : handleVertexClick}
+        onPointerMove={inSketchMode ? undefined : handleVertexPointerMove}
+        onPointerLeave={inSketchMode ? undefined : handleVertexPointerLeave}
+      >
         <pointsMaterial
-          size={selectedVertexIndex !== null && selectedVertexIndex !== undefined ? 8 : 4}
-          color={selectedVertexIndex !== null && selectedVertexIndex !== undefined ? "#eab308" : "#444466"}
+          size={
+            selectedVertexIndex !== null && selectedVertexIndex !== undefined
+              ? 8
+              : hoveredVertexIndex !== null
+                ? 6
+                : 4
+          }
+          color={
+            selectedVertexIndex !== null && selectedVertexIndex !== undefined
+              ? "#3b82f6" // Blue when selected
+              : hoveredVertexIndex !== null
+                ? "#f97316" // Orange when hovered
+                : "#444466" // Dark when normal
+          }
           sizeAttenuation={false}
         />
       </points>
@@ -577,6 +759,8 @@ interface SceneProps {
   selectedFaceId?: number | null;
   selectedEdgeIndex?: number | null;
   selectedVertexIndex?: number | null;
+  hoveredFaceId?: number | null;
+  hoveredEdgeIndex?: number | null;
   activeSketch?: Sketch | null;
   activeTool?: SketchTool | null;
   activeConstraint?: string;
@@ -584,6 +768,8 @@ interface SceneProps {
   onFaceClick?: (faceId: number) => void;
   onEdgeClick?: (edgeIndex: number) => void;
   onVertexClick?: (vertexIndex: number) => void;
+  onFaceHover?: (faceId: number | null) => void;
+  onEdgeHover?: (edgeIndex: number | null) => void;
   onBackgroundClick?: () => void;
   onUpdateSketch?: (sketchId: string, elements: any[]) => void;
 }
@@ -597,6 +783,8 @@ function Scene({
   selectedFaceId,
   selectedEdgeIndex,
   selectedVertexIndex,
+  hoveredFaceId,
+  hoveredEdgeIndex,
   activeSketch,
   activeTool,
   activeConstraint,
@@ -604,6 +792,8 @@ function Scene({
   onFaceClick,
   onEdgeClick,
   onVertexClick,
+  onFaceHover,
+  onEdgeHover,
   onBackgroundClick,
   onUpdateSketch
 }: SceneProps) {
@@ -652,10 +842,14 @@ function Scene({
           selectedFaceId={selectedFaceId}
           selectedEdgeIndex={selectedEdgeIndex}
           selectedVertexIndex={selectedVertexIndex}
+          hoveredFaceId={hoveredFaceId}
+          hoveredEdgeIndex={hoveredEdgeIndex}
           inSketchMode={inSketchMode}
           onFaceClick={onFaceClick}
           onEdgeClick={onEdgeClick}
           onVertexClick={onVertexClick}
+          onFaceHover={onFaceHover}
+          onEdgeHover={onEdgeHover}
         />
       )}
 
@@ -836,6 +1030,10 @@ interface OpenCascadeViewportProps {
   selectedEdgeIndex?: number | null;
   /** Currently selected vertex index */
   selectedVertexIndex?: number | null;
+  /** Currently hovered face ID (from external source like EntitiesPanel) */
+  hoveredFaceId?: number | null;
+  /** Currently hovered edge index (from external source like EntitiesPanel) */
+  hoveredEdgeIndex?: number | null;
   /** OpenCascade worker status */
   occStatus: OCCStatus;
   /** OpenCascade progress message */
@@ -860,6 +1058,10 @@ interface OpenCascadeViewportProps {
   onEdgeClick?: (edgeIndex: number) => void;
   /** Callback when a vertex is clicked */
   onVertexClick?: (vertexIndex: number) => void;
+  /** Callback when a face is hovered */
+  onFaceHover?: (faceId: number | null) => void;
+  /** Callback when an edge is hovered */
+  onEdgeHover?: (edgeIndex: number | null) => void;
   /** Callback when background is clicked (clear selection) */
   onBackgroundClick?: () => void;
   /** Callback when sketch is updated */
@@ -877,6 +1079,8 @@ export function OpenCascadeViewport({
   selectedFaceId,
   selectedEdgeIndex,
   selectedVertexIndex,
+  hoveredFaceId,
+  hoveredEdgeIndex,
   occStatus,
   occProgress,
   occError,
@@ -889,6 +1093,8 @@ export function OpenCascadeViewport({
   onFaceClick,
   onEdgeClick,
   onVertexClick,
+  onFaceHover,
+  onEdgeHover,
   onBackgroundClick,
   onUpdateSketch,
   onFinishSketch,
@@ -932,6 +1138,8 @@ export function OpenCascadeViewport({
             selectedFaceId={selectedFaceId}
             selectedEdgeIndex={selectedEdgeIndex}
             selectedVertexIndex={selectedVertexIndex}
+            hoveredFaceId={hoveredFaceId}
+            hoveredEdgeIndex={hoveredEdgeIndex}
             activeSketch={activeSketch as Sketch | undefined}
             activeTool={activeTool as SketchTool | undefined}
             activeConstraint={activeConstraint}
@@ -939,6 +1147,8 @@ export function OpenCascadeViewport({
             onFaceClick={onFaceClick}
             onEdgeClick={onEdgeClick}
             onVertexClick={onVertexClick}
+            onFaceHover={onFaceHover}
+            onEdgeHover={onEdgeHover}
             onBackgroundClick={onBackgroundClick}
             onUpdateSketch={onUpdateSketch}
           />

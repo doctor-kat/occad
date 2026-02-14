@@ -12,6 +12,8 @@ interface CADViewportProps {
   selectedFaceId?: number | null;
   selectedEdgeIndex?: number | null;
   selectedVertexIndex?: number | null;
+  hoveredFaceId?: number | null;
+  hoveredEdgeIndex?: number | null;
   occStatus: OCCStatus;
   occProgress: string;
   occError: string | null;
@@ -25,6 +27,8 @@ interface CADViewportProps {
   onFaceClick?: (faceId: number) => void;
   onEdgeClick?: (edgeIndex: number) => void;
   onVertexClick?: (vertexIndex: number) => void;
+  onFaceHover?: (faceId: number | null) => void;
+  onEdgeHover?: (edgeIndex: number | null) => void;
   onBackgroundClick?: () => void;
 }
 
@@ -42,6 +46,8 @@ export function CADViewport({
   selectedFaceId,
   selectedEdgeIndex,
   selectedVertexIndex,
+  hoveredFaceId,
+  hoveredEdgeIndex,
   occStatus,
   occProgress,
   occError,
@@ -55,6 +61,8 @@ export function CADViewport({
   onFaceClick,
   onEdgeClick,
   onVertexClick,
+  onFaceHover,
+  onEdgeHover,
   onBackgroundClick,
 }: CADViewportProps) {
   // Find the active sketch
@@ -71,6 +79,8 @@ export function CADViewport({
       selectedFaceId={selectedFaceId}
       selectedEdgeIndex={selectedEdgeIndex}
       selectedVertexIndex={selectedVertexIndex}
+      hoveredFaceId={hoveredFaceId}
+      hoveredEdgeIndex={hoveredEdgeIndex}
       occStatus={occStatus}
       occProgress={occProgress}
       occError={occError}
@@ -83,6 +93,8 @@ export function CADViewport({
       onFaceClick={onFaceClick}
       onEdgeClick={onEdgeClick}
       onVertexClick={onVertexClick}
+      onFaceHover={onFaceHover}
+      onEdgeHover={onEdgeHover}
       onBackgroundClick={onBackgroundClick}
       onUpdateSketch={onUpdateSketch}
       onFinishSketch={onFinishSketch}

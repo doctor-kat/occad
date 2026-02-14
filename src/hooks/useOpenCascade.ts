@@ -131,6 +131,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
             faceIndices: legacyMsg.faces.indices,
             edgeVertices: legacyMsg.edges.vertices,
             edgeIndices: new Uint32Array(legacyMsg.edges.vertices.length / 3),
+            edgeCount: 0, // Legacy path doesn't provide edge count
           });
           setStatus("ready");
           setProgress("");

@@ -539,18 +539,14 @@ function tessellate(shape: any, linearDeflection = 0.1, angularDeflection = 0.5)
   }
 
   // ---- Extract edge polylines ----
-  const edgeSet = new Set<number>(); // avoid duplicate edges
-  const edgeExplorer = new oc.TopExp_Explorer_2(
-    shape,
-    oc.TopAbs_ShapeEnum.TopAbs_EDGE,
-    oc.TopAbs_ShapeEnum.TopAbs_SHAPE,
-  );
+  // Use TopExp.MapShapes_1 to get unique edges (HashCode is unreliable for deduplication)
+  const edgeMap = new oc.TopTools_IndexedMapOfShape_1();
+  oc.TopExp.MapShapes_1(shape, oc.TopAbs_ShapeEnum.TopAbs_EDGE, edgeMap);
 
-  for (; edgeExplorer.More(); edgeExplorer.Next()) {
-    const edge = oc.TopoDS.Edge_1(edgeExplorer.Current());
-    const edgeHash = edge.HashCode(Number.MAX_SAFE_INTEGER);
-    if (edgeSet.has(edgeHash)) continue;
-    edgeSet.add(edgeHash);
+  const edgeCount = edgeMap.Extent();
+
+  for (let i = 1; i <= edgeCount; i++) {
+    const edge = oc.TopoDS.Edge_1(edgeMap.FindKey(i));
 
     const location = new oc.TopLoc_Location_1();
     const handlePoly = oc.BRep_Tool.Polygon3D(edge, location);
@@ -560,9 +556,9 @@ function tessellate(shape: any, linearDeflection = 0.1, angularDeflection = 0.5)
       const transform = location.Transformation();
       const nbNodes = poly.NbNodes();
 
-      for (let i = 1; i < nbNodes; i++) {
-        const p1 = poly.Nodes().Value(i).Transformed(transform);
-        const p2 = poly.Nodes().Value(i + 1).Transformed(transform);
+      for (let j = 1; j < nbNodes; j++) {
+        const p1 = poly.Nodes().Value(j).Transformed(transform);
+        const p2 = poly.Nodes().Value(j + 1).Transformed(transform);
         edgeVertices.push(p1.X(), p1.Y(), p1.Z());
         edgeVertices.push(p2.X(), p2.Y(), p2.Z());
       }
@@ -579,9 +575,9 @@ function tessellate(shape: any, linearDeflection = 0.1, angularDeflection = 0.5)
           1e-7, // angular tolerance
         );
         const n = tangDef.NbPoints();
-        for (let i = 1; i < n; i++) {
-          const p1 = tangDef.Value(i);
-          const p2 = tangDef.Value(i + 1);
+        for (let j = 1; j < n; j++) {
+          const p1 = tangDef.Value(j);
+          const p2 = tangDef.Value(j + 1);
           edgeVertices.push(p1.X(), p1.Y(), p1.Z());
           edgeVertices.push(p2.X(), p2.Y(), p2.Z());
         }
@@ -646,6 +642,7 @@ function tessellate(shape: any, linearDeflection = 0.1, angularDeflection = 0.5)
     edgeVertices: new Float32Array(edgeVertices),
     edgeIndices: new Uint32Array(edgeIndices),
     faceMapping: new Uint32Array(faceMapping),
+    edgeCount,
   };
 }
 
@@ -880,18 +877,14 @@ function extractEdgeVertices(shape: any, linearDeflection = 0.1, angularDeflecti
   new oc.BRepMesh_IncrementalMesh_2(shape, linearDeflection, false, angularDeflection, false);
 
   const edgeVertices: number[] = [];
-  const edgeSet = new Set<number>();
-  const edgeExplorer = new oc.TopExp_Explorer_2(
-    shape,
-    oc.TopAbs_ShapeEnum.TopAbs_EDGE,
-    oc.TopAbs_ShapeEnum.TopAbs_SHAPE,
-  );
 
-  for (; edgeExplorer.More(); edgeExplorer.Next()) {
-    const edge = oc.TopoDS.Edge_1(edgeExplorer.Current());
-    const edgeHash = edge.HashCode(Number.MAX_SAFE_INTEGER);
-    if (edgeSet.has(edgeHash)) continue;
-    edgeSet.add(edgeHash);
+  // Use TopExp.MapShapes_1 to get unique edges (HashCode is unreliable for deduplication)
+  const edgeMap = new oc.TopTools_IndexedMapOfShape_1();
+  oc.TopExp.MapShapes_1(shape, oc.TopAbs_ShapeEnum.TopAbs_EDGE, edgeMap);
+  const edgeCount = edgeMap.Extent();
+
+  for (let i = 1; i <= edgeCount; i++) {
+    const edge = oc.TopoDS.Edge_1(edgeMap.FindKey(i));
 
     const location = new oc.TopLoc_Location_1();
     const handlePoly = oc.BRep_Tool.Polygon3D(edge, location);

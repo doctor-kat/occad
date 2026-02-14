@@ -475,4 +475,6 @@ export interface MeshData {
   edgeIndices: Uint32Array;
   /** Maps each triangle index to its parent CAD face ID */
   faceMapping?: Uint32Array;
+  /** Number of unique topological edges */
+  edgeCount: number;
 }
