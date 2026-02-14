@@ -16,6 +16,7 @@ import {
 } from '@phosphor-icons/react';
 import { FeatureTreeItem as TreeItemType } from '@/types/cad';
 import { Button, Stack, Box, ScrollArea, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
+import { useState } from 'react';
 
 interface FeatureTreeProps {
   items: TreeItemType[];
@@ -75,6 +76,7 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
   const isSelected = selectedItem === item.id;
   const isVisible = item.visible !== false;
   const theme = useMantineTheme();
+  const [isHovered, setIsHovered] = useState(false);
 
   // Don't allow editing/deleting reference geometry (planes and origin)
   const canEdit = item.type !== 'reference-geometry';
@@ -119,13 +121,28 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
           height: 32,
           paddingLeft: depth * 16 + 8,
           paddingRight: 4,
-          backgroundColor: isSelected ? `${theme.colors.blue[5]}15` : 'transparent',
-          border: isSelected ? `1px solid ${theme.colors.blue[5]}33` : '1px solid transparent',
+          backgroundColor: isSelected
+            ? `${theme.colors.blue[5]}15`
+            : isHovered
+              ? `${theme.colors.orange[5]}15`
+              : 'transparent',
+          border: isSelected
+            ? `1px solid ${theme.colors.blue[5]}33`
+            : isHovered
+              ? `1px solid ${theme.colors.orange[5]}33`
+              : '1px solid transparent',
           borderRadius: theme.radius.sm,
           opacity: isVisible ? 1 : 0.5,
+          transition: 'all 150ms',
         }}
-        onMouseEnter={() => onHoverItem?.(item.id)}
-        onMouseLeave={() => onHoverItem?.(null)}
+        onMouseEnter={() => {
+          setIsHovered(true);
+          onHoverItem?.(item.id);
+        }}
+        onMouseLeave={() => {
+          setIsHovered(false);
+          onHoverItem?.(null);
+        }}
       >
         {/* Visibility Checkbox */}
         <ActionIcon

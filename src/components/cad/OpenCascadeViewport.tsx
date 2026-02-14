@@ -239,11 +239,11 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
         />
       </mesh>
 
-      {/* Selected face highlight (cyan) */}
+      {/* Selected face highlight (blue) */}
       {selectedHighlightGeometry && (
         <mesh ref={selectedHighlightRef} geometry={selectedHighlightGeometry}>
           <meshBasicMaterial
-            color="orange"
+            color="#3b82f6"
             transparent
             opacity={0.5}
             side={THREE.DoubleSide}
