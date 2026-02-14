@@ -4,6 +4,7 @@ import { FeatureTabs } from './FeatureTabs';
 import { FeatureTree } from './FeatureTree';
 import { CADViewport } from './CADViewport';
 import { ExtrudeDialog } from './ExtrudeDialog';
+import { EntitiesPanel } from './EntitiesPanel';
 import { useCADState } from '@/hooks/useCADState';
 import { useOpenCascade } from '@/hooks/useOpenCascade';
 import { AppShell, Box, useMantineTheme } from '@mantine/core';
@@ -66,6 +67,10 @@ export function CADLayout() {
 
   // Track hovered tree item for plane visibility
   const [hoveredTreeItem, setHoveredTreeItem] = useState<string | null>(null);
+
+  // Track hovered geometry
+  const [hoveredFaceId, setHoveredFaceId] = useState<number | null>(null);
+  const [hoveredEdgeIndex, setHoveredEdgeIndex] = useState<number | null>(null);
 
   // Track pending face geometry request for sketch creation
   const [pendingSketchOnFace, setPendingSketchOnFace] = useState<number | null>(null);
@@ -512,10 +517,11 @@ export function CADLayout() {
         style={{
           overflow: 'hidden',
           width: '100%',
+          height: '100%',
           position: 'relative',
         }}
       >
-        <Box pos="absolute" style={{ inset: 0 }} w="100%" h="100%">
+        <Box pos="relative" w="100%" h="100%">
           <CADViewport
             project={project}
             activeSketchId={activeSketchId}
@@ -543,7 +549,22 @@ export function CADLayout() {
             onFaceClick={handleFaceClick}
             onEdgeClick={handleEdgeClick}
             onVertexClick={handleVertexClick}
+            onFaceHover={setHoveredFaceId}
+            onEdgeHover={setHoveredEdgeIndex}
             onBackgroundClick={handleBackgroundClick}
+          />
+
+          {/* Entities Panel */}
+          <EntitiesPanel
+            mesh={occMesh}
+            selectedFaceId={selectedFaceId}
+            selectedEdgeIndex={selectedEdgeIndex}
+            hoveredFaceId={hoveredFaceId}
+            hoveredEdgeIndex={hoveredEdgeIndex}
+            onFaceClick={handleFaceClick}
+            onEdgeClick={handleEdgeClick}
+            onFaceHover={setHoveredFaceId}
+            onEdgeHover={setHoveredEdgeIndex}
           />
         </Box>
       </AppShell.Main>
