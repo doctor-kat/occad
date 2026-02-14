@@ -76,9 +76,9 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
   const isVisible = item.visible !== false;
   const theme = useMantineTheme();
 
-  // Don't allow editing/deleting reference geometry root
-  const canEdit = item.type !== 'reference-geometry' || !hasChildren;
-  const canDelete = item.type !== 'reference-geometry' || !hasChildren;
+  // Don't allow editing/deleting reference geometry (planes and origin)
+  const canEdit = item.type !== 'reference-geometry';
+  const canDelete = item.type !== 'reference-geometry';
 
   if (isCompact) {
     // Compact mode: only show icon, no nesting
@@ -220,6 +220,7 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
               <ActionIcon
                 variant="subtle"
                 size="xs"
+                data-testid={`edit-${item.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   onEdit(item.id);

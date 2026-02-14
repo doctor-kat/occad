@@ -317,6 +317,7 @@ export interface ReferenceGeometry {
   id: string;
   name: string;
   type: 'plane' | 'origin';
+  isVisible: boolean;
 }
 
 export interface FeatureTreeItem {
@@ -368,10 +369,10 @@ export interface CADState {
 
 // Default reference geometry that always exists
 export const DEFAULT_REFERENCE_GEOMETRY: ReferenceGeometry[] = [
-  { id: 'front-plane', name: 'Front Plane', type: 'plane' },
-  { id: 'top-plane', name: 'Top Plane', type: 'plane' },
-  { id: 'right-plane', name: 'Right Plane', type: 'plane' },
-  { id: 'origin', name: 'Origin', type: 'origin' },
+  { id: 'front-plane', name: 'Front Plane', type: 'plane', isVisible: false },
+  { id: 'top-plane', name: 'Top Plane', type: 'plane', isVisible: false },
+  { id: 'right-plane', name: 'Right Plane', type: 'plane', isVisible: false },
+  { id: 'origin', name: 'Origin', type: 'origin', isVisible: false },
 ];
 
 export const createNewProject = (): CADProject => {

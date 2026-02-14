@@ -18,12 +18,16 @@ import {
 
 const STORAGE_KEY = 'occad-project';
 
-/** Migrate old persisted projects that lack isVisible on sketches */
+/** Migrate old persisted projects that lack isVisible on sketches and reference geometry */
 function migrateProject(raw: CADProject): CADProject {
-  const needsMigration = raw.sketches.some(
+  const needsSketchMigration = raw.sketches.some(
     (s) => (s as any).isVisible === undefined
   );
-  if (!needsMigration) return raw;
+  const needsRefGeomMigration = raw.referenceGeometry.some(
+    (r) => (r as any).isVisible === undefined
+  );
+
+  if (!needsSketchMigration && !needsRefGeomMigration) return raw;
 
   const sketchIdsUsedByFeatures = new Set(
     raw.features.map((f) => f.sketchId).filter(Boolean)
@@ -40,6 +44,15 @@ function migrateProject(raw: CADProject): CADProject {
       // Default: consumed sketches hidden, standalone visible
       const isConsumed = sketchIdsUsedByFeatures.has(sketch.id);
       return { ...sketch, isVisible: !isConsumed };
+    }),
+    referenceGeometry: raw.referenceGeometry.map((ref) => {
+      if ((ref as any).isVisible !== undefined) return ref;
+      // Respect legacy `visible` property if it exists
+      if ((ref as any).visible !== undefined) {
+        return { ...ref, isVisible: !!(ref as any).visible };
+      }
+      // Default: reference geometry hidden
+      return { ...ref, isVisible: false };
     }),
   };
 }
@@ -68,7 +81,7 @@ export function useCADState() {
         id: ref.id,
         name: ref.name,
         type: 'reference-geometry' as const,
-        visible: (ref as any).visible !== false,
+        visible: ref.isVisible,
         data: ref,
       });
     });
@@ -455,7 +468,7 @@ export function useCADState() {
       );
 
       const updatedRefGeom = prev.referenceGeometry.map((ref) =>
-        ref.id === id ? { ...ref, visible: (ref as any).visible !== false ? false : true } : ref
+        ref.id === id ? { ...ref, isVisible: !ref.isVisible } : ref
       );
 
       return {

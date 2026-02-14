@@ -1,5 +1,6 @@
-import { useRef, useMemo, useCallback, useState } from 'react';
+import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
 import { useThree, ThreeEvent } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D, SketchTool, SketchPlane } from '@/types/cad';
 
@@ -96,15 +97,50 @@ export function SketchOverlay({
   const [previewElement, setPreviewElement] = useState<SketchElement | null>(null);
   const [hoverPoint, setHoverPoint] = useState<Point2D | null>(null);
   const [snapPoint2D, setSnapPoint2D] = useState<Point2D | null>(null);
+  const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
+  const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set());
   const { raycaster, camera } = useThree();
   const planeRef = useRef<THREE.Mesh>(null);
 
   const gridSize = 10;
   const snapToGrid = true; // TODO: Make this configurable
   const snapDistance = 5; // Distance threshold for snapping to points/edges
+  const hoverThreshold = 3; // Distance threshold for element hover detection
 
   // Calculate plane transformation
   const planeTransform = useMemo(() => getPlaneTransform(sketch.plane), [sketch.plane]);
+
+  // Clear selection when tool changes or sketch exits
+  useEffect(() => {
+    setSelectedElementIds(new Set());
+    setHoveredElementId(null);
+  }, [activeTool]);
+
+  // Handle keyboard events for deletion
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle delete if we're in sketch mode (no active tool or any tool active)
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedElementIds.size > 0) {
+          // Prevent default browser behavior
+          e.preventDefault();
+
+          // Filter out selected elements
+          const newElements = sketch.elements.filter(
+            (element) => !selectedElementIds.has(element.id)
+          );
+          onElementsChange(sketch.id, newElements);
+
+          // Clear selection
+          setSelectedElementIds(new Set());
+          setHoveredElementId(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange]);
 
   // Origin crosshair geometries (memoised to avoid per-render allocation)
   const xAxisGeo = useMemo(() => {
@@ -222,6 +258,73 @@ export function SketchOverlay({
     return { projection, distance };
   };
 
+  // Calculate distance from point to sketch element
+  const getDistanceToElement = (point: Point2D, element: SketchElement): number => {
+    switch (element.type) {
+      case 'line': {
+        const { distance } = projectPointOntoLineSegment(point, element.start, element.end);
+        return distance;
+      }
+
+      case 'rectangle': {
+        // Calculate distance to each of the four edges
+        const edges: [Point2D, Point2D][] = [
+          [element.corner1, { x: element.corner2.x, y: element.corner1.y }],
+          [{ x: element.corner2.x, y: element.corner1.y }, element.corner2],
+          [element.corner2, { x: element.corner1.x, y: element.corner2.y }],
+          [{ x: element.corner1.x, y: element.corner2.y }, element.corner1],
+        ];
+
+        let minDistance = Infinity;
+        edges.forEach(([start, end]) => {
+          const { distance } = projectPointOntoLineSegment(point, start, end);
+          minDistance = Math.min(minDistance, distance);
+        });
+        return minDistance;
+      }
+
+      case 'circle': {
+        // Distance to circle is |distance_to_center - radius|
+        const distToCenter = Math.sqrt(
+          Math.pow(point.x - element.center.x, 2) + Math.pow(point.y - element.center.y, 2)
+        );
+        return Math.abs(distToCenter - element.radius);
+      }
+
+      case 'polygon': {
+        // Distance to nearest edge of polygon
+        if (element.points.length < 2) return Infinity;
+
+        let minDistance = Infinity;
+        for (let i = 0; i < element.points.length; i++) {
+          const start = element.points[i];
+          const end = element.points[(i + 1) % element.points.length];
+          const { distance } = projectPointOntoLineSegment(point, start, end);
+          minDistance = Math.min(minDistance, distance);
+        }
+        return minDistance;
+      }
+
+      case 'arc': {
+        // Simplified: distance to any of the three points (proper arc distance is more complex)
+        if (element.points && element.points.length === 3) {
+          let minDistance = Infinity;
+          element.points.forEach((p) => {
+            const dist = Math.sqrt(
+              Math.pow(point.x - p.x, 2) + Math.pow(point.y - p.y, 2)
+            );
+            minDistance = Math.min(minDistance, dist);
+          });
+          return minDistance;
+        }
+        return Infinity;
+      }
+
+      default:
+        return Infinity;
+    }
+  };
+
   // Find nearest snap point based on active constraint
   const findSnapPoint = useCallback(
     (point: Point2D): Point2D | null => {
@@ -331,12 +434,23 @@ export function SketchOverlay({
     (event: ThreeEvent<MouseEvent>) => {
       event.stopPropagation();
 
-      if (!activeTool) return;
-
       // Get 2D point on sketch plane
       const point = event.point;
       const localPoint = point.clone().applyMatrix4(planeTransform.clone().invert());
       const point2D: Point2D = { x: localPoint.x, y: localPoint.y };
+
+      // If no tool is active, handle selection
+      if (!activeTool) {
+        if (hoveredElementId) {
+          // Select the hovered element
+          setSelectedElementIds(new Set([hoveredElementId]));
+        } else {
+          // Clear selection on empty click
+          setSelectedElementIds(new Set());
+        }
+        return;
+      }
+
       const snappedPoint = snapPoint(point2D);
 
       switch (activeTool) {
@@ -416,24 +530,41 @@ export function SketchOverlay({
           console.warn(`Tool ${activeTool} not yet implemented`);
       }
     },
-    [activeTool, currentPoints, sketch, onElementsChange, snapPoint, planeTransform]
+    [activeTool, currentPoints, sketch, onElementsChange, snapPoint, planeTransform, hoveredElementId]
   );
 
   // Handle mouse move for preview
   const handlePlaneMove = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
-      if (!activeTool) {
-        setPreviewElement(null);
-        setHoverPoint(null);
-        return;
-      }
-
       const point = event.point;
       const localPoint = point.clone().applyMatrix4(planeTransform.clone().invert());
       const point2D: Point2D = { x: localPoint.x, y: localPoint.y };
+
+      // If no tool is active, detect hover for selection
+      if (!activeTool) {
+        setPreviewElement(null);
+        setHoverPoint(null);
+
+        // Find nearest element within hover threshold
+        let nearestElement: SketchElement | null = null;
+        let minDistance = hoverThreshold;
+
+        sketch.elements.forEach((element) => {
+          const distance = getDistanceToElement(point2D, element);
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearestElement = element;
+          }
+        });
+
+        setHoveredElementId(nearestElement ? nearestElement.id : null);
+        return;
+      }
+
       const snappedPoint = snapPoint(point2D);
 
       setHoverPoint(snappedPoint);
+      setHoveredElementId(null); // Clear hover when drawing
 
       if (currentPoints.length === 0) {
         setPreviewElement(null);
@@ -480,11 +611,47 @@ export function SketchOverlay({
           break;
       }
     },
-    [activeTool, currentPoints, snapPoint, planeTransform]
+    [activeTool, currentPoints, snapPoint, planeTransform, hoverThreshold, sketch.elements, getDistanceToElement]
   );
 
   return (
     <group matrix={planeTransform} matrixAutoUpdate={false}>
+      {/* Hotkeys panel */}
+      <Html
+        position={[0, 0, 0]}
+        style={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          transform: 'none',
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            color: '#ffffff',
+            padding: '8px 12px',
+            borderRadius: 6,
+            fontSize: 12,
+            fontFamily: 'monospace',
+            pointerEvents: 'none',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span style={{ opacity: 0.6 }}>Hotkeys:</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <kbd style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                padding: '2px 6px',
+                borderRadius: 3,
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+              }}>DEL</kbd>
+              <span style={{ opacity: 0.7 }}>Delete selected</span>
+            </div>
+          </div>
+        </div>
+      </Html>
       {/* Semi-transparent sketch plane */}
       <mesh
         ref={planeRef}
@@ -523,9 +690,20 @@ export function SketchOverlay({
       </mesh>
 
       {/* Render existing sketch elements */}
-      {sketch.elements.map((element) => (
-        <SketchElementRenderer3D key={element.id} element={element} color="#7c93c3" lineWidth={2} />
-      ))}
+      {sketch.elements.map((element) => {
+        const isHovered = hoveredElementId === element.id;
+        const isSelected = selectedElementIds.has(element.id);
+        return (
+          <SketchElementRenderer3D
+            key={element.id}
+            element={element}
+            color="#7c93c3"
+            lineWidth={2}
+            isHovered={isHovered}
+            isSelected={isSelected}
+          />
+        );
+      })}
 
       {/* Render preview element */}
       {previewElement && (
@@ -623,12 +801,28 @@ function SketchElementRenderer3D({
   color,
   opacity = 1,
   lineWidth = 2,
+  isHovered = false,
+  isSelected = false,
 }: {
   element: SketchElement;
   color: string;
   opacity?: number;
   lineWidth?: number;
+  isHovered?: boolean;
+  isSelected?: boolean;
 }) {
+  // Determine color and width based on state
+  let finalColor = color;
+  let finalLineWidth = lineWidth;
+
+  if (isSelected) {
+    finalColor = '#fbbf24'; // Yellow/gold for selection
+    finalLineWidth = lineWidth + 1;
+  } else if (isHovered) {
+    finalColor = '#60a5fa'; // Blue for hover
+    finalLineWidth = lineWidth + 1;
+  }
+
   const points: THREE.Vector3[] = [];
 
   switch (element.type) {
@@ -694,7 +888,7 @@ function SketchElementRenderer3D({
 
   return (
     <line geometry={geometry} position={[0, 0, 0.05]}>
-      <lineBasicMaterial color={color} opacity={opacity} transparent linewidth={lineWidth} />
+      <lineBasicMaterial color={finalColor} opacity={opacity} transparent linewidth={finalLineWidth} />
     </line>
   );
 }
