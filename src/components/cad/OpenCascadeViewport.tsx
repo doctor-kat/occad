@@ -220,16 +220,17 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
 
   const handleEdgePointerMove = (event: ThreeEvent<PointerEvent>) => {
     if (event.index !== undefined) {
-      const edgeIndex = Math.floor(event.index / 2); // Each edge has 2 vertices
-      setInternalHoveredEdgeIndex(edgeIndex);
-      setHoveredEdgeIndex(edgeIndex);
+      const segmentIndex = Math.floor(event.index / 2); // Each segment has 2 vertices
+      const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[segmentIndex] : segmentIndex;
+      setInternalHoveredEdgeIndex(topologicalEdgeId);
+      setHoveredEdgeIndex(topologicalEdgeId);
     } else {
       // Fallback: try to detect which edge segment was hit
       const point = event.point;
       if (point && edgeRef.current) {
-        // Find closest edge to the hit point
+        // Find closest edge segment to the hit point
         const positions = mesh.edgeVertices;
-        let closestEdge = -1;
+        let closestSegment = -1;
         let minDist = Infinity;
 
         for (let i = 0; i < positions.length / 6; i++) {
@@ -242,13 +243,14 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
 
           if (dist < minDist && dist < 2) { // Within 2 units
             minDist = dist;
-            closestEdge = i;
+            closestSegment = i;
           }
         }
 
-        if (closestEdge >= 0) {
-          setInternalHoveredEdgeIndex(closestEdge);
-          setHoveredEdgeIndex(closestEdge);
+        if (closestSegment >= 0) {
+          const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[closestSegment] : closestSegment;
+          setInternalHoveredEdgeIndex(topologicalEdgeId);
+          setHoveredEdgeIndex(topologicalEdgeId);
         }
       }
     }
@@ -261,10 +263,11 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
 
   const handleEdgeClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation();
-    // For edges, we'll use the point index as the edge identifier
+    // For edges, we'll use the topological edge ID from edgeMapping
     if (event.index !== undefined) {
-      const edgeIndex = Math.floor(event.index / 2); // Each edge has 2 vertices
-      onEdgeClick?.(edgeIndex);
+      const segmentIndex = Math.floor(event.index / 2); // Each segment has 2 vertices
+      const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[segmentIndex] : segmentIndex;
+      onEdgeClick?.(topologicalEdgeId);
     }
   };
 
@@ -344,47 +347,65 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
         </mesh>
       )}
 
-      {/* Edge wireframe - render each edge separately for independent coloring */}
-      {Array.from({ length: Math.floor(mesh.edgeVertices.length / 6) }).map((_, i) => {
-        const isSelected = selectedEdgeIndex === i;
-        const isHovered = effectiveHoveredEdgeIndex === i;
+      {/* Edge wireframe - group segments by topological edge for unified highlighting */}
+      {useMemo(() => {
+        // Group segments by their topological edge ID
+        const edgeGroups = new Map<number, number[]>();
+        const segmentCount = Math.floor(mesh.edgeVertices.length / 6);
 
-        const segmentGeometry = useMemo(() => {
-          const geo = new THREE.BufferGeometry();
-          const vertices = new Float32Array([
-            mesh.edgeVertices[i * 6],
-            mesh.edgeVertices[i * 6 + 1],
-            mesh.edgeVertices[i * 6 + 2],
-            mesh.edgeVertices[i * 6 + 3],
-            mesh.edgeVertices[i * 6 + 4],
-            mesh.edgeVertices[i * 6 + 5],
-          ]);
-          geo.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
-          return geo;
-        }, [i]);
+        for (let i = 0; i < segmentCount; i++) {
+          const edgeId = mesh.edgeMapping ? mesh.edgeMapping[i] : i;
+          if (!edgeGroups.has(edgeId)) {
+            edgeGroups.set(edgeId, []);
+          }
+          edgeGroups.get(edgeId)!.push(i);
+        }
 
-        return (
-          <lineSegments key={i} geometry={segmentGeometry}>
-            <lineBasicMaterial
-              color={
-                isSelected
-                  ? "#3b82f6" // Blue when selected
-                  : isHovered
-                    ? "#f97316" // Orange when hovered
-                    : "#1a1a2e" // Dark when normal
-              }
-              linewidth={isSelected ? 3 : isHovered ? 2 : 1}
-              transparent
-              opacity={isSelected ? 1 : isHovered ? 0.85 : 0.55}
-            />
-          </lineSegments>
-        );
-      })}
+        // Render each topological edge as a single lineSegments
+        return Array.from(edgeGroups.entries()).map(([edgeId, segments]) => {
+          const isSelected = selectedEdgeIndex === edgeId;
+          const isHovered = effectiveHoveredEdgeIndex === edgeId;
+
+          // Collect all vertices for this topological edge
+          const vertices: number[] = [];
+          for (const segIdx of segments) {
+            vertices.push(
+              mesh.edgeVertices[segIdx * 6],
+              mesh.edgeVertices[segIdx * 6 + 1],
+              mesh.edgeVertices[segIdx * 6 + 2],
+              mesh.edgeVertices[segIdx * 6 + 3],
+              mesh.edgeVertices[segIdx * 6 + 4],
+              mesh.edgeVertices[segIdx * 6 + 5],
+            );
+          }
+
+          const edgeGeometry = new THREE.BufferGeometry();
+          edgeGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(vertices), 3));
+
+          return (
+            <lineSegments key={edgeId} geometry={edgeGeometry}>
+              <lineBasicMaterial
+                color={
+                  isSelected
+                    ? "#3b82f6" // Blue when selected
+                    : isHovered
+                      ? "#f97316" // Orange when hovered
+                      : "#1a1a2e" // Dark when normal
+                }
+                linewidth={isSelected ? 3 : isHovered ? 2 : 1}
+                transparent
+                opacity={isSelected ? 1 : isHovered ? 0.85 : 0.55}
+              />
+            </lineSegments>
+          );
+        });
+      }, [mesh.edgeVertices, mesh.edgeMapping, selectedEdgeIndex, effectiveHoveredEdgeIndex])}
 
       {/* Cylinders for edge hover detection and hover highlight */}
       {!inSketchMode && Array.from({ length: Math.floor(mesh.edgeVertices.length / 6) }).map((_, i) => {
-        const isSelected = selectedEdgeIndex === i;
-        const isHovered = effectiveHoveredEdgeIndex === i;
+        const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[i] : i;
+        const isSelected = selectedEdgeIndex === topologicalEdgeId;
+        const isHovered = effectiveHoveredEdgeIndex === topologicalEdgeId;
 
         const p1 = new THREE.Vector3(
           mesh.edgeVertices[i * 6],
@@ -414,17 +435,17 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
             renderOrder={1}
             onClick={(e) => {
               e.stopPropagation();
-              onEdgeClick?.(i);
+              onEdgeClick?.(topologicalEdgeId);
             }}
             onPointerOver={(e) => {
               e.stopPropagation();
-              setInternalHoveredEdgeIndex(i);
-              onEdgeHover?.(i);
+              setInternalHoveredEdgeIndex(topologicalEdgeId);
+              setHoveredEdgeIndex(topologicalEdgeId);
             }}
             onPointerOut={(e) => {
               e.stopPropagation();
               setInternalHoveredEdgeIndex(null);
-              onEdgeHover?.(null);
+              setHoveredEdgeIndex(null);
             }}
           >
             <cylinderGeometry args={[

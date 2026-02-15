@@ -544,6 +544,7 @@ function tessellate(shape: any, linearDeflection = 0.1, angularDeflection = 0.5)
   oc.TopExp.MapShapes_1(shape, oc.TopAbs_ShapeEnum.TopAbs_EDGE, edgeMap);
 
   const edgeCount = edgeMap.Extent();
+  const edgeMapping: number[] = [];
 
   for (let i = 1; i <= edgeCount; i++) {
     const edge = oc.TopoDS.Edge_1(edgeMap.FindKey(i));
@@ -561,6 +562,7 @@ function tessellate(shape: any, linearDeflection = 0.1, angularDeflection = 0.5)
         const p2 = poly.Nodes().Value(j + 1).Transformed(transform);
         edgeVertices.push(p1.X(), p1.Y(), p1.Z());
         edgeVertices.push(p2.X(), p2.Y(), p2.Z());
+        edgeMapping.push(i - 1); // 0-based topological edge ID
       }
     } else {
       // Fall back: discretize the edge curve directly
@@ -580,6 +582,7 @@ function tessellate(shape: any, linearDeflection = 0.1, angularDeflection = 0.5)
           const p2 = tangDef.Value(j + 1);
           edgeVertices.push(p1.X(), p1.Y(), p1.Z());
           edgeVertices.push(p2.X(), p2.Y(), p2.Z());
+          edgeMapping.push(i - 1); // 0-based topological edge ID
         }
       } catch {
         // Skip edges that can't be discretized
@@ -642,6 +645,7 @@ function tessellate(shape: any, linearDeflection = 0.1, angularDeflection = 0.5)
     edgeVertices: new Float32Array(edgeVertices),
     edgeIndices: new Uint32Array(edgeIndices),
     faceMapping: new Uint32Array(faceMapping),
+    edgeMapping: new Uint32Array(edgeMapping),
     edgeCount,
   };
 }
@@ -685,6 +689,7 @@ function handleBuildSketch(sketchId: string, plane: SketchPlane, elements: Sketc
       meshData.edgeVertices.buffer,
       meshData.edgeIndices.buffer,
       meshData.faceMapping.buffer,
+      meshData.edgeMapping.buffer,
     ];
 
     postMessage(
@@ -755,6 +760,7 @@ function handleExtrudeSketch(
       meshData.edgeVertices.buffer,
       meshData.edgeIndices.buffer,
       meshData.faceMapping.buffer,
+      meshData.edgeMapping.buffer,
     ];
 
     postMessage(
@@ -831,6 +837,7 @@ function handleRevolveSketch(
       meshData.edgeVertices.buffer,
       meshData.edgeIndices.buffer,
       meshData.faceMapping.buffer,
+      meshData.edgeMapping.buffer,
     ];
 
     postMessage(
@@ -1144,6 +1151,7 @@ function handleRebuild(project: any) {
         meshData.edgeVertices.buffer,
         meshData.edgeIndices.buffer,
         meshData.faceMapping.buffer,
+        meshData.edgeMapping.buffer,
       ];
 
       // Add sketch edge buffers to transferables
