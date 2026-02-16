@@ -29,7 +29,8 @@ function getPlaneTransform(plane: SketchPlane): THREE.Matrix4 {
     case 'xz':
       // XZ plane (Top Plane): sketch X→world X, sketch Y→world Z
       // Matches worker mapping: sketchPointTo3D maps (x,y) → (x, offset, y)
-      matrix.makeRotationX(Math.PI / 2);
+      // Use -90° rotation so Local Y = World Z (not World -Z)
+      matrix.makeRotationX(-Math.PI / 2);
       if (plane.offset) {
         matrix.setPosition(0, plane.offset, 0);
       }
@@ -438,6 +439,7 @@ export function SketchOverlay({
       const point = event.point;
       const localPoint = point.clone().applyMatrix4(planeTransform.clone().invert());
       const point2D: Point2D = { x: localPoint.x, y: localPoint.y };
+      console.log(`[SketchOverlay] 3D world (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)}) → 2D sketch (${point2D.x.toFixed(2)}, ${point2D.y.toFixed(2)})`);
 
       // If no tool is active, handle selection
       if (!activeTool) {

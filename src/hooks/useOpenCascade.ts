@@ -121,21 +121,6 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           }
           optsRef.current.onError?.(msg.message, msg.featureId);
           break;
-
-        // Legacy support for old bottle demo
-        case "result" as any:
-          const legacyMsg = msg as any;
-          setMesh({
-            faceVertices: legacyMsg.faces.vertices,
-            faceNormals: new Float32Array(legacyMsg.faces.vertices.length), // Empty normals for legacy
-            faceIndices: legacyMsg.faces.indices,
-            edgeVertices: legacyMsg.edges.vertices,
-            edgeIndices: new Uint32Array(legacyMsg.edges.vertices.length / 3),
-            edgeCount: 0, // Legacy path doesn't provide edge count
-          });
-          setStatus("ready");
-          setProgress("");
-          break;
       }
     };
 
@@ -152,18 +137,6 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Legacy bottle demo build
-  const buildModel = useCallback(
-    (params: { width: number; height: number; thickness: number }) => {
-      const w = workerRef.current;
-      if (!w || status === "loading") return;
-      setStatus("building");
-      setError(null);
-      w.postMessage({ type: "build", params });
-    },
-    [status],
-  );
 
   // Build sketch from elements
   const buildSketch = useCallback(
@@ -258,15 +231,6 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     w.postMessage(message);
   }, []);
 
-  const retry = useCallback(() => {
-    const w = workerRef.current;
-    if (!w) return;
-    setStatus("loading");
-    setError(null);
-    hasBuiltInitial.current = false;
-    w.postMessage({ type: "init" });
-  }, []);
-
   const clearMesh = useCallback(() => {
     setMesh(null);
     setCurrentShapeId(null);
@@ -282,10 +246,6 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     currentShapeId,
     currentFeatureShapeId,
     sketchEdges,
-    // Legacy API
-    buildModel,
-    retry,
-    // New parametric API
     buildSketch,
     extrudeSketch,
     revolveSketch,
