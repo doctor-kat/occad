@@ -107,7 +107,7 @@ export function OperationPanel({
         py={12}
         style={{
           borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
-          backgroundColor: `${theme.colors.blue[5]}10`,
+          backgroundColor: `${theme.colors.blue[5]}15`, // Match active tab
         }}
       >
         <Group justify="space-between" align="center" wrap="nowrap">

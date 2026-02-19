@@ -584,22 +584,25 @@ export function CADLayout() {
                         justifyContent: 'center',
                         gap: 8,
                         cursor: 'pointer',
-                        '&[data-active]': {
-                          color: theme.colors.blue[5],
-                          borderBottomColor: theme.colors.blue[5],
-                          backgroundColor: `${theme.colors.blue[5]}10`,
-                        },
-                        '&:hover:not([data-active])': {
-                          backgroundColor: `${theme.colors.gray[5]}10`,
-                        }
-                      }
-                    }}
-                  >
-                    <Tabs.List>
-                      <Tabs.Tab
-                        value="features"
-                      >
-                        {isSidebarOpen ? (
+                                        '&[data-active]': {
+                                          color: theme.colors.blue[5],
+                                          borderBottomColor: theme.colors.blue[5],
+                                          backgroundColor: `${theme.colors.blue[5]}15`, // Increased opacity to match toolbar
+                                        },
+                                        '&:hover:not([data-active])': {
+                                          backgroundColor: `${theme.colors.gray[5]}10`,
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    <Tabs.List>
+                                      <Tabs.Tab
+                                        value="features"
+                                        style={{
+                                          // Ensure transition is smooth
+                                          transition: 'background-color 200ms, border-color 200ms, color 200ms',
+                                        }}
+                                      >                        {isSidebarOpen ? (
                           <Group gap={6} wrap="nowrap">
                             <Cube size={16} />
                             <span>Feature Tree</span>
