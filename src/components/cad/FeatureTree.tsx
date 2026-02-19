@@ -307,10 +307,9 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
         <ScrollArea
           style={{
             flex: 1,
-            padding: 8,
           }}
         >
-          <Stack gap={4}>
+          <Stack gap={4} p={8}>
             {items.map((item) => (
               <TreeItem
                 key={item.id}
@@ -336,10 +335,9 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
       <ScrollArea
         style={{
           flex: 1,
-          padding: 8,
         }}
       >
-        <Stack gap={2}>
+        <Stack gap={2} p={8}>
           {items.map((item) => (
             <TreeItem
               key={item.id}

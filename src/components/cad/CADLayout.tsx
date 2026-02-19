@@ -559,7 +559,7 @@ export function CADLayout() {
               panel: { flex: 1, overflow: 'hidden' },
               list: {
                 display: 'flex',
-                padding: isSidebarOpen ? '0 12px' : '8px 0',
+                padding: 0,
                 borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
                 backgroundColor: theme.other.colors.sidebarBackground,
                 gap: 0,
@@ -597,10 +597,10 @@ export function CADLayout() {
                 {isSidebarOpen ? (
                   <Group gap={6} wrap="nowrap">
                     <Cube size={16} />
-                    <span>Features</span>
+                    <span>Feature Tree</span>
                   </Group>
                 ) : (
-                  <Tooltip label="Features" position="right">
+                  <Tooltip label="Feature Tree" position="right">
                     <Center><Cube size={20} /></Center>
                   </Tooltip>
                 )}

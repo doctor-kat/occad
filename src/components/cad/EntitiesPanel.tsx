@@ -39,10 +39,9 @@ export function EntitiesPanel({
       <ScrollArea
         style={{
           flex: 1,
-          padding: 8,
         }}
       >
-        <Stack gap={2}>
+        <Stack gap={2} p={8}>
           {/* Faces Section */}
           {faceCount > 0 && (
             <>
