@@ -3,14 +3,15 @@ import { HeaderBar } from './HeaderBar';
 import { FeatureTabs } from './FeatureTabs';
 import { FeatureTree } from './FeatureTree';
 import { CADViewport } from './CADViewport';
-import { ExtrudeDialog } from './ExtrudeDialog';
+import { OperationPanel } from './OperationPanel';
 import { EntitiesPanel } from './EntitiesPanel';
 import { useCADState } from '@/hooks/useCADState';
 import { useOpenCascade } from '@/hooks/useOpenCascade';
 import { useViewportStore } from '@/stores/viewportStore';
-import { AppShell, Box, useMantineTheme } from '@mantine/core';
+import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Group } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
+import { Cube, Polygon } from '@phosphor-icons/react';
 import type { SketchElement, SketchTool, SketchPlane, ExtrudeParams } from '@/types/cad';
 
 export function CADLayout() {
@@ -18,6 +19,7 @@ export function CADLayout() {
   const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(164);
   const theme = useMantineTheme();
+  const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>('features');
 
   // Dynamically measure header height so sidebar/main offsets stay correct
   // even when the toolbar scrollbar appears (e.g. narrow Firefox windows)
@@ -150,9 +152,10 @@ export function CADLayout() {
     }
   }, [project.id, project.version, occStatus, rebuild, project, clearAllItemErrors]);
 
-  // Extrude dialog state
-  const [extrudeDialogOpen, setExtrudeDialogOpen] = useState(false);
+  // Extrude operation state
+  const [extrudeActive, setExtrudeActive] = useState(false);
   const [extrudeIsCut, setExtrudeIsCut] = useState(false);
+  const [editingFeatureId, setEditingFeatureId] = useState<string | null>(null);
 
   // Handle entering sketch mode when a sketch tool is selected
   useEffect(() => {
@@ -200,15 +203,18 @@ export function CADLayout() {
         return;
       }
 
-      // Exit sketch mode before opening extrude dialog
+      // Exit sketch mode before opening extrude panel
       if (activeSketchId) {
         stopSketchEdit();
       }
 
       setExtrudeIsCut(activeTool === 'extruded-cut');
-      setExtrudeDialogOpen(true);
+      setExtrudeActive(true);
+      setEditingFeatureId(null); // Reset editing ID for new feature
+      // Ensure sidebar is open when operation is active
+      if (!isSidebarOpen) toggleSidebar();
     }
-  }, [activeTool, project.sketches, activeSketchId, stopSketchEdit, selectTool]);
+  }, [activeTool, project.sketches, activeSketchId, stopSketchEdit, selectTool, isSidebarOpen, toggleSidebar]);
 
   // Handle box tool selection
   useEffect(() => {
@@ -226,27 +232,63 @@ export function CADLayout() {
 
   // Handle extrude confirmation
   const handleExtrudeConfirm = (sketchId: string, params: ExtrudeParams) => {
-    // Create feature in state
-    const featureName = extrudeIsCut
-      ? `Cut-Extrude${project.features.length + 1}`
-      : `Boss-Extrude${project.features.length + 1}`;
+    if (editingFeatureId) {
+      // Update existing feature
+      const feature = project.features.find((f) => f.id === editingFeatureId);
+      if (feature) {
+        updateFeatureParameters(editingFeatureId, params);
+        notifications.show({ color: 'green', message: `${feature.name} updated` });
+      }
+    } else {
+      // Create new feature
+      const featureName = extrudeIsCut
+        ? `Cut-Extrude${project.features.length + 1}`
+        : `Boss-Extrude${project.features.length + 1}`;
 
-    const feature = addFeature(
-      featureName,
-      extrudeIsCut ? 'extruded-cut' : 'extrude-boss',
-      params,
-      sketchId,
-      [sketchId]
-    );
-
-    // No manual extrudeSketch call here! 
-    // The state update above will increment project.version, 
-    // which triggers the automatic rebuild in our useEffect.
-
-    // Deselect tool
+      addFeature(
+        featureName,
+        extrudeIsCut ? 'extruded-cut' : 'extrude-boss',
+        params,
+        sketchId,
+        [sketchId]
+      );
+      notifications.show({ color: 'green', message: `${extrudeIsCut ? 'Cut' : 'Extrude'} feature created` });
+    }
 
     selectTool(null);
-    notifications.show({ color: 'green', message: `${extrudeIsCut ? 'Cut' : 'Extrude'} feature created` });
+    setExtrudeActive(false);
+    setEditingFeatureId(null);
+  };
+
+  const handleExtrudeCancel = () => {
+    selectTool(null);
+    setExtrudeActive(false);
+    setEditingFeatureId(null);
+  };
+
+  // Override editTreeItem to support specific editing logic
+  const handleEditTreeItem = (id: string) => {
+    // Check if it's a sketch
+    const sketch = project.sketches.find((s) => s.id === id);
+    if (sketch) {
+      startSketchEdit(id);
+      notifications.show({ color: 'blue', message: `Editing ${sketch.name}` });
+      return;
+    }
+
+    // Check if it's a feature
+    const feature = project.features.find((f) => f.id === id);
+    if (feature && (feature.type === 'extrude-boss' || feature.type === 'extruded-cut')) {
+      setEditingFeatureId(id);
+      setExtrudeIsCut(feature.type === 'extruded-cut');
+      setExtrudeActive(true);
+      // Ensure sidebar is open
+      if (!isSidebarOpen) toggleSidebar();
+      return;
+    }
+
+    // Default to generic edit logic
+    editTreeItem(id);
   };
 
   // Handle sketch update
@@ -275,6 +317,8 @@ export function CADLayout() {
     setSelectedFaceId(faceId);
     setSelectedEdgeIndex(null);
     setSelectedVertexIndex(null);
+    // Switch to entities tab if not already there
+    setActiveSidebarTab('entities');
   };
 
   // Handle edge click from viewport
@@ -284,6 +328,8 @@ export function CADLayout() {
     setSelectedFaceId(null);
     setSelectedEdgeIndex(edgeIndex);
     setSelectedVertexIndex(null);
+    // Switch to entities tab if not already there
+    setActiveSidebarTab('entities');
   };
 
   // Handle vertex click from viewport
@@ -484,7 +530,7 @@ export function CADLayout() {
         </Box>
       </AppShell.Header>
 
-      {/* Left Sidebar - Feature Tree */}
+      {/* Left Sidebar - Dynamic Panel */}
       <AppShell.Navbar
         style={{
           borderRight: `1px solid ${theme.other.colors.border}`,
@@ -493,23 +539,136 @@ export function CADLayout() {
           overflow: 'hidden',
         }}
       >
-        <FeatureTree
-          items={featureTree}
-          selectedItem={selectedTreeItem}
-          onSelectItem={(id) => {
-            selectTreeItem(id);
-            // Clear geometry selections when selecting from tree
-            setSelectedFaceId(null);
-            setSelectedEdgeIndex(null);
-            setSelectedVertexIndex(null);
-          }}
-          onToggleExpand={toggleTreeItemExpansion}
-          onToggleVisibility={toggleTreeItemVisibility}
-          onEdit={editTreeItem}
-          onDelete={deleteTreeItem}
-          isCompact={!isSidebarOpen}
-          onToggleSidebar={toggleSidebar}
-        />
+        {extrudeActive ? (
+          <OperationPanel
+            title={editingFeatureId ? `Edit ${project.features.find(f => f.id === editingFeatureId)?.name}` : (extrudeIsCut ? 'Extruded Cut' : 'Extrude Boss')}
+            sketches={project.sketches}
+            selectedSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : (selectedTreeItem || undefined)}
+            initialParams={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.parameters as ExtrudeParams) : undefined}
+            isCut={extrudeIsCut}
+            onConfirm={handleExtrudeConfirm}
+            onCancel={handleExtrudeCancel}
+          />
+        ) : (
+          <Tabs
+            variant="unstyled"
+            value={activeSidebarTab}
+            onChange={setActiveSidebarTab}
+            styles={{
+              root: { display: 'flex', flexDirection: 'column', height: '100%' },
+              panel: { flex: 1, overflow: 'hidden' },
+              list: {
+                display: 'flex',
+                padding: isSidebarOpen ? '0 12px' : '8px 0',
+                borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
+                backgroundColor: theme.other.colors.sidebarBackground,
+                gap: 0,
+              },
+              tab: {
+                flex: isSidebarOpen ? 1 : 'none',
+                height: 40,
+                borderBottom: '2px solid transparent',
+                fontSize: 11,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: theme.other.colors.mutedForeground,
+                transition: 'all 200ms',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                '&[data-active]': {
+                  color: theme.colors.blue[5],
+                  borderBottomColor: theme.colors.blue[5],
+                  backgroundColor: `${theme.colors.blue[5]}10`,
+                },
+                '&:hover:not([data-active])': {
+                  backgroundColor: `${theme.colors.gray[5]}10`,
+                }
+              }
+            }}
+          >
+            <Tabs.List>
+              <Tabs.Tab
+                value="features"
+              >
+                {isSidebarOpen ? (
+                  <Group gap={6} wrap="nowrap">
+                    <Cube size={16} />
+                    <span>Features</span>
+                  </Group>
+                ) : (
+                  <Tooltip label="Features" position="right">
+                    <Center><Cube size={20} /></Center>
+                  </Tooltip>
+                )}
+              </Tabs.Tab>
+              <Tabs.Tab
+                value="entities"
+              >
+                {isSidebarOpen ? (
+                  <Group gap={6} wrap="nowrap">
+                    <Polygon size={16} />
+                    <span>Entities</span>
+                  </Group>
+                ) : (
+                  <Tooltip label="Entities" position="right">
+                    <Center><Polygon size={20} /></Center>
+                  </Tooltip>
+                )}
+              </Tabs.Tab>
+
+              {!isSidebarOpen && (
+                <Box mt="auto" px={8} pb={8} style={{ width: '100%' }}>
+                  <Tooltip label="Expand Sidebar" position="right">
+                    <ActionIcon variant="subtle" color="gray" onClick={toggleSidebar} w="100%" h={40}>
+                      <Cube size={20} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Box>
+              )}
+            </Tabs.List>
+
+            <Tabs.Panel value="features">
+              <FeatureTree
+                items={featureTree}
+                selectedItem={selectedTreeItem}
+                onSelectItem={(id) => {
+                  selectTreeItem(id);
+                  // Clear geometry selections when selecting from tree
+                  setSelectedFaceId(null);
+                  setSelectedEdgeIndex(null);
+                  setSelectedVertexIndex(null);
+                }}
+                onToggleExpand={toggleTreeItemExpansion}
+                onToggleVisibility={toggleTreeItemVisibility}
+                onEdit={handleEditTreeItem}
+                onDelete={deleteTreeItem}
+                isCompact={!isSidebarOpen}
+                onToggleSidebar={toggleSidebar}
+              />
+            </Tabs.Panel>
+            <Tabs.Panel value="entities">
+              {!isSidebarOpen ? (
+                 <Stack gap={4} p={8} align="center">
+                    <Tooltip label="Faces" position="right">
+                       <ActionIcon variant="subtle" size="lg">
+                          <Polygon size={20} />
+                       </ActionIcon>
+                    </Tooltip>
+                 </Stack>
+              ) : (
+                <EntitiesPanel
+                  mesh={occMesh}
+                  onFaceClick={handleFaceClick}
+                  onEdgeClick={handleEdgeClick}
+                />
+              )}
+            </Tabs.Panel>
+          </Tabs>
+        )}
       </AppShell.Navbar>
 
       {/* Main Canvas Area */}
@@ -547,25 +706,8 @@ export function CADLayout() {
             onVertexClick={handleVertexClick}
             onBackgroundClick={handleBackgroundClick}
           />
-
-          {/* Entities Panel */}
-          <EntitiesPanel
-            mesh={occMesh}
-            onFaceClick={handleFaceClick}
-            onEdgeClick={handleEdgeClick}
-          />
         </Box>
       </AppShell.Main>
-
-      {/* Extrude Dialog */}
-      <ExtrudeDialog
-        open={extrudeDialogOpen}
-        onOpenChange={setExtrudeDialogOpen}
-        sketches={project.sketches}
-        selectedSketchId={selectedTreeItem || undefined}
-        isCut={extrudeIsCut}
-        onConfirm={handleExtrudeConfirm}
-      />
     </AppShell>
   );
 }

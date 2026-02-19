@@ -304,27 +304,6 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
     // Compact mode: icon-only sidebar showing only top-level items
     return (
       <Stack gap={0} style={{ height: '100%', width: 56 }}>
-        <Box
-          style={{
-            borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
-            padding: 12,
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
-          {onToggleSidebar && (
-            <Tooltip label="Expand Feature Tree" position="right">
-              <ActionIcon
-                variant="subtle"
-                size="sm"
-                onClick={onToggleSidebar}
-                style={{ color: theme.other.colors.mutedForeground }}
-              >
-                <Sidebar size={16} weight="regular" />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Box>
         <ScrollArea
           style={{
             flex: 1,
@@ -354,43 +333,6 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
 
   return (
     <Stack gap={0} style={{ height: '100%' }}>
-      <Box
-        px={16}
-        py={12}
-        style={{
-          borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
-        }}
-      >
-        <Group gap={8} align="center" justify="space-between" wrap="nowrap">
-          <Text
-            size="xs"
-            fw={700}
-            tt="uppercase"
-            style={{
-              letterSpacing: '0.1em',
-              color: theme.other.colors.mutedForeground,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              flexShrink: 1,
-            }}
-          >
-            Feature Tree
-          </Text>
-          {onToggleSidebar && (
-            <Tooltip label="Collapse Feature Tree" position="right">
-              <ActionIcon
-                variant="subtle"
-                size="sm"
-                onClick={onToggleSidebar}
-                style={{ color: theme.other.colors.mutedForeground }}
-              >
-                <SidebarSimple size={16} weight="regular" />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
-      </Box>
       <ScrollArea
         style={{
           flex: 1,

@@ -63,11 +63,6 @@ describe("FeatureTree", () => {
     onDelete: vi.fn(),
   };
 
-  it('should render "Feature Tree" header', () => {
-    renderWithProviders(<FeatureTree {...defaultProps} />);
-    expect(screen.getByText("Feature Tree")).toBeInTheDocument();
-  });
-
   it("should render all reference geometry names", () => {
     renderWithProviders(<FeatureTree {...defaultProps} />);
     expect(screen.getByText("Front Plane")).toBeInTheDocument();
