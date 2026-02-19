@@ -89,6 +89,9 @@ export function CADLayout() {
     onFeatureBuilt: (featureId, meshData) => {
       notifications.show({ color: 'green', message: 'Feature built successfully' });
     },
+    onRebuildComplete: (meshData) => {
+      notifications.show({ color: 'green', message: 'Rebuild complete' });
+    },
     onFaceGeometry: (faceId, origin, normal) => {
       // Create sketch with the actual face geometry
       if (pendingSketchOnFace === faceId) {
@@ -207,6 +210,20 @@ export function CADLayout() {
     }
   }, [activeTool, project.sketches, activeSketchId, stopSketchEdit, selectTool]);
 
+  // Handle box tool selection
+  useEffect(() => {
+    if (activeTool === 'box') {
+      addFeature(`Box${project.features.length + 1}`, 'box', {
+        width: 50,
+        height: 50,
+        depth: 50,
+        center: { x: 0, y: 0, z: 0 },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Box created' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
   // Handle extrude confirmation
   const handleExtrudeConfirm = (sketchId: string, params: ExtrudeParams) => {
     // Create feature in state
@@ -222,10 +239,12 @@ export function CADLayout() {
       [sketchId]
     );
 
-    // Trigger OpenCascade operation
-    extrudeSketch(feature.id, sketchId, params);
+    // No manual extrudeSketch call here! 
+    // The state update above will increment project.version, 
+    // which triggers the automatic rebuild in our useEffect.
 
     // Deselect tool
+
     selectTool(null);
     notifications.show({ color: 'green', message: `${extrudeIsCut ? 'Cut' : 'Extrude'} feature created` });
   };
@@ -233,24 +252,10 @@ export function CADLayout() {
   // Handle sketch update
   const handleUpdateSketch = (sketchId: string, elements: SketchElement[]) => {
     updateSketchElements(sketchId, elements);
-
-    // Build the sketch in the worker so it's available for extrusion
-    const sketch = project.sketches.find(s => s.id === sketchId);
-    if (sketch && elements.length > 0) {
-      buildSketch(sketchId, sketch.plane, elements);
-    }
   };
 
   // Handle finish sketch
   const handleFinishSketch = () => {
-    // Build the final sketch state in the worker
-    if (activeSketchId) {
-      const sketch = project.sketches.find(s => s.id === activeSketchId);
-      if (sketch && sketch.elements.length > 0) {
-        buildSketch(sketch.id, sketch.plane, sketch.elements);
-      }
-    }
-
     stopSketchEdit();
     selectTool(null); // Deselect tool
     notifications.show({ color: 'green', message: 'Sketch completed' });

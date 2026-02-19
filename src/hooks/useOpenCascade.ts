@@ -77,7 +77,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           break;
 
         case "progress":
-          setProgress((msg as any).message);
+          setProgress(msg.message);
           break;
 
         case "sketchBuilt":
@@ -96,6 +96,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           break;
 
         case "rebuildComplete":
+          console.log(`[Main Thread] Rebuild complete. Received mesh with ${msg.meshData.faceVertices.length / 3} vertices.`);
           setMesh(msg.meshData);
           setCurrentShapeId(msg.shapeId);
           setCurrentFeatureShapeId(msg.shapeId); // Track last feature shape
@@ -238,6 +239,11 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     setSketchEdges(null);
   }, []);
 
+  const retry = useCallback(() => {
+    setStatus("ready");
+    setError(null);
+  }, []);
+
   return {
     status,
     progress,
@@ -253,5 +259,6 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     deleteShape,
     getFaceGeometry,
     clearMesh,
+    retry,
   };
 }
