@@ -531,144 +531,150 @@ export function CADLayout() {
       </AppShell.Header>
 
       {/* Left Sidebar - Dynamic Panel */}
-      <AppShell.Navbar
-        style={{
-          borderRight: `1px solid ${theme.other.colors.border}`,
-          backgroundColor: theme.other.colors.sidebarBackground,
-          transition: 'all 300ms ease-in-out',
-          overflow: 'hidden',
-        }}
-      >
-        {extrudeActive ? (
-          <OperationPanel
-            title={editingFeatureId ? `Edit ${project.features.find(f => f.id === editingFeatureId)?.name}` : (extrudeIsCut ? 'Extruded Cut' : 'Extrude Boss')}
-            sketches={project.sketches}
-            selectedSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : (selectedTreeItem || undefined)}
-            initialParams={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.parameters as ExtrudeParams) : undefined}
-            isCut={extrudeIsCut}
-            onConfirm={handleExtrudeConfirm}
-            onCancel={handleExtrudeCancel}
-          />
-        ) : (
-          <Tabs
-            variant="unstyled"
-            value={activeSidebarTab}
-            onChange={setActiveSidebarTab}
-            styles={{
-              root: { display: 'flex', flexDirection: 'column', height: '100%' },
-              panel: { flex: 1, overflow: 'hidden' },
-              list: {
-                display: 'flex',
-                padding: 0,
-                borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
+            <AppShell.Navbar
+              style={{
+                borderRight: `1px solid ${theme.other.colors.border}`,
                 backgroundColor: theme.other.colors.sidebarBackground,
-                gap: 0,
-              },
-              tab: {
-                flex: isSidebarOpen ? 1 : 'none',
-                height: 40,
-                borderBottom: '2px solid transparent',
-                fontSize: 11,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                color: theme.other.colors.mutedForeground,
-                transition: 'all 200ms',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                cursor: 'pointer',
-                '&[data-active]': {
-                  color: theme.colors.blue[5],
-                  borderBottomColor: theme.colors.blue[5],
-                  backgroundColor: `${theme.colors.blue[5]}10`,
-                },
-                '&:hover:not([data-active])': {
-                  backgroundColor: `${theme.colors.gray[5]}10`,
-                }
-              }
-            }}
-          >
-            <Tabs.List>
-              <Tabs.Tab
-                value="features"
-              >
-                {isSidebarOpen ? (
-                  <Group gap={6} wrap="nowrap">
-                    <Cube size={16} />
-                    <span>Feature Tree</span>
-                  </Group>
+                transition: 'all 300ms ease-in-out',
+                overflow: 'hidden',
+              }}
+            >
+              <Box style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                {extrudeActive ? (
+                  <Box mt={8} style={{ flex: 1, borderTop: `1px solid ${theme.other.colors.sidebarBorder}` }}>
+                    <OperationPanel
+                      title={editingFeatureId ? `Edit ${project.features.find(f => f.id === editingFeatureId)?.name}` : (extrudeIsCut ? 'Extruded Cut' : 'Extrude Boss')}
+                      sketches={project.sketches}
+                      selectedSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : (selectedTreeItem || undefined)}
+                      initialParams={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.parameters as ExtrudeParams) : undefined}
+                      isCut={extrudeIsCut}
+                      onConfirm={handleExtrudeConfirm}
+                      onCancel={handleExtrudeCancel}
+                    />
+                  </Box>
                 ) : (
-                  <Tooltip label="Feature Tree" position="right">
-                    <Center><Cube size={20} /></Center>
-                  </Tooltip>
-                )}
-              </Tabs.Tab>
-              <Tabs.Tab
-                value="entities"
-              >
-                {isSidebarOpen ? (
-                  <Group gap={6} wrap="nowrap">
-                    <Polygon size={16} />
-                    <span>Entities</span>
-                  </Group>
-                ) : (
-                  <Tooltip label="Entities" position="right">
-                    <Center><Polygon size={20} /></Center>
-                  </Tooltip>
-                )}
-              </Tabs.Tab>
-
-              {!isSidebarOpen && (
-                <Box mt="auto" px={8} pb={8} style={{ width: '100%' }}>
-                  <Tooltip label="Expand Sidebar" position="right">
-                    <ActionIcon variant="subtle" color="gray" onClick={toggleSidebar} w="100%" h={40}>
-                      <Cube size={20} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Box>
-              )}
-            </Tabs.List>
-
-            <Tabs.Panel value="features">
-              <FeatureTree
-                items={featureTree}
-                selectedItem={selectedTreeItem}
-                onSelectItem={(id) => {
-                  selectTreeItem(id);
-                  // Clear geometry selections when selecting from tree
-                  setSelectedFaceId(null);
-                  setSelectedEdgeIndex(null);
-                  setSelectedVertexIndex(null);
-                }}
-                onToggleExpand={toggleTreeItemExpansion}
-                onToggleVisibility={toggleTreeItemVisibility}
-                onEdit={handleEditTreeItem}
-                onDelete={deleteTreeItem}
-                isCompact={!isSidebarOpen}
-                onToggleSidebar={toggleSidebar}
-              />
-            </Tabs.Panel>
-            <Tabs.Panel value="entities">
-              {!isSidebarOpen ? (
-                 <Stack gap={4} p={8} align="center">
-                    <Tooltip label="Faces" position="right">
-                       <ActionIcon variant="subtle" size="lg">
-                          <Polygon size={20} />
-                       </ActionIcon>
-                    </Tooltip>
-                 </Stack>
-              ) : (
-                <EntitiesPanel
-                  mesh={occMesh}
-                  onFaceClick={handleFaceClick}
-                  onEdgeClick={handleEdgeClick}
-                />
-              )}
-            </Tabs.Panel>
-          </Tabs>
-        )}
+                  <Tabs
+                    variant="unstyled"
+                    value={activeSidebarTab}
+                    onChange={setActiveSidebarTab}
+                    styles={{
+                      root: { display: 'flex', flexDirection: 'column', height: '100%' },
+                      panel: { flex: 1, overflow: 'hidden' },
+                      list: {
+                        display: 'flex',
+                        padding: 0,
+                        borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
+                        backgroundColor: theme.other.colors.sidebarBackground,
+                        gap: 0,
+                        marginTop: 8, // Add gap between toolbar and sidebar tabs
+                        borderTop: `1px solid ${theme.other.colors.sidebarBorder}`, // Add top border for distinction
+                      },
+                      tab: {
+                        flex: isSidebarOpen ? 1 : 'none',
+                        height: 36, // Slightly shorter tabs for a more "panel" look
+                        borderBottom: '2px solid transparent',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        color: theme.other.colors.mutedForeground,
+                        transition: 'all 200ms',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        cursor: 'pointer',
+                        '&[data-active]': {
+                          color: theme.colors.blue[5],
+                          borderBottomColor: theme.colors.blue[5],
+                          backgroundColor: `${theme.colors.blue[5]}10`,
+                        },
+                        '&:hover:not([data-active])': {
+                          backgroundColor: `${theme.colors.gray[5]}10`,
+                        }
+                      }
+                    }}
+                  >
+                    <Tabs.List>
+                      <Tabs.Tab
+                        value="features"
+                      >
+                        {isSidebarOpen ? (
+                          <Group gap={6} wrap="nowrap">
+                            <Cube size={16} />
+                            <span>Feature Tree</span>
+                          </Group>
+                        ) : (
+                          <Tooltip label="Feature Tree" position="right">
+                            <Center><Cube size={20} /></Center>
+                          </Tooltip>
+                        )}
+                      </Tabs.Tab>
+                      <Tabs.Tab
+                        value="entities"
+                      >
+                        {isSidebarOpen ? (
+                          <Group gap={6} wrap="nowrap">
+                            <Polygon size={16} />
+                            <span>Entities</span>
+                          </Group>
+                        ) : (
+                          <Tooltip label="Entities" position="right">
+                            <Center><Polygon size={20} /></Center>
+                          </Tooltip>
+                        )}
+                      </Tabs.Tab>
+      
+                      {!isSidebarOpen && (
+                        <Box mt="auto" px={8} pb={8} style={{ width: '100%' }}>
+                          <Tooltip label="Expand Sidebar" position="right">
+                            <ActionIcon variant="subtle" color="gray" onClick={toggleSidebar} w="100%" h={40}>
+                              <Cube size={20} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Box>
+                      )}
+                    </Tabs.List>
+      
+                    <Tabs.Panel value="features">
+                      <FeatureTree
+                        items={featureTree}
+                        selectedItem={selectedTreeItem}
+                        onSelectItem={(id) => {
+                          selectTreeItem(id);
+                          // Clear geometry selections when selecting from tree
+                          setSelectedFaceId(null);
+                          setSelectedEdgeIndex(null);
+                          setSelectedVertexIndex(null);
+                        }}
+                        onToggleExpand={toggleTreeItemExpansion}
+                        onToggleVisibility={toggleTreeItemVisibility}
+                        onEdit={handleEditTreeItem}
+                        onDelete={deleteTreeItem}
+                        isCompact={!isSidebarOpen}
+                        onToggleSidebar={toggleSidebar}
+                      />
+                    </Tabs.Panel>
+                    <Tabs.Panel value="entities">
+                      {!isSidebarOpen ? (
+                        <Stack gap={4} p={8} align="center">
+                          <Tooltip label="Faces" position="right">
+                            <ActionIcon variant="subtle" size="lg">
+                              <Polygon size={20} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Stack>
+                      ) : (
+                        <EntitiesPanel
+                          mesh={occMesh}
+                          onFaceClick={handleFaceClick}
+                          onEdgeClick={handleEdgeClick}
+                        />
+                      )}
+                    </Tabs.Panel>
+            </Tabs>
+          )}
+        </Box>
       </AppShell.Navbar>
 
       {/* Main Canvas Area */}
