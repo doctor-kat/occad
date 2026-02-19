@@ -4,7 +4,7 @@
  * Convert OpenCascade shapes to triangle meshes and edge polylines.
  */
 
-import type { TopoDS_Shape } from 'opencascade.js';
+type TopoDS_Shape = any;
 import type { MeshData } from '@/types/cad';
 import type { WorkerContext } from './workerContext';
 
@@ -25,7 +25,9 @@ export function tessellate(
   const { oc } = ctx;
 
   // Perform incremental meshing
-  new oc.BRepMesh_IncrementalMesh_2(shape, linearDeflection, false, angularDeflection, false);
+  const mesher = new oc.BRepMesh_IncrementalMesh_2(shape, linearDeflection, false, angularDeflection, false);
+  const meshDone = mesher.IsDone();
+  console.log(`[OC Worker] Incremental Mesh done: ${meshDone}`);
 
   const faceVertices: number[] = [];
   const faceIndices: number[] = [];
@@ -42,16 +44,23 @@ export function tessellate(
     oc.TopAbs_ShapeEnum.TopAbs_SHAPE
   );
 
+  let faceCount = 0;
   for (; faceExplorer.More(); faceExplorer.Next()) {
+    faceCount++;
     const face = oc.TopoDS.Face_1(faceExplorer.Current());
     const location = new oc.TopLoc_Location_1();
     const handleTriangulation = oc.BRep_Tool.Triangulation(face, location, 0);
 
-    if (handleTriangulation.IsNull()) continue;
+    if (handleTriangulation.IsNull()) {
+      location.delete();
+      handleTriangulation.delete();
+      continue;
+    }
 
     const triangulation = handleTriangulation.get();
     const nNodes = triangulation.NbNodes();
     const nTriangles = triangulation.NbTriangles();
+    console.log(`[OC Worker] Face ${faceCount}: Nodes=${nNodes}, Triangles=${nTriangles}`);
     const transform = location.Transformation();
     const isReversed = face.Orientation_1() === oc.TopAbs_Orientation.TopAbs_REVERSED;
 
@@ -59,6 +68,7 @@ export function tessellate(
     for (let i = 1; i <= nNodes; i++) {
       const pnt = triangulation.Node(i).Transformed(transform);
       faceVertices.push(pnt.X(), pnt.Y(), pnt.Z());
+      pnt.delete();
     }
 
     // Triangle indices (flip winding for reversed faces)
@@ -80,7 +90,13 @@ export function tessellate(
 
     vertexOffset += nNodes;
     cadFaceId++; // Increment for next CAD face
+
+    // Clean up
+    location.delete();
+    handleTriangulation.delete();
+    transform.delete();
   }
+  faceExplorer.delete();
 
   // ---- Extract edge polylines ----
   // Use TopExp.MapShapes_1 to get unique edges (HashCode is unreliable for deduplication)
@@ -89,6 +105,7 @@ export function tessellate(
 
   const edgeCount = edgeMap.Extent();
   const edgeMapping: number[] = [];
+  console.log(`[OC Worker] Found ${edgeCount} unique edges for tessellation`);
 
   for (let i = 1; i <= edgeCount; i++) {
     const edge = oc.TopoDS.Edge_1(edgeMap.FindKey(i));
@@ -107,7 +124,10 @@ export function tessellate(
         edgeVertices.push(p1.X(), p1.Y(), p1.Z());
         edgeVertices.push(p2.X(), p2.Y(), p2.Z());
         edgeMapping.push(i - 1); // 0-based topological edge ID
+        p1.delete();
+        p2.delete();
       }
+      transform.delete();
     } else {
       // Fall back: discretize the edge curve directly
       try {
@@ -127,12 +147,21 @@ export function tessellate(
           edgeVertices.push(p1.X(), p1.Y(), p1.Z());
           edgeVertices.push(p2.X(), p2.Y(), p2.Z());
           edgeMapping.push(i - 1); // 0-based topological edge ID
+          p1.delete();
+          p2.delete();
         }
+        adaptorCurve.delete();
+        tangDef.delete();
       } catch {
         // Skip edges that can't be discretized
       }
     }
+    location.delete();
+    handlePoly.delete();
   }
+  mesher.delete();
+  edgeMap.delete();
+  console.log(`[OC Worker] Mesh buffers prepared. Face vertices: ${faceVertices.length / 3}, Edge vertices: ${edgeVertices.length / 3}`);
 
   // Compute normals (simple per-vertex normals)
   const faceNormals: number[] = new Array(faceVertices.length).fill(0);
@@ -178,6 +207,10 @@ export function tessellate(
   const edgeIndices: number[] = [];
   for (let i = 0; i < edgeVertices.length / 3; i++) {
     edgeIndices.push(i);
+  }
+
+  if (faceVertices.length === 0 && edgeVertices.length === 0) {
+    console.warn(`[OC Worker] Tessellation produced zero geometry for shape! FaceCount: ${faceCount}, EdgeCount: ${edgeCount}`);
   }
 
   return {

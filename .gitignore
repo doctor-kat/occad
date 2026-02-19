@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 
 .claude
+
+# Testing
+/playwright-report/
+/test-results/
+/test-results*.json

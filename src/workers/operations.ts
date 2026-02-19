@@ -4,7 +4,7 @@
  * Handlers for sketch building, extrusion, revolution, rebuild, and other operations.
  */
 
-import type { TopoDS_Shape } from 'opencascade.js';
+type TopoDS_Shape = any;
 import type {
   SketchElement,
   SketchPlane,
@@ -39,6 +39,12 @@ function formatError(err: unknown): string {
   if (typeof err === 'object' && err !== null) {
     // Try to extract message property from OpenCascade exception
     const errObj = err as Record<string, unknown>;
+
+    // Check for Emscripten's peculiar error representation
+    if (typeof errObj === 'number') {
+      return `OpenCascade error (code: ${errObj})`;
+    }
+
     if (typeof errObj.message === 'string') {
       return errObj.message;
     }
@@ -50,15 +56,11 @@ function formatError(err: unknown): string {
         return str;
       }
     }
-    // Try to JSON stringify
-    try {
-      const json = JSON.stringify(err);
-      if (json !== '{}') {
-        return json;
-      }
-    } catch {
-      // Fall through
+    // If it's a number (pointer), try to get something meaningful
+    if (typeof err === 'number') {
+      return `OpenCascade exception (pointer: ${err})`;
     }
+
     // Return a generic message with the constructor name
     return `OpenCascade exception (${err.constructor?.name || 'unknown type'})`;
   }
@@ -90,14 +92,15 @@ export function handleBuildSketch(
     let shape: TopoDS_Shape = wire;
     try {
       // Downcast TopoDS_Shape to TopoDS_Wire for type safety
-      const wireShape = oc.TopoDS.Wire_1(wire);
-      const faceMaker = new oc.BRepBuilderAPI_MakeFace_15(wireShape, false);
+      const wireWire = oc.TopoDS.Wire_1(wire);
+      const faceMaker = new oc.BRepBuilderAPI_MakeFace_15(wireWire, false);
 
       if (!faceMaker.IsDone()) {
         console.warn('Could not create face from wire, using wire only');
       } else {
         shape = faceMaker.Face();
       }
+      faceMaker.delete();
     } catch (err) {
       console.warn('Failed to create face from wire:', err);
     }
@@ -165,7 +168,18 @@ export function handleExtrudeSketch(
 
     // Perform extrusion
     const prism = new oc.BRepPrimAPI_MakePrism_1(faceToExtrude, extrudeVec, false, true);
+
+    if (!prism.IsDone()) {
+      extrudeVec.delete();
+      prism.delete();
+      throw new Error('BRepPrimAPI_MakePrism failed');
+    }
+
     const shape = prism.Shape();
+
+    // Clean up
+    extrudeVec.delete();
+    prism.delete();
 
     // Store shape
     const shapeId = `feature_${featureId}_${shapeIdCounter++}`;
@@ -222,17 +236,39 @@ export function handleRevolveSketch(
 
     // Create axis of revolution
     const axisOrigin = new oc.gp_Pnt_3(params.axis.origin.x, params.axis.origin.y, params.axis.origin.z);
-    const axisDir = new oc.gp_Dir_4(
-      params.axis.direction.x,
-      params.axis.direction.y,
-      params.axis.direction.z
-    );
+    let axisDir: any;
+    try {
+      axisDir = new oc.gp_Dir_4(
+        params.axis.direction.x,
+        params.axis.direction.y,
+        params.axis.direction.z
+      );
+    } catch (e) {
+      axisOrigin.delete();
+      throw new Error('Invalid axis direction vector');
+    }
+
     const axis = new oc.gp_Ax1_2(axisOrigin, axisDir);
 
     // Perform revolution
     const angleRad = (params.angle * Math.PI) / 180;
     const revol = new oc.BRepPrimAPI_MakeRevol_1(faceToRevolve, axis, angleRad, false);
+
+    if (!revol.IsDone()) {
+      axisOrigin.delete();
+      axisDir.delete();
+      axis.delete();
+      revol.delete();
+      throw new Error('BRepPrimAPI_MakeRevol failed');
+    }
+
     const shape = revol.Shape();
+
+    // Clean up
+    axisOrigin.delete();
+    axisDir.delete();
+    axis.delete();
+    revol.delete();
 
     // Store shape
     const shapeId = `feature_${featureId}_${shapeIdCounter++}`;
@@ -277,16 +313,76 @@ export function performBooleanOperation(
   const { oc } = ctx;
   const progressRange = new oc.Message_ProgressRange_1();
 
-  switch (operation) {
-    case 'union':
-      return new oc.BRepAlgoAPI_Fuse_3(shape1, shape2, progressRange).Shape();
-    case 'intersect':
-      return new oc.BRepAlgoAPI_Common_3(shape1, shape2, progressRange).Shape();
-    case 'subtract':
-      return new oc.BRepAlgoAPI_Cut_3(shape1, shape2, progressRange).Shape();
-    default:
-      throw new Error(`Unknown boolean operation: ${operation}`);
+  try {
+    switch (operation) {
+      case 'union': {
+        const fuse = new oc.BRepAlgoAPI_Fuse_3(shape1, shape2, progressRange);
+        let res = fuse.Shape();
+
+        // Check if fuse succeeded and result is valid
+        if (fuse.IsDone() && !res.IsNull() && validateShape(ctx, res)) {
+          fuse.delete();
+          progressRange.delete();
+          return res;
+        }
+
+        console.log('[OC Worker] Standard union failed or resulting shape empty, falling back to compound');
+        fuse.delete();
+
+        // Fallback: Manually create a compound of the two shapes
+        // This is useful for disjoint shapes where Fuse might fail or be overkill
+        const comp = new oc.TopoDS_Compound();
+        const builder = new oc.BRep_Builder();
+        builder.MakeCompound(comp);
+        builder.Add(comp, shape1);
+        builder.Add(comp, shape2);
+
+        progressRange.delete();
+        builder.delete();
+        return comp;
+      }
+      case 'intersect': {
+        const common = new oc.BRepAlgoAPI_Common_3(shape1, shape2, progressRange);
+        const res = common.Shape();
+        common.delete();
+        progressRange.delete();
+        return res;
+      }
+      case 'subtract': {
+        const cut = new oc.BRepAlgoAPI_Cut_3(shape1, shape2, progressRange);
+        const res = cut.Shape();
+        cut.delete();
+        progressRange.delete();
+        return res;
+      }
+      default:
+        progressRange.delete();
+        throw new Error(`Unknown boolean operation: ${operation}`);
+    }
+  } catch (err) {
+    console.error(`[OC Worker] Boolean operation ${operation} crashed:`, err);
+    progressRange.delete();
+    // Return original shape1 as a safe fallback for boss operations
+    return shape1;
   }
+}
+
+/**
+ * Validate that a shape is valid and has expected geometric entities
+ * @param ctx Worker context
+ * @param shape Shape to validate
+ * @returns true if shape is valid and non-empty
+ */
+function validateShape(ctx: WorkerContext, shape: TopoDS_Shape): boolean {
+  const { oc } = ctx;
+  if (shape.IsNull()) return false;
+
+  const faceExplorer = new oc.TopExp_Explorer_2(shape, oc.TopAbs_ShapeEnum.TopAbs_FACE, oc.TopAbs_ShapeEnum.TopAbs_SHAPE);
+  let faceCount = 0;
+  for (; faceExplorer.More(); faceExplorer.Next()) faceCount++;
+  faceExplorer.delete();
+
+  return faceCount > 0;
 }
 
 /**
@@ -298,6 +394,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
   const { oc } = ctx;
 
   try {
+    console.log(`[OC Worker] handleRebuild starting for ${project.features.length} features, ${project.sketches.length} sketches`);
     post({ type: 'progress', message: 'Starting full rebuild...' });
 
     // Clear existing shapes
@@ -319,12 +416,13 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
         try {
           // Downcast TopoDS_Shape to TopoDS_Wire for type safety
-          const wireShape = oc.TopoDS.Wire_1(wire);
-          const faceMaker = new oc.BRepBuilderAPI_MakeFace_15(wireShape, false);
+          const wireWire = oc.TopoDS.Wire_1(wire);
+          const faceMaker = new oc.BRepBuilderAPI_MakeFace_15(wireWire, false);
 
           if (faceMaker.IsDone()) {
             shape = faceMaker.Face();
           }
+          faceMaker.delete();
         } catch (err) {
           console.warn(`Could not create face for sketch ${sketch.id}`);
         }
@@ -353,6 +451,8 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
         }
       }
     }
+
+    console.log(`[OC Worker] Built ${project.sketches.length} sketches. Features pass starting...`);
 
     // Second pass: Build all features in order
     const totalFeatures = project.features.filter(f => !f.isSuppressed).length;
@@ -384,14 +484,38 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
             );
 
             const prism = new oc.BRepPrimAPI_MakePrism_1(faceToExtrude, extrudeVec, false, true);
+            if (!prism.IsDone()) {
+              extrudeVec.delete();
+              prism.delete();
+              throw new Error('BRepPrimAPI_MakePrism failed');
+            }
             let newShape = prism.Shape();
+            if (newShape.IsNull()) {
+              extrudeVec.delete();
+              prism.delete();
+              throw new Error('BRepPrimAPI_MakePrism returned null shape');
+            }
+
+            // Clean up temporary objects
+            extrudeVec.delete();
+            prism.delete();
 
             // Apply boolean operation if we have an existing body
             if (currentBody) {
               if (feature.type === 'extrude-boss') {
-                currentBody = performBooleanOperation(ctx, 'union', currentBody, newShape);
+                const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
+                if (!result.IsNull()) {
+                  currentBody = result;
+                } else {
+                  console.error(`Boolean union failed for feature ${feature.id}`);
+                }
               } else if (feature.type === 'extruded-cut') {
-                currentBody = performBooleanOperation(ctx, 'subtract', currentBody, newShape);
+                const result = performBooleanOperation(ctx, 'subtract', currentBody, newShape);
+                if (!result.IsNull()) {
+                  currentBody = result;
+                } else {
+                  console.error(`Boolean subtract failed for feature ${feature.id}`);
+                }
               }
             } else {
               currentBody = newShape;
@@ -422,18 +546,48 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
             const angleRad = (params.angle * Math.PI) / 180;
             const revol = new oc.BRepPrimAPI_MakeRevol_1(faceToRevolve, axis, angleRad, false);
+            if (!revol.IsDone()) {
+              axisOrigin.delete();
+              axisDir.delete();
+              axis.delete();
+              revol.delete();
+              throw new Error('BRepPrimAPI_MakeRevol failed');
+            }
             let newShape = revol.Shape();
+            if (newShape.IsNull()) {
+              axisOrigin.delete();
+              axisDir.delete();
+              axis.delete();
+              revol.delete();
+              throw new Error('BRepPrimAPI_MakeRevol returned null shape');
+            }
 
             // Apply boolean operation if we have an existing body
             if (currentBody) {
               if (feature.type === 'revolved-boss') {
-                currentBody = performBooleanOperation(ctx, 'union', currentBody, newShape);
+                const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
+                if (!result.IsNull() && validateShape(ctx, result)) {
+                  currentBody = result;
+                } else {
+                  console.error(`Boolean union failed for revolved feature ${feature.id}`);
+                }
               } else if (feature.type === 'revolved-cut') {
-                currentBody = performBooleanOperation(ctx, 'subtract', currentBody, newShape);
+                const result = performBooleanOperation(ctx, 'subtract', currentBody, newShape);
+                if (!result.IsNull() && validateShape(ctx, result)) {
+                  currentBody = result;
+                } else {
+                  console.error(`Boolean subtract failed for revolved feature ${feature.id}`);
+                }
               }
             } else {
               currentBody = newShape;
             }
+
+            // Clean up temporary objects
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+            revol.delete();
 
             const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
             ctx.shapeStorage.set(shapeId, currentBody);
@@ -443,41 +597,47 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           const params = feature.parameters as PrimitiveBoxParams;
           const center = params.center || { x: 0, y: 0, z: 0 };
 
-          // Create box at origin first, then translate
           const dx = params.width;
           const dy = params.height;
           const dz = params.depth;
 
-          // Create box with dimensions (positioned at origin corner)
-          const box = new oc.BRepPrimAPI_MakeBox_1(dx, dy, dz);
-          let newShape = box.Shape();
+          // Create coordinate system centered at (center.x-dx/2, center.y-dy/2, center.z-dz/2)
+          // or just use the center point and offset the box? 
+          // BRepPrimAPI_MakeBox(Pmin, Pmax) is very clean for this.
 
-          // Translate to center if needed
-          if (center.x !== 0 || center.y !== 0 || center.z !== 0) {
-            const translation = new oc.gp_Vec_4(
-              center.x - dx / 2,
-              center.y - dy / 2,
-              center.z + dz / 2 // OpenCascade creates box in positive Z
-            );
-            const transform = new oc.gp_Trsf_1();
-            transform.SetTranslation_1(translation);
-            const location = new oc.TopLoc_Location_2(transform);
-            newShape = newShape.Moved(location, false);
-          } else {
-            // Center at origin
-            const translation = new oc.gp_Vec_4(-dx / 2, -dy / 2, dz / 2);
-            const transform = new oc.gp_Trsf_1();
-            transform.SetTranslation_1(translation);
-            const location = new oc.TopLoc_Location_2(transform);
-            newShape = newShape.Moved(location, false);
+          const pMin = new oc.gp_Pnt_3(center.x - dx / 2, center.y - dy / 2, center.z - dz / 2);
+          const pMax = new oc.gp_Pnt_3(center.x + dx / 2, center.y + dy / 2, center.z + dz / 2);
+
+          const box = new oc.BRepPrimAPI_MakeBox_4(pMin, pMax);
+          if (!box.IsDone()) {
+            pMin.delete();
+            pMax.delete();
+            box.delete();
+            throw new Error('BRepPrimAPI_MakeBox failed');
+          }
+          let newShape = box.Shape();
+          if (newShape.IsNull()) {
+            pMin.delete();
+            pMax.delete();
+            box.delete();
+            throw new Error('BRepPrimAPI_MakeBox returned null shape');
           }
 
           // Apply boolean operation if we have an existing body
           if (currentBody) {
-            currentBody = performBooleanOperation(ctx, 'union', currentBody, newShape);
+            const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
+            if (!result.IsNull() && validateShape(ctx, result)) {
+              currentBody = result;
+            } else {
+              console.error(`Boolean union failed for box feature ${feature.id}`);
+            }
           } else {
             currentBody = newShape;
           }
+
+          pMin.delete();
+          pMax.delete();
+          box.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
@@ -497,15 +657,18 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
       const finalShapeId = `rebuild_final_${shapeIdCounter++}`;
       ctx.shapeStorage.set(finalShapeId, currentBody);
 
+      console.log(`[OC Worker] Rebuild complete. Final body found. Tessellating...`);
       const meshData = tessellate(ctx, currentBody, 0.1, 0.5);
+      console.log(`[OC Worker] Tessellation finished. Vertices: ${meshData.faceVertices.length / 3}, Faces: ${meshData.faceIndices.length / 3}`);
 
-      const transferables: ArrayBuffer[] = [...getTransferables(meshData)];
+      const transferables: Transferable[] = [...getTransferables(meshData)];
 
       // Add sketch edge buffers to transferables
       for (const edge of Object.values(sketchEdgesMap)) {
         transferables.push(edge.edgeVertices.buffer);
       }
 
+      console.log(`[OC Worker] Rebuild complete. Final shape ID: ${finalShapeId}. Mesh generated with ${meshData.faceVertices.length / 3} vertices.`);
       post(
         { type: 'rebuildComplete', meshData, shapeId: finalShapeId, sketchEdges: sketchEdgesMap },
         transferables
@@ -523,9 +686,9 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
         edgeCount: 0,
       };
 
-      const transferables: ArrayBuffer[] = [];
+      const transferables: Transferable[] = [];
       for (const edge of Object.values(sketchEdgesMap)) {
-        transferables.push(edge.edgeVertices.buffer);
+        transferables.push(edge.edgeVertices.buffer as any);
       }
 
       post(

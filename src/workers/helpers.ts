@@ -4,7 +4,8 @@
  * Shared helper functions for OpenCascade worker operations.
  */
 
-import type { TopoDS_Shape, TopoDS_Face } from 'opencascade.js';
+type TopoDS_Shape = any;
+type TopoDS_Face = any;
 import type { MeshData } from '@/types/cad';
 import type { WorkerContext } from './workerContext';
 
@@ -39,7 +40,7 @@ export function getTransferables(meshData: MeshData): Transferable[] {
  * @returns Shape if found, undefined otherwise
  */
 export function findSketchShape(ctx: WorkerContext, sketchId: string): TopoDS_Shape | undefined {
-  const shapeId = Array.from(ctx.shapeStorage.keys()).find(id => id.includes(sketchId));
+  const shapeId = Array.from(ctx.shapeStorage.keys()).find(id => id.startsWith(`sketch_${sketchId}_`));
   return shapeId ? ctx.shapeStorage.get(shapeId) : undefined;
 }
 
@@ -61,7 +62,9 @@ export function ensureFace(ctx: WorkerContext, shape: TopoDS_Shape): TopoDS_Face
       throw new Error(`BRepBuilderAPI_MakeFace failed: ${faceMaker.Error()}`);
     }
 
-    return faceMaker.Face();
+    const res = faceMaker.Face();
+    faceMaker.delete();
+    return res;
   }
 
   return shape as TopoDS_Face;

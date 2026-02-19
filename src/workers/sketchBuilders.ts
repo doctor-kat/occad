@@ -4,7 +4,10 @@
  * Pure functions for converting 2D sketch elements to 3D OpenCascade geometry.
  */
 
-import type { gp_Pnt, gp_Dir, TopoDS_Edge, TopoDS_Wire } from 'opencascade.js';
+type gp_Pnt = any;
+type gp_Dir = any;
+type TopoDS_Edge = any;
+type TopoDS_Wire = any;
 import type { SketchElement, SketchPlane, Point2D } from '@/types/cad';
 import type { WorkerContext } from './workerContext';
 
@@ -42,16 +45,9 @@ export function sketchPointTo3D(ctx: WorkerContext, point2D: Point2D, plane: Ske
 
   switch (plane.type) {
     case 'xy':
-      const pt = new oc.gp_Pnt_3(point2D.x, point2D.y, offset);
-      // Debug logging
-      if (Math.abs(point2D.x) > 200 || Math.abs(point2D.y) > 200) {
-        console.warn(`Large 2D coordinates detected: (${point2D.x}, ${point2D.y}) on XY plane`);
-      }
-      return pt;
+      return new oc.gp_Pnt_3(point2D.x, point2D.y, offset);
     case 'xz':
-      const ptXZ = new oc.gp_Pnt_3(point2D.x, offset, point2D.y);
-      console.log(`[XZ Plane] 2D sketch (${point2D.x.toFixed(2)}, ${point2D.y.toFixed(2)}) → 3D world (${point2D.x.toFixed(2)}, ${offset}, ${point2D.y.toFixed(2)})`);
-      return ptXZ;
+      return new oc.gp_Pnt_3(point2D.x, offset, point2D.y);
     case 'yz':
       return new oc.gp_Pnt_3(offset, point2D.x, point2D.y);
     case 'custom':
@@ -60,28 +56,56 @@ export function sketchPointTo3D(ctx: WorkerContext, point2D: Point2D, plane: Ske
         const origin = new oc.gp_Pnt_3(plane.origin.x, plane.origin.y, plane.origin.z);
         const normal = new oc.gp_Dir_4(plane.normal.x, plane.normal.y, plane.normal.z);
 
-        // Create coordinate system with default axis (auto-computes X/Y from Z direction)
-        const ax2 = new oc.gp_Ax2_1();
-        ax2.SetLocation(origin);
-        ax2.SetDirection(normal);
+        // Create coordinate system with manual axis alignment to match frontend
+        let xAxisDir: any;
+
+        const vNormal = new oc.gp_Vec_4(normal.X(), normal.Y(), normal.Z());
+        if (Math.abs(normal.X()) < 0.9) {
+          const v1 = new oc.gp_Vec_4(1, 0, 0);
+          const vX = v1.Crossed(vNormal).Normalized();
+          xAxisDir = new oc.gp_Dir_4(vX.X(), vX.Y(), vX.Z());
+          v1.delete();
+          vX.delete();
+        } else {
+          const v1 = new oc.gp_Vec_4(0, 1, 0);
+          const vNormalVec = new oc.gp_Vec_4(normal.X(), normal.Y(), normal.Z());
+          const vX = v1.Crossed(vNormalVec).Normalized();
+          xAxisDir = new oc.gp_Dir_4(vX.X(), vX.Y(), vX.Z());
+          v1.delete();
+          vNormalVec.delete();
+          vX.delete();
+        }
+        vNormal.delete();
+
+        // Create explicit coordinate system
+        const ax2 = new oc.gp_Ax2_2(origin, normal, xAxisDir);
 
         // Convert 2D point to 3D point on the plane
-        const u = point2D.x;
-        const v = point2D.y;
-
-        // Get the X and Y directions from the coordinate system
+        // Calculate 3D point: origin + u*xDir + v*yDir
         const xAxis = ax2.XDirection();
         const yAxis = ax2.YDirection();
         const pos = ax2.Location();
 
-        // Calculate 3D point: origin + u*xDir + v*yDir
-        const x = pos.X() + u * xAxis.X() + v * yAxis.X();
-        const y = pos.Y() + u * xAxis.Y() + v * yAxis.Y();
-        const z = pos.Z() + u * xAxis.Z() + v * yAxis.Z();
+        const x = pos.X() + point2D.x * xAxis.X() + point2D.y * yAxis.X();
+        const y = pos.Y() + point2D.x * xAxis.Y() + point2D.y * yAxis.Y();
+        const z = pos.Z() + point2D.x * xAxis.Z() + point2D.y * yAxis.Z();
 
-        return new oc.gp_Pnt_3(x, y, z);
+        const result = new oc.gp_Pnt_3(x, y, z);
+
+        // Clean up
+        origin.delete();
+        normal.delete();
+        xAxisDir.delete();
+        ax2.delete();
+        // xAxis, yAxis, pos are references/copies from ax2, usually don't need delete if they are accessors, 
+        // but in OCC.js they might be new objects. Let's be safe.
+        // Actually, XDirection() returns a copy for gp_Ax2.
+        xAxis.delete();
+        yAxis.delete();
+        pos.delete();
+
+        return result;
       }
-      // Fallback to XY plane
       return new oc.gp_Pnt_3(point2D.x, point2D.y, offset);
     default:
       return new oc.gp_Pnt_3(point2D.x, point2D.y, offset);
@@ -130,17 +154,22 @@ export function buildLineEdge(
   const p1 = sketchPointTo3D(ctx, line.start, plane);
   const p2 = sketchPointTo3D(ctx, line.end, plane);
 
-  const segment = new oc.GC_MakeSegment_1(p1, p2);
-  if (!segment.IsDone()) {
-    throw new Error(`GC_MakeSegment failed: ${segment.Status()}`);
+  // Directly create edge from two points
+  const edgeBuilder = new oc.BRepBuilderAPI_MakeEdge_3(p1, p2);
+  if (!edgeBuilder.IsDone()) {
+    p1.delete();
+    p2.delete();
+    throw new Error(`BRepBuilderAPI_MakeEdge failed: ${edgeBuilder.Error()}`);
   }
 
-  const edge = new oc.BRepBuilderAPI_MakeEdge_24(new oc.Handle_Geom_Curve_2(segment.Value().get()));
-  if (!edge.IsDone()) {
-    throw new Error(`BRepBuilderAPI_MakeEdge failed: ${edge.Error()}`);
-  }
+  const edge = edgeBuilder.Edge();
 
-  return edge.Edge();
+  // Clean up
+  p1.delete();
+  p2.delete();
+  edgeBuilder.delete();
+
+  return edge;
 }
 
 /**
@@ -159,17 +188,27 @@ export function buildCircleEdge(
   const center = sketchPointTo3D(ctx, circle.center, plane);
   const normal = getSketchPlaneNormal(ctx, plane);
 
-  const circleGeom = new oc.GC_MakeCircle_6(center, normal, circle.radius);
-  if (!circleGeom.IsDone()) {
-    throw new Error(`GC_MakeCircle failed: ${circleGeom.Status()}`);
+  // Use gp_Ax2 to define coordinate system then create circle
+  const axis = new oc.gp_Ax2_2(center, normal);
+  const circ = new oc.gp_Circ_2(axis, circle.radius);
+
+  const edgeBuilder = new oc.BRepBuilderAPI_MakeEdge_10(circ);
+  if (!edgeBuilder.IsDone()) {
+    center.delete();
+    normal.delete();
+    axis.delete();
+    throw new Error(`BRepBuilderAPI_MakeEdge failed for circle: ${edgeBuilder.Error()}`);
   }
 
-  const edge = new oc.BRepBuilderAPI_MakeEdge_23(new oc.Handle_Geom_Curve_2(circleGeom.Value().get()));
-  if (!edge.IsDone()) {
-    throw new Error(`BRepBuilderAPI_MakeEdge failed: ${edge.Error()}`);
-  }
+  const edge = edgeBuilder.Edge();
 
-  return edge.Edge();
+  // Clean up
+  center.delete();
+  normal.delete();
+  axis.delete();
+  edgeBuilder.delete();
+
+  return edge;
 }
 
 /**
@@ -192,17 +231,20 @@ export function buildArcEdge(
     const p2 = sketchPointTo3D(ctx, arc.points[1], plane);
     const p3 = sketchPointTo3D(ctx, arc.points[2], plane);
 
-    const arcGeom = new oc.GC_MakeArcOfCircle_4(p1, p2, p3);
-    if (!arcGeom.IsDone()) {
-      throw new Error(`GC_MakeArcOfCircle failed: ${arcGeom.Status()}`);
-    }
-
-    const edge = new oc.BRepBuilderAPI_MakeEdge_24(new oc.Handle_Geom_Curve_2(arcGeom.Value().get()));
+    const edge = new oc.BRepBuilderAPI_MakeEdge_31(p1, p2, p3);
     if (!edge.IsDone()) {
-      throw new Error(`BRepBuilderAPI_MakeEdge failed: ${edge.Error()}`);
+      p1.delete();
+      p2.delete();
+      p3.delete();
+      throw new Error(`BRepBuilderAPI_MakeEdge failed for 3-point arc: ${edge.Error()}`);
     }
 
-    return edge.Edge();
+    const res = edge.Edge();
+    p1.delete();
+    p2.delete();
+    p3.delete();
+    edge.delete();
+    return res;
   } else if (
     arc.center &&
     arc.radius !== undefined &&
@@ -213,22 +255,23 @@ export function buildArcEdge(
     const center = sketchPointTo3D(ctx, arc.center, plane);
     const normal = getSketchPlaneNormal(ctx, plane);
 
-    // Create circle then trim to arc
-    const ax2 = new oc.gp_Ax2_1();
-    ax2.SetLocation(center);
-    ax2.SetDirection(normal);
-    const circle = new oc.gp_Circ_2(ax2, arc.radius);
-    const arcGeom = new oc.GC_MakeArcOfCircle_1(circle, arc.startAngle, arc.endAngle, true);
-    if (!arcGeom.IsDone()) {
-      throw new Error(`GC_MakeArcOfCircle failed: ${arcGeom.Status()}`);
-    }
+    const axis = new oc.gp_Ax2_2(center, normal);
+    const circ = new oc.gp_Circ_2(axis, arc.radius);
 
-    const edge = new oc.BRepBuilderAPI_MakeEdge_24(new oc.Handle_Geom_Curve_2(arcGeom.Value().get()));
+    const edge = new oc.BRepBuilderAPI_MakeEdge_11(circ, arc.startAngle, arc.endAngle);
     if (!edge.IsDone()) {
-      throw new Error(`BRepBuilderAPI_MakeEdge failed: ${edge.Error()}`);
+      center.delete();
+      normal.delete();
+      axis.delete();
+      throw new Error(`BRepBuilderAPI_MakeEdge failed for angular arc: ${edge.Error()}`);
     }
 
-    return edge.Edge();
+    const res = edge.Edge();
+    center.delete();
+    normal.delete();
+    axis.delete();
+    edge.delete();
+    return res;
   }
 
   throw new Error('Invalid arc definition');
@@ -262,10 +305,24 @@ export function buildRectangleWire(
   polygonBuilder.Close(); // Close the polygon back to p1
 
   if (!polygonBuilder.IsDone()) {
+    p1.delete();
+    p2.delete();
+    p3.delete();
+    p4.delete();
+    polygonBuilder.delete();
     throw new Error('BRepBuilderAPI_MakePolygon failed for rectangle');
   }
 
-  return polygonBuilder.Wire();
+  const wire = polygonBuilder.Wire();
+
+  // Clean up
+  p1.delete();
+  p2.delete();
+  p3.delete();
+  p4.delete();
+  polygonBuilder.delete();
+
+  return wire;
 }
 
 /**
@@ -340,23 +397,33 @@ export function buildEllipseEdge(
   const center = sketchPointTo3D(ctx, ellipse.center, plane);
   const normal = getSketchPlaneNormal(ctx, plane);
 
-  // Create a coordinate system for the ellipse
-  // TODO: Handle rotation properly
-  const ax2 = new oc.gp_Ax2_1();
-  ax2.SetLocation(center);
-  ax2.SetDirection(normal);
+  const axis = new oc.gp_Ax2_2(center, normal);
 
-  const ellipseGeom = new oc.GC_MakeEllipse_2(ax2, ellipse.majorRadius, ellipse.minorRadius);
-  if (!ellipseGeom.IsDone()) {
-    throw new Error(`GC_MakeEllipse failed: ${ellipseGeom.Status()}`);
+  // Apply rotation if present
+  if (ellipse.rotation) {
+    const rotationRad = (ellipse.rotation * Math.PI) / 180;
+    axis.Rotate(new oc.gp_Ax1_2(center, normal), rotationRad);
   }
 
-  const edge = new oc.BRepBuilderAPI_MakeEdge_23(new oc.Handle_Geom_Curve_2(ellipseGeom.Value().get()));
-  if (!edge.IsDone()) {
-    throw new Error(`BRepBuilderAPI_MakeEdge failed: ${edge.Error()}`);
+  const gpEllipse = new oc.gp_Elips_4(axis, ellipse.majorRadius, ellipse.minorRadius);
+  const edgeBuilder = new oc.BRepBuilderAPI_MakeEdge_12(gpEllipse);
+
+  if (!edgeBuilder.IsDone()) {
+    center.delete();
+    normal.delete();
+    axis.delete();
+    throw new Error(`BRepBuilderAPI_MakeEdge failed for ellipse: ${edgeBuilder.Error()}`);
   }
 
-  return edge.Edge();
+  const edge = edgeBuilder.Edge();
+
+  // Clean up
+  center.delete();
+  normal.delete();
+  axis.delete();
+  edgeBuilder.delete();
+
+  return edge;
 }
 
 /**
