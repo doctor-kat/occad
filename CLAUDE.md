@@ -30,6 +30,30 @@ bun run lint
 
 ## Architecture
 
+### Project Structure (Layers)
+
+The codebase is organized into four strictly separated layers to decouple the UI from the CAD kernel:
+
+1.  **`src/ui/` (The Interface)**: Pure frontend layer.
+    *   React components, application layout, and Mantine theme.
+    *   `hooks/useCADState.ts`: Manages the project state, feature tree, and UI-level CRUD operations.
+    *   Depends on: `src/cad/types` (for data models) and `src/worker/bridge` (for engine communication).
+
+2.  **`src/canvas/` (The Visuals)**: Visualization and rendering layer.
+    *   Three.js components (`OpenCascadeViewport`) and HTML5 Canvas overlays (`SketchOverlay`).
+    *   `stores/viewportStore.ts`: Zustand store for camera, selection, and hover state.
+    *   Depends on: `src/cad/types` (for mesh/edge data formats).
+
+3.  **`src/cad/` (The Engine)**: Core CAD logic and data models.
+    *   `engine/`: Pure TypeScript wrappers for OpenCascade.js operations (runs inside the worker).
+    *   `types/`: Foundational CAD types (`Project`, `Feature`, `SketchElement`) and engine output formats (`MeshData`).
+    *   No dependencies on UI or Rendering layers.
+
+4.  **`src/worker/` (The Bridge)**: Infrastructure for cross-thread communication.
+    *   `bridge/opencascadeWorker.ts`: The Web Worker entry point.
+    *   `bridge/useOpenCascade.ts`: The React hook used by the UI to send commands to the engine.
+    *   `types/`: Strictly defined Request/Response DTOs for message passing.
+
 ### Core Stack
 
 - **React 18** + TypeScript (strict mode disabled, `noImplicitAny: false`)
@@ -42,7 +66,7 @@ bun run lint
 
 ### Import Alias
 
-`@` maps to `./src` — use for all imports: `import { useCADState } from '@/hooks/useCADState'`
+`@` maps to `./src` — use for all imports: `import { useCADState } from '@/ui/hooks/useCADState'`
 
 ### Critical Vite Headers
 
@@ -54,14 +78,15 @@ Cross-Origin-Embedder-Policy: require-corp
 
 ### State Management
 
-Custom hook-based (not Redux/Zustand). Central state in `useCADState` (src/hooks/useCADState.ts):
+Custom hook-based (not Redux/Zustand). Central state in `useCADState` (src/ui/hooks/useCADState.ts):
 - CADProject: feature history, sketches, reference geometry, version tracking
 - Tool/tab/selection state, sketch editing state, rebuild progress
 - Auto-persisted to localStorage under key `'occad-project'`
 
-### Data Types
+### Data Types (src/cad/types/...)
 
 ```typescript
+// project.ts
 interface Sketch {
   id: string;
   name: string;
@@ -101,7 +126,7 @@ interface CADProject {
 
 ### Hook APIs
 
-**useCADState** (src/hooks/useCADState.ts):
+**useCADState** (src/ui/hooks/useCADState.ts):
 ```typescript
 const {
   project,                      // Current CAD project
@@ -125,7 +150,7 @@ const {
 } = useCADState();
 ```
 
-**useOpenCascade** (src/hooks/useOpenCascade.ts):
+**useOpenCascade** (src/worker/bridge/useOpenCascade.ts):
 ```typescript
 const {
   status,                       // 'loading' | 'ready' | 'building' | 'error'
@@ -141,15 +166,15 @@ const {
 
 ### Worker Architecture
 
-OpenCascade runs in a Web Worker (src/workers/opencascadeWorker.ts, ~1280 lines). The hook `useOpenCascade` (src/hooks/useOpenCascade.ts) manages the worker lifecycle and message passing.
+OpenCascade runs in a Web Worker (src/worker/bridge/opencascadeWorker.ts). The hook `useOpenCascade` (src/worker/bridge/useOpenCascade.ts) manages the worker lifecycle and message passing. Core CAD logic resides in `src/cad/engine/`.
 
-**Main Thread → Worker**: `buildSketch`, `extrudeSketch`, `revolveSketch`, `rebuild`, `getFaceGeometry`, `deleteShape`
+**Main Thread → Worker**: `buildSketch`, `extrudeSketch`, `revolveSketch`, `rebuild`, `getFaceGeometry`, `deleteShape` (Types in `src/worker/types/requests/`)
 
-**Worker → Main Thread**: `ready`, `sketchBuilt`, `featureBuilt`, `rebuildComplete`, `rebuildProgress`, `faceGeometry`, `error`
+**Worker → Main Thread**: `ready`, `sketchBuilt`, `featureBuilt`, `rebuildComplete`, `rebuildProgress`, `faceGeometry`, `error` (Types in `src/worker/types/responses/`)
 
 All mesh data uses transferable ArrayBuffers for zero-copy performance.
 
-**Sketch Geometry → OCC Mapping:**
+**Sketch Geometry → OCC Mapping (src/cad/engine/sketchBuilders.ts):**
 
 | Sketch Tool | OpenCascade API Used |
 |-------------|---------------------|
@@ -160,11 +185,10 @@ All mesh data uses transferable ArrayBuffers for zero-copy performance.
 | Polygon | N × `GC_MakeSegment` → closed wire |
 | Ellipse | `GC_MakeEllipse` → edge |
 | Spline | `GeomAPI_PointsToBSpline` → edge |
-| Bezier | `Geom_BezierCurve` (TODO — console.warn only) |
 
 All edges are combined into a `TopoDS_Wire` via `BRepBuilderAPI_MakeWire`, then converted to a `TopoDS_Face` via `BRepBuilderAPI_MakeFace` (if closed).
 
-**3D Operations → OCC Mapping:**
+**3D Operations → OCC Mapping (src/cad/engine/operations.ts):**
 
 | Operation | OpenCascade API |
 |-----------|----------------|
@@ -174,44 +198,17 @@ All edges are combined into a `TopoDS_Wire` via `BRepBuilderAPI_MakeWire`, then 
 | Subtract | `BRepAlgoAPI_Cut_3(shape1, shape2, progressRange)` |
 | Intersect | `BRepAlgoAPI_Common_3(shape1, shape2, progressRange)` |
 
-**NOT implemented (types exist but stubbed):**
-- Bezier curves (console.warn only)
-- Sphere, Cylinder, Cone, Torus primitives
-- Fillet, Chamfer, Shell/Hollow, Sweep/Loft
-- Import/Export (STEP, IGES, STL, glTF)
-
-### OCC API Conventions
-
-All OCC class constructors are suffixed with a number indicating the overload, e.g. `gp_Pnt_3(x, y, z)` is the 3rd constructor overload of `gp_Pnt`.
-
-| Task | OCC API |
-|------|---------|
-| Point | `new oc.gp_Pnt_3(x, y, z)` |
-| Direction | `new oc.gp_Dir_4(x, y, z)` |
-| Vector | `new oc.gp_Vec_4(x, y, z)` |
-| Axis | `new oc.gp_Ax1_2(origin, direction)` |
-| Coordinate system | `new oc.gp_Ax2_3(origin, zDir, xDir)` |
-| Extrude | `new oc.BRepPrimAPI_MakePrism_1(face, vec, copy, canonize)` |
-| Revolve | `new oc.BRepPrimAPI_MakeRevol_1(face, axis, angle, copy)` |
-| Boolean union | `new oc.BRepAlgoAPI_Fuse_3(s1, s2, progressRange)` |
-| Boolean cut | `new oc.BRepAlgoAPI_Cut_3(s1, s2, progressRange)` |
-| Boolean intersect | `new oc.BRepAlgoAPI_Common_3(s1, s2, progressRange)` |
-| Tessellate | `new oc.BRepMesh_IncrementalMesh_2(shape, defl, rel, ang, parallel)` |
-| Face iterator | `new oc.TopExp_Explorer_2(shape, TopAbs_FACE, TopAbs_SHAPE)` |
-| Get triangulation | `oc.BRep_Tool.Triangulation(face, location)` |
-| Progress range | `new oc.Message_ProgressRange_1()` |
-
 ### Component Structure
 
-- **App.tsx**: Providers — MantineProvider, Notifications, ModalsProvider, QueryClientProvider, BrowserRouter
-- **CADLayout**: Main orchestrator — coordinates HeaderBar, FeatureTabs, FeatureTree, viewport, and worker
-- **CADViewport**: Three.js canvas for 3D visualization
-- **OpenCascadeViewport**: OpenCascade-specific viewport with mesh rendering
-- **SketchCanvas**: 2D orthographic sketch editor (standalone mode, 200x200 unit plane, 10-unit grid)
-- **SketchOverlay**: 3D sketch overlay on arbitrary planes (in-viewport mode) — includes constraint snapping
-- **FeatureTree**: Hierarchical tree of reference geometry, sketches, features
-- **FeatureTabs**: Toolbar with categorized tools (Features, Sketch, Evaluate, Transform, I/O)
-- **ExtrudeDialog**: Parameter input for extrude operations
+- **App.tsx**: Providers (src/ui/App.tsx)
+- **CADLayout**: Main orchestrator (src/ui/components/CADLayout.tsx)
+- **CADViewport**: Main viewport container (src/canvas/components/CADViewport.tsx)
+- **OpenCascadeViewport**: Three.js viewport (src/canvas/components/OpenCascadeViewport.tsx)
+- **SketchCanvas**: 2D orthographic sketch editor (src/canvas/components/SketchCanvas.tsx)
+- **SketchOverlay**: 3D sketch overlay (src/canvas/components/SketchOverlay.tsx)
+- **FeatureTree**: Hierarchical tree (src/ui/components/FeatureTree.tsx)
+- **FeatureTabs**: Toolbar (src/ui/components/FeatureTabs.tsx)
+- **OperationPanel**: Parameter input (src/ui/components/OperationPanel.tsx)
 
 ### Dual Sketch System
 
@@ -225,7 +222,7 @@ Both support: Line, Rectangle, Circle, Polygon, Arc drawing tools. Keyboard: ESC
 
 Select face → `getFaceGeometry` extracts plane origin/normal from worker → create sketch on that plane.
 
-### Theme (src/theme/mantine.ts)
+### Theme (src/ui/theme/mantine.ts)
 
 Dark theme with custom CAD color palette. Primary: Cyan (#0dc2ff), Accent: Purple (#a64dff). CAD-specific colors in `theme.other.colors` (toolbar, canvas, grid, divider, header backgrounds + gradients).
 
@@ -238,7 +235,7 @@ Dark theme with custom CAD color palette. Primary: Cyan (#0dc2ff), Accent: Purpl
 
 ### After Refactoring Imports
 
-When removing a hook/import from a file, **scan the entire file for other usages before dropping the import**. Multi-component files (like `OpenCascadeViewport.tsx`) often have internal components that use hooks (`useRef`, `useEffect`, etc.) even if the main exported component no longer does. The build (`bun run build`) will NOT catch missing React hook imports — they only fail at **runtime** with `ReferenceError: useRef is not defined`. Always:
+When removing a hook/import from a file, **scan the entire file for other usages before dropping the import**. Multi-component files often have internal components that use hooks (`useRef`, `useEffect`, etc.) even if the main exported component no longer does. The build (`bun run build`) will NOT catch missing React hook imports — they only fail at **runtime** with `ReferenceError: useRef is not defined`. Always:
 
 1. After modifying imports, grep the file for all removed symbols (e.g. `useRef`, `useEffect`)
 2. Run `bun run build` to catch type errors
@@ -249,21 +246,20 @@ When removing a hook/import from a file, **scan the entire file for other usages
 
 ### Adding New Sketch Elements
 
-1. Add type to `SketchElement` union in src/types/cad.ts
-2. Implement builder in src/workers/opencascadeWorker.ts
-3. Add case to `buildSketchWire` switch
-4. Add tool icon/handler to FeatureTabs
-5. Add drawing logic to both SketchCanvas and SketchOverlay
+1. Add type to `SketchElement` union in src/cad/types/sketch-elements.ts
+2. Implement builder in src/cad/engine/sketchBuilders.ts
+3. Add tool icon/handler to FeatureTabs
+4. Add drawing logic to both SketchCanvas and SketchOverlay
 
 ### Adding New Features
 
-1. Add feature type to `FeatureTool` and parameter interface in src/types/cad.ts
-2. Add worker message type to `WorkerRequest`/`WorkerResponse`
-3. Implement handler in opencascadeWorker.ts
-4. Add case to `handleRebuild` for parametric rebuild
-5. Add UI controls in FeatureTabs + parameter dialog
+1. Add feature type to `FeatureTool` and parameter interface in src/cad/types/tools.ts and operation-params.ts
+2. Add worker message type to `src/worker/types/requests/` and `responses/`
+3. Implement handler in src/cad/engine/operations.ts
+4. Add case to `handleRebuild` in operations.ts for parametric rebuild
+5. Add UI controls in FeatureTabs + OperationPanel
 
-### Parametric Rebuild
+### Parametric Rebuild (src/cad/engine/operations.ts)
 
 1. Clear all shape storage
 2. **Pass 1**: Rebuild all sketches (wire/face construction)
