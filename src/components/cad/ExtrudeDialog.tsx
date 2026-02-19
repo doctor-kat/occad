@@ -1,6 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal, Button, TextInput, Select, Stack, Group, Text, Alert } from '@mantine/core';
-import type { Sketch, ExtrudeParams } from '@/types/cad';
+import { useViewportStore } from '@/stores/viewportStore';
+import type { Sketch, ExtrudeParams, SketchPlane, Vector3D } from '@/types/cad';
+
+/**
+ * Helper to get the normal vector for a sketch plane
+ */
+function getSketchNormal(plane: SketchPlane): Vector3D {
+  if (plane.normal) return plane.normal;
+
+  switch (plane.type) {
+    case 'xy': return { x: 0, y: 0, z: 1 };
+    case 'xz': return { x: 0, y: 1, z: 0 };
+    case 'yz': return { x: 1, y: 0, z: 0 };
+    default: return { x: 0, y: 0, z: 1 };
+  }
+}
 
 interface ExtrudeDialogProps {
   open: boolean;
@@ -26,6 +41,18 @@ export function ExtrudeDialog({
   const [distance, setDistance] = useState('10');
   const [direction, setDirection] = useState<'normal' | 'reverse'>('normal');
 
+  // Sync sketchId state when props change (e.g. user selects a different sketch in the tree)
+  useEffect(() => {
+    if (open) {
+      if (selectedSketchId) {
+        setSketchId(selectedSketchId);
+      } else if (sketches.length > 0) {
+        setSketchId(sketches[0].id);
+      }
+    }
+  }, [open, selectedSketchId, sketches]);
+
+
   const handleConfirm = () => {
     if (!sketchId) return;
 
@@ -34,15 +61,37 @@ export function ExtrudeDialog({
       return;
     }
 
+    const selectedSketch = sketches.find(s => s.id === sketchId);
+    const planeNormal = selectedSketch ? getSketchNormal(selectedSketch.plane) : { x: 0, y: 0, z: 1 };
+
     const params: ExtrudeParams = {
       distance: direction === 'normal' ? distanceValue : -distanceValue,
-      direction: { x: 0, y: 0, z: 1 }, // Default to Z-up
+      direction: planeNormal,
       isCut,
     };
 
     onConfirm(sketchId, params);
     onOpenChange(false);
   };
+
+  // Sync extrude preview to viewport store
+  const setExtrudePreview = useViewportStore((state) => state.setExtrudePreview);
+  useEffect(() => {
+    if (open && sketchId) {
+      setExtrudePreview({
+        sketchId,
+        distance: parseFloat(distance) || 0,
+        direction,
+      });
+    } else {
+      setExtrudePreview(null);
+    }
+
+    // Cleanup when unmounting or closing
+    return () => {
+      if (!open) setExtrudePreview(null);
+    };
+  }, [open, sketchId, distance, direction, setExtrudePreview]);
 
   // Filter to only show closed sketches (can be extruded)
   const closedSketches = sketches.filter((s) => s.isClosed);

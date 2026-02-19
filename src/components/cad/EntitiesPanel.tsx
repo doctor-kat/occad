@@ -166,6 +166,7 @@ export function EntitiesPanel({
                       key={`face-${i}`}
                       gap={6}
                       wrap="nowrap"
+                      data-selected={isSelected}
                       style={{
                         height: 32,
                         paddingLeft: 16 + 8, // depth=1 equivalent

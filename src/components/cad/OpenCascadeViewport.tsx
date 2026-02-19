@@ -51,7 +51,7 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
     meshes.forEach(meshRef => {
       if (meshRef) {
         if (inSketchMode) {
-          meshRef.raycast = () => {};
+          meshRef.raycast = () => { };
         } else {
           // Restore default raycast
           delete (meshRef as any).raycast;
@@ -316,6 +316,9 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
           opacity={inSketchMode ? 0.3 : 1}
           side={THREE.DoubleSide}
           depthWrite={!inSketchMode}
+          polygonOffset={true}
+          polygonOffsetFactor={1}
+          polygonOffsetUnits={1}
         />
       </mesh>
 
@@ -390,11 +393,11 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
                     ? "#3b82f6" // Blue when selected
                     : isHovered
                       ? "#f97316" // Orange when hovered
-                      : "#1a1a2e" // Dark when normal
+                      : "#222233" // Darker gray/navy for better contrast
                 }
                 linewidth={isSelected ? 3 : isHovered ? 2 : 1}
                 transparent
-                opacity={isSelected ? 1 : isHovered ? 0.85 : 0.55}
+                opacity={isSelected ? 1 : isHovered ? 0.9 : 0.8}
               />
             </lineSegments>
           );
@@ -754,6 +757,69 @@ function SketchWireframes({ project, sketchEdges }: SketchWireframesProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Extrude direction arrows — visual feedback for extrusion
+// ---------------------------------------------------------------------------
+function ExtrudeArrows({ project }: { project: CADProject }) {
+  const preview = useViewportStore((state) => state.extrudePreview);
+  if (!preview || !preview.sketchId) return null;
+
+  const sketch = project.sketches.find((s) => s.id === preview.sketchId);
+  if (!sketch) return null;
+
+  // Calculate plane normal and origin
+  // If useOpenCascade returns the actual plane data, we should use that.
+  // For now, we'll use a helper similar to ExtrudeDialog
+  const getSketchNormal = (plane: any): THREE.Vector3 => {
+    if (plane.normal) return new THREE.Vector3(plane.normal.x, plane.normal.y, plane.normal.z);
+    switch (plane.type) {
+      case 'xy': return new THREE.Vector3(0, 0, 1);
+      case 'xz': return new THREE.Vector3(0, 1, 0);
+      case 'yz': return new THREE.Vector3(1, 0, 0);
+      default: return new THREE.Vector3(0, 0, 1);
+    }
+  };
+
+  const getSketchOrigin = (plane: any): THREE.Vector3 => {
+    if (plane.origin) return new THREE.Vector3(plane.origin.x, plane.origin.y, plane.origin.z);
+    return new THREE.Vector3(0, 0, 0);
+  };
+
+  const normal = getSketchNormal(sketch.plane);
+  const origin = getSketchOrigin(sketch.plane);
+
+  // Create two arrows: one in normal direction, one in reverse
+  // The distance from the dialog informs the length of the arrows if we want, 
+  // but two fixed-size arrows are often better for direction indication.
+  // Making them visible over geometry as requested.
+
+  return (
+    <group position={origin}>
+      {/* Normal direction arrow */}
+      <primitive
+        object={(() => {
+          const helper = new THREE.ArrowHelper(normal, new THREE.Vector3(0, 0, 0), 20, 0x3b82f6, 5, 3);
+          (helper.line.material as any).depthTest = false;
+          (helper.cone.material as any).depthTest = false;
+          return helper;
+        })()}
+        renderOrder={100}
+      />
+
+      {/* Reverse direction arrow */}
+      <primitive
+        object={(() => {
+          const helper = new THREE.ArrowHelper(normal.clone().negate(), new THREE.Vector3(0, 0, 0), 20, 0xf97316, 5, 3);
+          (helper.line.material as any).depthTest = false;
+          (helper.cone.material as any).depthTest = false;
+          return helper;
+        })()}
+        renderOrder={100}
+      />
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Background mesh for catching clicks
 // ---------------------------------------------------------------------------
 function BackgroundPlane({ onClick }: { onClick: () => void }) {
@@ -881,6 +947,9 @@ function Scene({
           onBackgroundClick={onBackgroundClick}
         />
       )}
+
+      {/* Extrude Preview Arrows */}
+      {project && <ExtrudeArrows project={project} />}
 
 
       {/* Camera controls */}

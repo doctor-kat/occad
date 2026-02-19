@@ -495,7 +495,7 @@ export function SketchOverlay({
             const center = currentPoints[0];
             const radius = Math.sqrt(
               Math.pow(snappedPoint.x - center.x, 2) +
-                Math.pow(snappedPoint.y - center.y, 2)
+              Math.pow(snappedPoint.y - center.y, 2)
             );
             const newCircle: SketchElement = {
               type: 'circle',
@@ -601,7 +601,7 @@ export function SketchOverlay({
             const center = currentPoints[0];
             const radius = Math.sqrt(
               Math.pow(snappedPoint.x - center.x, 2) +
-                Math.pow(snappedPoint.y - center.y, 2)
+              Math.pow(snappedPoint.y - center.y, 2)
             );
             setPreviewElement({
               type: 'circle',
@@ -657,6 +657,7 @@ export function SketchOverlay({
       {/* Semi-transparent sketch plane */}
       <mesh
         ref={planeRef}
+        position={[0, 0, 0.01]}
         onClick={handlePlaneClick}
         onPointerMove={handlePlaneMove}
         onPointerLeave={() => setHoverPoint(null)}
