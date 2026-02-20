@@ -1,5 +1,5 @@
 {
   "tools": {
-    "sandbox": true
+    "sandbox": false
   }
 }

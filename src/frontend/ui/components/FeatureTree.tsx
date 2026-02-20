@@ -17,7 +17,7 @@ import {
 import { FeatureTreeItem as TreeItemType } from '@/cad/types';
 import { Button, Stack, Box, ScrollArea, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
 import { useState } from 'react';
-import { useViewportStore } from '@/canvas/stores/viewportStore';
+import { useViewportStore } from '@/frontend/state/viewportStore';
 
 interface FeatureTreeProps {
   items: TreeItemType[];

@@ -2,18 +2,17 @@ import { useRef, useEffect, useState } from 'react';
 import { HeaderBar } from './HeaderBar';
 import { FeatureTabs } from './FeatureTabs';
 import { FeatureTree } from './FeatureTree';
-import { CADViewport } from '@/canvas/components/CADViewport';
+import { CADViewport } from '@/frontend/canvas/components/CADViewport';
 import { OperationPanel } from './OperationPanel';
 import { EntitiesPanel } from './EntitiesPanel';
-import { useCADState } from '@/ui/hooks/useCADState';
+import { useCADState } from '@/frontend/state/useCADState';
 import { useOpenCascade } from '@/worker/bridge/useOpenCascade';
-import { useViewportStore } from '@/canvas/stores/viewportStore';
+import { useViewportStore } from '@/frontend/state/viewportStore';
 import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Group } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { Cube, Polygon } from '@phosphor-icons/react';
-import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
-import type { SketchTool } from '@/ui/types';
+import type { SketchElement, SketchPlane, ExtrudeParams, SketchTool } from '@/cad/types';
 
 export function CADLayout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -586,25 +585,22 @@ export function CADLayout() {
                         justifyContent: 'center',
                         gap: 8,
                         cursor: 'pointer',
-                                        '&[data-active]': {
-                                          color: theme.colors.blue[5],
-                                          borderBottomColor: theme.colors.blue[5],
-                                          backgroundColor: `${theme.colors.blue[5]}15`, // Increased opacity to match toolbar
-                                        },
-                                        '&:hover:not([data-active])': {
-                                          backgroundColor: `${theme.colors.gray[5]}10`,
-                                        }
-                                      }
-                                    }}
-                                  >
-                                    <Tabs.List>
-                                      <Tabs.Tab
-                                        value="features"
-                                        style={{
-                                          // Ensure transition is smooth
-                                          transition: 'background-color 200ms, border-color 200ms, color 200ms',
-                                        }}
-                                      >                        {isSidebarOpen ? (
+                      }
+                    }}
+                  >
+                    <Tabs.List>
+                      <Tabs.Tab
+                        value="features"
+                        style={{
+                          // Ensure transition is smooth
+                          transition: 'background-color 200ms, border-color 200ms, color 200ms',
+                          ...(activeSidebarTab === 'features' && {
+                            color: theme.colors.blue[5],
+                            borderBottomColor: theme.colors.blue[5],
+                            backgroundColor: `${theme.colors.blue[5]}15`,
+                          })
+                        }}
+                      >                        {isSidebarOpen ? (
                           <Group gap={6} wrap="nowrap">
                             <Cube size={16} />
                             <span>Feature Tree</span>
@@ -617,6 +613,14 @@ export function CADLayout() {
                       </Tabs.Tab>
                       <Tabs.Tab
                         value="entities"
+                        style={{
+                          transition: 'background-color 200ms, border-color 200ms, color 200ms',
+                          ...(activeSidebarTab === 'entities' && {
+                            color: theme.colors.blue[5],
+                            borderBottomColor: theme.colors.blue[5],
+                            backgroundColor: `${theme.colors.blue[5]}15`,
+                          })
+                        }}
                       >
                         {isSidebarOpen ? (
                           <Group gap={6} wrap="nowrap">

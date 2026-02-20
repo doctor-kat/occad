@@ -7,7 +7,7 @@ import type { OCCStatus } from "@/worker/bridge/useOpenCascade";
 import { CircleNotch, Check, X, Circle, Minus, NavigationArrow, Dot } from "@phosphor-icons/react";
 import { SketchOverlay } from "./SketchOverlay";
 import { Button, Box, Stack, Text, Group, Center, Paper, useMantineTheme } from "@mantine/core";
-import { useViewportStore } from "@/canvas/stores/viewportStore";
+import { useViewportStore } from "@/frontend/state/viewportStore";
 
 // ---------------------------------------------------------------------------
 // Mesh component — converts raw OCC tessellation buffers into Three geometry

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, TextInput, Select, Stack, Group, Text, Alert, Box, useMantineTheme, ActionIcon, Title } from '@mantine/core';
 import { X, Check } from '@phosphor-icons/react';
-import { useViewportStore } from '@/canvas/stores/viewportStore';
+import { useViewportStore } from '@/frontend/state/viewportStore';
 import type { Sketch, ExtrudeParams, SketchPlane, Vector3D } from '@/cad/types';
 
 /**

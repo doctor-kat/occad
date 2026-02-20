@@ -14,7 +14,7 @@ vi.mock("@/worker/bridge/useOpenCascade", () => ({
   },
 }));
 
-vi.mock("@/canvas/components/CADViewport", () => ({
+vi.mock("@/frontend/canvas/components/CADViewport", () => ({
   CADViewport: (props: any) => (
     <div data-testid="mock-viewport">
       <span data-testid="occ-status">{props.occStatus}</span>

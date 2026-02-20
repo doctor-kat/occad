@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useLocalStorage } from './useLocalStorage';
+import { useLocalStorage } from '@/frontend/shared/useLocalStorage';
 import {
   CADProject,
   CADState,

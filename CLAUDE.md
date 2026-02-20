@@ -34,22 +34,28 @@ bun run lint
 
 The codebase is organized into four strictly separated layers to decouple the UI from the CAD kernel:
 
-1.  **`src/ui/` (The Interface)**: Pure frontend layer.
-    *   React components, application layout, and Mantine theme.
-    *   `hooks/useCADState.ts`: Manages the project state, feature tree, and UI-level CRUD operations.
-    *   Depends on: `src/cad/types` (for data models) and `src/worker/bridge` (for engine communication).
+1.  **`src/frontend/ui/` (The Interface)**: Pure frontend layer.
+    *   React components, application layout.
+    *   Depends on: `src/cad/types` (for data models), `src/worker/bridge` (for engine communication), and `src/frontend/state`.
 
-2.  **`src/canvas/` (The Visuals)**: Visualization and rendering layer.
+2.  **`src/frontend/canvas/` (The Visuals)**: Visualization and rendering layer.
     *   Three.js components (`OpenCascadeViewport`) and HTML5 Canvas overlays (`SketchOverlay`).
-    *   `stores/viewportStore.ts`: Zustand store for camera, selection, and hover state.
-    *   Depends on: `src/cad/types` (for mesh/edge data formats).
+    *   Depends on: `src/cad/types` (for mesh/edge data formats) and `src/frontend/state`.
 
-3.  **`src/cad/` (The Engine)**: Core CAD logic and data models.
+3.  **`src/frontend/state/` (Shared State)**: Centralized state management.
+    *   `useCADState.ts`: Manages the project state, feature tree, and UI-level CRUD operations.
+    *   `viewportStore.ts`: Zustand store for camera, selection, and hover state.
+
+4.  **`src/frontend/shared/` (Common Utilities)**: Shared logic and theme.
+    *   `theme/`: Mantine theme and CAD color palette.
+    *   `useLocalStorage.ts`: Persistence helper.
+
+5.  **`src/cad/` (The Engine)**: Core CAD logic and data models.
     *   `engine/`: Pure TypeScript wrappers for OpenCascade.js operations (runs inside the worker).
     *   `types/`: Foundational CAD types (`Project`, `Feature`, `SketchElement`) and engine output formats (`MeshData`).
     *   No dependencies on UI or Rendering layers.
 
-4.  **`src/worker/` (The Bridge)**: Infrastructure for cross-thread communication.
+6.  **`src/worker/` (The Bridge)**: Infrastructure for cross-thread communication.
     *   `bridge/opencascadeWorker.ts`: The Web Worker entry point.
     *   `bridge/useOpenCascade.ts`: The React hook used by the UI to send commands to the engine.
     *   `types/`: Strictly defined Request/Response DTOs for message passing.
@@ -66,7 +72,7 @@ The codebase is organized into four strictly separated layers to decouple the UI
 
 ### Import Alias
 
-`@` maps to `./src` — use for all imports: `import { useCADState } from '@/ui/hooks/useCADState'`
+`@` maps to `./src` — use for all imports: `import { useCADState } from '@/frontend/state/useCADState'`
 
 ### Critical Vite Headers
 
@@ -200,15 +206,15 @@ All edges are combined into a `TopoDS_Wire` via `BRepBuilderAPI_MakeWire`, then 
 
 ### Component Structure
 
-- **App.tsx**: Providers (src/ui/App.tsx)
-- **CADLayout**: Main orchestrator (src/ui/components/CADLayout.tsx)
-- **CADViewport**: Main viewport container (src/canvas/components/CADViewport.tsx)
-- **OpenCascadeViewport**: Three.js viewport (src/canvas/components/OpenCascadeViewport.tsx)
-- **SketchCanvas**: 2D orthographic sketch editor (src/canvas/components/SketchCanvas.tsx)
-- **SketchOverlay**: 3D sketch overlay (src/canvas/components/SketchOverlay.tsx)
-- **FeatureTree**: Hierarchical tree (src/ui/components/FeatureTree.tsx)
-- **FeatureTabs**: Toolbar (src/ui/components/FeatureTabs.tsx)
-- **OperationPanel**: Parameter input (src/ui/components/OperationPanel.tsx)
+- **App.tsx**: Providers (src/frontend/ui/App.tsx)
+- **CADLayout**: Main orchestrator (src/frontend/ui/components/CADLayout.tsx)
+- **CADViewport**: Main viewport container (src/frontend/canvas/components/CADViewport.tsx)
+- **OpenCascadeViewport**: Three.js viewport (src/frontend/canvas/components/OpenCascadeViewport.tsx)
+- **SketchCanvas**: 2D orthographic sketch editor (src/frontend/canvas/components/SketchCanvas.tsx)
+- **SketchOverlay**: 3D sketch overlay (src/frontend/canvas/components/SketchOverlay.tsx)
+- **FeatureTree**: Hierarchical tree (src/frontend/ui/components/FeatureTree.tsx)
+- **FeatureTabs**: Toolbar (src/frontend/ui/components/FeatureTabs.tsx)
+- **OperationPanel**: Parameter input (src/frontend/ui/components/OperationPanel.tsx)
 
 ### Dual Sketch System
 

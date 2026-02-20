@@ -2,7 +2,7 @@ import { Stack, Text, Box, ScrollArea, useMantineTheme, Group, ActionIcon, Badge
 import { CaretRight, CaretDown, Polygon, LineSegment } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { MeshData } from '@/cad/types';
-import { useViewportStore } from '@/canvas/stores/viewportStore';
+import { useViewportStore } from '@/frontend/state/viewportStore';
 
 interface EntitiesPanelProps {
   mesh: MeshData | null;

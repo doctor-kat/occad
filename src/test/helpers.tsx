@@ -3,7 +3,7 @@ import { render, type RenderOptions } from "@testing-library/react";
 import { MantineProvider } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
 import { Notifications } from "@mantine/notifications";
-import { mantineTheme } from "@/ui/theme/mantine";
+import { mantineTheme } from "@/frontend/shared/theme/mantine";
 import { vi } from "vitest";
 
 function TestProviders({ children }: { children: React.ReactNode }) {

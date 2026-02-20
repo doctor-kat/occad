@@ -20,6 +20,8 @@ test.describe('Box-Sketch Flow', () => {
 
         // 2. Open Entities Panel if not already open (it's absolute positioned, should be visible if mesh exists)
         // The panel appears when mesh is available.
+        // First, switch to Entities tab
+        await page.getByRole('tab', { name: 'Entities' }).click();
         await expect(page.locator('text=Entities')).toBeVisible({ timeout: 10000 });
 
         // 3. Select the latest Face (should belong to the new Box)
@@ -37,6 +39,9 @@ test.describe('Box-Sketch Flow', () => {
         // Click the 'Sketch' tool button to start a sketch on the selected face
         const sketchButton = page.getByRole('button', { name: /^Sketch$/ });
         await sketchButton.click();
+
+        // Switch sidebar back to Feature Tree to see the new sketch
+        await page.getByRole('tab', { name: 'Feature Tree' }).click();
 
         // Verify Sketch2 appears and we are in sketch mode (Sketch tab active)
         await expect(page.locator('text=Sketch 2')).toBeVisible({ timeout: 10000 });
