@@ -154,50 +154,50 @@ interface FeatureTabsProps {
 }
 
 const featureTools: { id: FeatureTool; icon: React.ReactNode; label: string }[] = [
-  { id: 'extrude-boss', icon: <ArrowLineUp size={16} weight="regular" />, label: 'Extrude Boss' },
-  { id: 'revolved-boss', icon: <ArrowCounterClockwise size={16} weight="regular" />, label: 'Revolve Boss' },
+  { id: FeatureTool.EXTRUDE_BOSS, icon: <ArrowLineUp size={16} weight="regular" />, label: 'Extrude Boss' },
+  { id: FeatureTool.REVOLVED_BOSS, icon: <ArrowCounterClockwise size={16} weight="regular" />, label: 'Revolve Boss' },
 ];
 
 const cutTools: { id: FeatureTool; icon: React.ReactNode; label: string }[] = [
-  { id: 'extruded-cut', icon: <Scissors size={16} weight="regular" />, label: 'Extrude Cut' },
-  { id: 'revolved-cut', icon: <DotOutline size={16} weight="regular" />, label: 'Revolve Cut' },
+  { id: FeatureTool.EXTRUDED_CUT, icon: <Scissors size={16} weight="regular" />, label: 'Extrude Cut' },
+  { id: FeatureTool.REVOLVED_CUT, icon: <DotOutline size={16} weight="regular" />, label: 'Revolve Cut' },
 ];
 
 const modifyTools: { id: FeatureTool; icon: React.ReactNode; label: string }[] = [
-  { id: 'fillet', icon: <ArrowElbowDownRight size={16} weight="regular" />, label: 'Fillet' },
-  { id: 'chamfer', icon: <Minus size={16} weight="regular" style={{ transform: 'rotate(45deg)' }} />, label: 'Chamfer' },
-  { id: 'shell', icon: <Stack size={16} weight="regular" />, label: 'Shell' },
-  { id: 'offset', icon: <Copy size={16} weight="regular" />, label: 'Offset' },
+  { id: FeatureTool.FILLET, icon: <ArrowElbowDownRight size={16} weight="regular" />, label: 'Fillet' },
+  { id: FeatureTool.CHAMFER, icon: <Minus size={16} weight="regular" style={{ transform: 'rotate(45deg)' }} />, label: 'Chamfer' },
+  { id: FeatureTool.SHELL, icon: <Stack size={16} weight="regular" />, label: 'Shell' },
+  { id: FeatureTool.OFFSET, icon: <Copy size={16} weight="regular" />, label: 'Offset' },
 ];
 
 const primitiveTools: { id: FeatureTool; icon: React.ReactNode; label: string }[] = [
-  { id: 'box', icon: <Cube size={16} weight="regular" />, label: 'Box' },
-  { id: 'sphere', icon: <Globe size={16} weight="regular" />, label: 'Sphere' },
-  { id: 'cylinder', icon: <Cylinder size={16} weight="regular" />, label: 'Cylinder' },
-  { id: 'cone', icon: <Triangle size={16} weight="regular" />, label: 'Cone' },
-  { id: 'torus', icon: <Target size={16} weight="regular" />, label: 'Torus' },
-  { id: 'wedge', icon: <Triangle size={16} weight="regular" style={{ transform: 'rotate(180deg)' }} />, label: 'Wedge' },
+  { id: FeatureTool.BOX, icon: <Cube size={16} weight="regular" />, label: 'Box' },
+  { id: FeatureTool.SPHERE, icon: <Globe size={16} weight="regular" />, label: 'Sphere' },
+  { id: FeatureTool.CYLINDER, icon: <Cylinder size={16} weight="regular" />, label: 'Cylinder' },
+  { id: FeatureTool.CONE, icon: <Triangle size={16} weight="regular" />, label: 'Cone' },
+  { id: FeatureTool.TORUS, icon: <Target size={16} weight="regular" />, label: 'Torus' },
+  { id: FeatureTool.WEDGE, icon: <Triangle size={16} weight="regular" style={{ transform: 'rotate(180deg)' }} />, label: 'Wedge' },
 ];
 
 const operationTools: { id: FeatureTool; icon: React.ReactNode; label: string }[] = [
-  { id: 'sweep', icon: <Wind size={16} weight="regular" />, label: 'Sweep' },
-  { id: 'loft', icon: <Stack size={16} weight="regular" />, label: 'Loft' },
+  { id: FeatureTool.SWEEP, icon: <Wind size={16} weight="regular" />, label: 'Sweep' },
+  { id: FeatureTool.LOFT, icon: <Stack size={16} weight="regular" />, label: 'Loft' },
 ];
 
 const booleanTools: { id: FeatureTool; icon: React.ReactNode; label: string }[] = [
-  { id: 'union', icon: <GitMerge size={16} weight="regular" />, label: 'Union' },
-  { id: 'intersect', icon: <Unite size={16} weight="regular" />, label: 'Intersect' },
+  { id: FeatureTool.UNION, icon: <GitMerge size={16} weight="regular" />, label: 'Union' },
+  { id: FeatureTool.INTERSECT, icon: <Unite size={16} weight="regular" />, label: 'Intersect' },
 ];
 
 const sketchTools: { id: SketchTool; icon: React.ReactNode; label: string }[] = [
-  { id: 'line', icon: <Minus size={16} weight="regular" />, label: 'Line' },
-  { id: 'rectangle', icon: <Square size={16} weight="regular" />, label: 'Rectangle' },
-  { id: 'circle', icon: <Circle size={16} weight="regular" />, label: 'Circle' },
-  { id: 'polygon', icon: <Hexagon size={16} weight="regular" />, label: 'Polygon' },
-  { id: 'arc', icon: <ArrowRight size={16} weight="regular" />, label: 'Arc' },
-  { id: 'ellipse', icon: <DotsThree size={16} weight="regular" style={{ transform: 'rotate(90deg)' }} />, label: 'Ellipse' },
-  { id: 'spline', icon: <Pen size={16} weight="regular" />, label: 'Spline' },
-  { id: 'bezier', icon: <WaveSine size={16} weight="regular" />, label: 'Bezier' },
+  { id: SketchTool.LINE, icon: <Minus size={16} weight="regular" />, label: 'Line' },
+  { id: SketchTool.RECTANGLE, icon: <Square size={16} weight="regular" />, label: 'Rectangle' },
+  { id: SketchTool.CIRCLE, icon: <Circle size={16} weight="regular" />, label: 'Circle' },
+  { id: SketchTool.POLYGON, icon: <Hexagon size={16} weight="regular" />, label: 'Polygon' },
+  { id: SketchTool.ARC, icon: <ArrowRight size={16} weight="regular" />, label: 'Arc' },
+  { id: SketchTool.ELLIPSE, icon: <DotsThree size={16} weight="regular" style={{ transform: 'rotate(90deg)' }} />, label: 'Ellipse' },
+  { id: SketchTool.SPLINE, icon: <Pen size={16} weight="regular" />, label: 'Spline' },
+  { id: SketchTool.BEZIER, icon: <WaveSine size={16} weight="regular" />, label: 'Bezier' },
 ];
 
 const evaluateTools: { id: EvaluateTool; icon: React.ReactNode; label: string }[] = [
@@ -333,11 +333,11 @@ export function FeatureTabs({ activeTab, activeTool, selectedTreeItem, activeSke
               padding: 0,
             }}
           >
-            <CADTab value="features" label="Features" isActive={activeTab === 'features'} theme={theme} />
-            <CADTab value="sketch" label="Sketch" isActive={activeTab === 'sketch'} theme={theme} />
-            <CADTab value="transform" label="Transform" isActive={activeTab === 'transform'} theme={theme} />
-            <CADTab value="evaluate" label="Evaluate" isActive={activeTab === 'evaluate'} theme={theme} />
-            <CADTab value="io" label="I/O" isActive={activeTab === 'io'} theme={theme} />
+            <CADTab value={ToolCategory.FEATURES} label="Features" isActive={activeTab === ToolCategory.FEATURES} theme={theme} />
+            <CADTab value={ToolCategory.SKETCH} label="Sketch" isActive={activeTab === ToolCategory.SKETCH} theme={theme} />
+            <CADTab value={ToolCategory.TRANSFORM} label="Transform" isActive={activeTab === ToolCategory.TRANSFORM} theme={theme} />
+            <CADTab value={ToolCategory.EVALUATE} label="Evaluate" isActive={activeTab === ToolCategory.EVALUATE} theme={theme} />
+            <CADTab value={ToolCategory.IO} label="I/O" isActive={activeTab === ToolCategory.IO} theme={theme} />
           </Tabs.List>
         </Box>
       </Tabs>

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useLocalStorage } from '@/frontend/shared/useLocalStorage';
+import { useLocalStorage } from '@/frontend/shared/useLocalStorage.ts';
 import {
   CADProject,
   CADState,
@@ -8,8 +8,10 @@ import {
   Sketch,
   Feature,
   FeatureTreeItem,
+  FeatureTreeItemType,
   SketchPlane,
   SketchElement,
+  SketchElementType,
   OperationParams,
   ShapeReference,
   RebuildState,
@@ -60,7 +62,7 @@ function migrateProject(raw: CADProject): CADProject {
 export function useCADState() {
   const [rawProject, setProject] = useLocalStorage<CADProject>(STORAGE_KEY, createNewProject());
   const project = useMemo(() => migrateProject(rawProject), [rawProject]);
-  const [activeTab, setActiveTab] = useState<ToolCategory>('features');
+  const [activeTab, setActiveTab] = useState<ToolCategory>(ToolCategory.FEATURES);
   const [activeTool, setActiveTool] = useState<Tool>(null);
   const [selectedTreeItem, setSelectedTreeItem] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -80,7 +82,7 @@ export function useCADState() {
       tree.push({
         id: ref.id,
         name: ref.name,
-        type: 'reference-geometry' as const,
+        type: FeatureTreeItemType.REFERENCE_GEOMETRY,
         visible: ref.isVisible,
         data: ref,
       });
@@ -102,7 +104,7 @@ export function useCADState() {
           item: {
             id: sketch.id,
             name: sketch.name,
-            type: 'sketch',
+            type: FeatureTreeItemType.SKETCH,
             visible: sketch.isVisible !== false,
             error: itemErrors[sketch.id],
             data: sketch,
@@ -116,7 +118,7 @@ export function useCADState() {
       const featureItem: FeatureTreeItem = {
         id: feature.id,
         name: feature.name,
-        type: 'feature',
+        type: FeatureTreeItemType.FEATURE,
         isExpanded: feature.isExpanded,
         visible: feature.isVisible !== false,
         error: itemErrors[feature.id],
@@ -128,7 +130,7 @@ export function useCADState() {
           {
             id: associatedSketch.id,
             name: associatedSketch.name,
-            type: 'sketch',
+            type: FeatureTreeItemType.SKETCH,
             visible: associatedSketch.isVisible !== false,
             error: itemErrors[associatedSketch.id],
             data: associatedSketch,
@@ -236,7 +238,7 @@ export function useCADState() {
   // Start editing a sketch (enters sketch mode)
   const startSketchEdit = useCallback((sketchId: string) => {
     setActiveSketchId(sketchId);
-    setActiveTab('sketch');
+    setActiveTab(ToolCategory.SKETCH);
   }, []);
 
   // Stop editing sketch (exits sketch mode)
@@ -587,7 +589,7 @@ function checkIfSketchClosed(elements: SketchElement[]): boolean {
 
   // Rectangles and polygons are always closed
   const hasClosedElement = elements.some(
-    (el) => el.type === 'rectangle' || el.type === 'circle' || el.type === 'ellipse'
+    (el) => el.type === SketchElementType.RECTANGLE || el.type === SketchElementType.CIRCLE || el.type === SketchElementType.ELLIPSE
   );
 
   if (hasClosedElement) return true;
@@ -598,7 +600,7 @@ function checkIfSketchClosed(elements: SketchElement[]): boolean {
     const firstElement = elements[0];
     const lastElement = elements[elements.length - 1];
 
-    if (firstElement.type === 'line' && lastElement.type === 'line') {
+    if (firstElement.type === SketchElementType.LINE && lastElement.type === SketchElementType.LINE) {
       const firstStart = firstElement.start;
       const lastEnd = lastElement.end;
       const tolerance = 0.001;

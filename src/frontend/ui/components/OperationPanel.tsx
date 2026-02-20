@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Button, TextInput, Select, Stack, Group, Text, Alert, Box, useMantineTheme, ActionIcon, Title } from '@mantine/core';
 import { X, Check } from '@phosphor-icons/react';
-import { useViewportStore } from '@/frontend/state/viewportStore';
+import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
 import type { Sketch, ExtrudeParams, SketchPlane, Vector3D } from '@/cad/types';
+import { PlaneType } from '@/cad/types';
 
 /**
  * Helper to get the normal vector for a sketch plane
@@ -11,9 +12,9 @@ function getSketchNormal(plane: SketchPlane): Vector3D {
   if (plane.normal) return plane.normal;
 
   switch (plane.type) {
-    case 'xy': return { x: 0, y: 0, z: 1 };
-    case 'xz': return { x: 0, y: 1, z: 0 };
-    case 'yz': return { x: 1, y: 0, z: 0 };
+    case PlaneType.XY: return { x: 0, y: 0, z: 1 };
+    case PlaneType.XZ: return { x: 0, y: 1, z: 0 };
+    case PlaneType.YZ: return { x: 1, y: 0, z: 0 };
     default: return { x: 0, y: 0, z: 1 };
   }
 }

@@ -1,17 +1,39 @@
-// opencascade.js@beta ships its own types, but the WASM URL import
-// and default export may need augmentation depending on bundler config.
+import 'opencascade.js';
 
 declare module "opencascade.js" {
+  // By importing 'opencascade.js' above, this becomes a module augmentation
+  // instead of an ambient module declaration that shadows the original.
+  // The original types from node_modules/opencascade.js/dist/index.d.ts
+  // (which include OpenCascadeInstance and TopoDS_Shape) are now preserved.
+
   /**
-   * Initialises the OpenCascade WASM module and returns the OC runtime object.
-   * All OCC classes are accessible as properties on the returned object.
+   * The default export is the initialization function.
+   * We augment it here to ensure the return type is correctly recognized.
    */
-  function initOpenCascade(options?: {
-    mainJS?: string;
+  export default function initOpenCascade(options?: {
+    mainJS?: any;
     mainWasm?: string;
     worker?: string;
-    libs?: any[];
-  }): Promise<any>;
+    libs?: string[];
+    module?: any;
+  }): Promise<import("opencascade.js/dist/opencascade.full").OpenCascadeInstance>;
+}
 
-  export default initOpenCascade;
+/**
+ * Support for Vite's ?url imports for the WASM binary.
+ * This is useful for passing the WASM URL to initOpenCascade.
+ */
+declare module "*.wasm?url" {
+  const content: string;
+  export default content;
+}
+
+declare module "opencascade.js/dist/opencascade.wasm?url" {
+  const content: string;
+  export default content;
+}
+
+declare module "opencascade.js/dist/opencascade.wasm" {
+  const content: string;
+  export default content;
 }

@@ -14,10 +14,10 @@ import {
   Pen,
   Warning
 } from '@phosphor-icons/react';
-import { FeatureTreeItem as TreeItemType } from '@/cad/types';
+import { FeatureTreeItem as TreeItemType, FeatureTreeItemType, ReferenceGeometryType } from '@/cad/types';
 import { Button, Stack, Box, ScrollArea, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
 import { useState } from 'react';
-import { useViewportStore } from '@/frontend/state/viewportStore';
+import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
 
 interface FeatureTreeProps {
   items: TreeItemType[];
@@ -35,22 +35,22 @@ interface FeatureTreeProps {
 function getItemIcon(item: TreeItemType, theme: any) {
   const iconSize = 16;
 
-  if (item.type === 'reference-geometry') {
+  if (item.type === FeatureTreeItemType.REFERENCE_GEOMETRY) {
     if (item.children) {
       return <Perspective size={iconSize} weight="regular" color={theme.colors.cyan[5]} />;
     }
-    const data = item.data as { type: string };
-    if (data?.type === 'origin') {
+    const data = item.data as { type: ReferenceGeometryType };
+    if (data?.type === ReferenceGeometryType.ORIGIN) {
       return <VectorThree size={iconSize} weight="regular" color={theme.other.colors.warning} />;
     }
     return <Perspective size={iconSize} weight="regular" color={theme.other.colors.info} />;
   }
 
-  if (item.type === 'sketch') {
+  if (item.type === FeatureTreeItemType.SKETCH) {
     return <DotsNine size={iconSize} weight="regular" color={theme.colors.purple[5]} />;
   }
 
-  if (item.type === 'feature') {
+  if (item.type === FeatureTreeItemType.FEATURE) {
     return <Cube size={iconSize} weight="regular" color={theme.other.colors.success} />;
   }
 
@@ -79,8 +79,8 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
   const [isHovered, setIsHovered] = useState(false);
 
   // Don't allow editing/deleting reference geometry (planes and origin)
-  const canEdit = item.type !== 'reference-geometry';
-  const canDelete = item.type !== 'reference-geometry';
+  const canEdit = item.type !== FeatureTreeItemType.REFERENCE_GEOMETRY;
+  const canDelete = item.type !== FeatureTreeItemType.REFERENCE_GEOMETRY;
 
   if (isCompact) {
     // Compact mode: only show icon, no nesting

@@ -1,0 +1,8 @@
+export enum IOTool {
+  IMPORT_STEP = 'import-step',
+  IMPORT_IGES = 'import-iges',
+  EXPORT_STEP = 'export-step',
+  EXPORT_IGES = 'export-iges',
+  EXPORT_STL = 'export-stl',
+  EXPORT_GLTF = 'export-gltf'
+}

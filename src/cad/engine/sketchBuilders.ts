@@ -9,6 +9,7 @@ type gp_Dir = any;
 type TopoDS_Edge = any;
 type TopoDS_Wire = any;
 import type { SketchElement, SketchPlane, Point2D } from '@/cad/types';
+import { SketchElementType, PlaneType } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
 
 /**
@@ -44,7 +45,7 @@ export function sketchPointTo3D(ctx: WorkerContext, point2D: Point2D, plane: Ske
   const offset = plane.offset || 0;
 
   switch (plane.type) {
-    case 'xy':
+    case PlaneType.XY:
       return new oc.gp_Pnt_3(point2D.x, point2D.y, offset);
     case 'xz':
       return new oc.gp_Pnt_3(point2D.x, offset, point2D.y);
@@ -122,7 +123,7 @@ export function getSketchPlaneNormal(ctx: WorkerContext, plane: SketchPlane): gp
   const { oc } = ctx;
 
   switch (plane.type) {
-    case 'xy':
+    case PlaneType.XY:
       return new oc.gp_Dir_4(0, 0, 1); // Z-up
     case 'xz':
       return new oc.gp_Dir_4(0, 1, 0); // Y-up
@@ -147,7 +148,7 @@ export function getSketchPlaneNormal(ctx: WorkerContext, plane: SketchPlane): gp
  */
 export function buildLineEdge(
   ctx: WorkerContext,
-  line: SketchElement & { type: 'line' },
+  line: SketchElement & { type: SketchElementType.LINE },
   plane: SketchPlane
 ): TopoDS_Edge {
   const { oc } = ctx;
@@ -494,8 +495,8 @@ export function buildSketchWire(
 
   for (const element of elements) {
     switch (element.type) {
-      case 'line':
-        edges.push(buildLineEdge(ctx, element as SketchElement & { type: 'line' }, plane));
+      case SketchElementType.LINE:
+        edges.push(buildLineEdge(ctx, element as SketchElement & { type: SketchElementType.LINE }, plane));
         break;
       case 'circle':
         edges.push(buildCircleEdge(ctx, element as SketchElement & { type: 'circle' }, plane));

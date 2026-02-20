@@ -17,6 +17,7 @@ import type {
   Point3D,
   Vector3D,
 } from '@/cad/types';
+import { ShapeType, FeatureTool, PlaneType, SketchElementType } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
 import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
@@ -192,7 +193,7 @@ export function handleExtrudeSketch(
       {
         type: 'featureBuilt',
         featureId,
-        geometry: { shapeId, shapeType: 'solid' as const },
+        geometry: { shapeId, shapeType: ShapeType.SOLID },
         meshData,
       },
       getTransferables(meshData)
@@ -281,7 +282,7 @@ export function handleRevolveSketch(
       {
         type: 'featureBuilt',
         featureId,
-        geometry: { shapeId, shapeType: 'solid' as const },
+        geometry: { shapeId, shapeType: ShapeType.SOLID },
         meshData,
       },
       getTransferables(meshData)
@@ -509,7 +510,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
                 } else {
                   console.error(`Boolean union failed for feature ${feature.id}`);
                 }
-              } else if (feature.type === 'extruded-cut') {
+              } else if (feature.type === FeatureTool.EXTRUDED_CUT) {
                 const result = performBooleanOperation(ctx, 'subtract', currentBody, newShape);
                 if (!result.IsNull()) {
                   currentBody = result;
@@ -524,7 +525,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
             const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
             ctx.shapeStorage.set(shapeId, currentBody);
           }
-        } else if (feature.type === 'revolved-boss' || feature.type === 'revolved-cut') {
+        } else if (feature.type === FeatureTool.REVOLVED_BOSS || feature.type === FeatureTool.REVOLVED_CUT) {
           // Handle revolve features
           const sketchShape = findSketchShape(ctx, feature.sketchId!);
 

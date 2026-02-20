@@ -2,12 +2,13 @@ import { useRef, useMemo, Suspense, useEffect, useState } from "react";
 import { Canvas, useThree, ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, GizmoHelper, GizmoViewport, Environment, Grid, Text as Text3D } from "@react-three/drei";
 import * as THREE from "three";
-import type { MeshData, CADProject, Sketch, SketchTool, SketchEdgeData } from "@/cad/types";
+import type { MeshData, CADProject, Sketch, SketchEdgeData } from "@/cad/types";
+import { SketchTool, PlaneType } from "@/cad/types";
 import type { OCCStatus } from "@/worker/bridge/useOpenCascade";
 import { CircleNotch, Check, X, Circle, Minus, NavigationArrow, Dot } from "@phosphor-icons/react";
 import { SketchOverlay } from "./SketchOverlay";
 import { Button, Box, Stack, Text, Group, Center, Paper, useMantineTheme } from "@mantine/core";
-import { useViewportStore } from "@/frontend/state/viewportStore";
+import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 
 // ---------------------------------------------------------------------------
 // Mesh component — converts raw OCC tessellation buffers into Three geometry
@@ -771,9 +772,9 @@ function ExtrudeArrows({ project }: { project: CADProject }) {
   const getSketchNormal = (plane: any): THREE.Vector3 => {
     if (plane.normal) return new THREE.Vector3(plane.normal.x, plane.normal.y, plane.normal.z);
     switch (plane.type) {
-      case 'xy': return new THREE.Vector3(0, 0, 1);
-      case 'xz': return new THREE.Vector3(0, 1, 0);
-      case 'yz': return new THREE.Vector3(1, 0, 0);
+      case PlaneType.XY: return new THREE.Vector3(0, 0, 1);
+      case PlaneType.XZ: return new THREE.Vector3(0, 1, 0);
+      case PlaneType.YZ: return new THREE.Vector3(1, 0, 0);
       default: return new THREE.Vector3(0, 0, 1);
     }
   };

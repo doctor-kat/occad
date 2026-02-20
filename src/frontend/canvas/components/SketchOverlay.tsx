@@ -2,7 +2,8 @@ import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
 import { useThree, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
-import type { Sketch, SketchElement, Point2D, SketchTool, SketchPlane } from '@/cad/types';
+import type { Sketch, SketchElement, Point2D, SketchPlane } from '@/cad/types';
+import { SketchTool, PlaneType, SketchElementType } from '@/cad/types';
 
 interface SketchOverlayProps {
   sketch: Sketch;
@@ -19,14 +20,14 @@ function getPlaneTransform(plane: SketchPlane): THREE.Matrix4 {
   const matrix = new THREE.Matrix4();
 
   switch (plane.type) {
-    case 'xy':
+    case PlaneType.XY:
       // Default orientation (XY plane at Z=0 or offset)
       matrix.identity();
       if (plane.offset) {
         matrix.setPosition(0, 0, plane.offset);
       }
       break;
-    case 'xz':
+    case PlaneType.XZ:
       // XZ plane (Top Plane): sketch X→world X, sketch Y→world Z
       // Matches worker mapping: sketchPointTo3D maps (x,y) → (x, offset, y)
       // Use -90° rotation so Local Y = World Z (not World -Z)
@@ -35,7 +36,7 @@ function getPlaneTransform(plane: SketchPlane): THREE.Matrix4 {
         matrix.setPosition(0, plane.offset, 0);
       }
       break;
-    case 'yz':
+    case PlaneType.YZ:
       // YZ plane (Right Plane): sketch X→world Y, sketch Y→world Z
       // Matches worker mapping: sketchPointTo3D maps (x,y) → (offset, x, y)
       matrix.makeBasis(
@@ -47,7 +48,7 @@ function getPlaneTransform(plane: SketchPlane): THREE.Matrix4 {
         matrix.setPosition(plane.offset, 0, 0);
       }
       break;
-    case 'custom':
+    case PlaneType.CUSTOM:
       // Custom plane: create transformation from origin and normal
       if (plane.origin && plane.normal) {
         const origin = new THREE.Vector3(plane.origin.x, plane.origin.y, plane.origin.z);
@@ -72,7 +73,7 @@ function getPlaneTransform(plane: SketchPlane): THREE.Matrix4 {
         matrix.identity();
       }
       break;
-    case 'face':
+    case PlaneType.FACE:
       // TODO: Get face plane from OpenCascade face geometry
       // For now, default to XY plane
       matrix.identity();
@@ -161,21 +162,21 @@ export function SketchOverlay({
     const points: Point2D[] = [];
     sketch.elements.forEach((element) => {
       switch (element.type) {
-        case 'line':
+        case SketchElementType.LINE:
           points.push(element.start, element.end);
           break;
-        case 'circle':
+        case SketchElementType.CIRCLE:
           points.push(element.center);
           break;
-        case 'rectangle':
+        case SketchElementType.RECTANGLE:
           points.push(element.corner1, element.corner2);
           points.push({ x: element.corner1.x, y: element.corner2.y });
           points.push({ x: element.corner2.x, y: element.corner1.y });
           break;
-        case 'polygon':
+        case SketchElementType.POLYGON:
           points.push(...element.points);
           break;
-        case 'arc':
+        case SketchElementType.ARC:
           if (element.points) {
             points.push(...element.points);
           }
@@ -193,13 +194,13 @@ export function SketchOverlay({
     const midpoints: Point2D[] = [];
     sketch.elements.forEach((element) => {
       switch (element.type) {
-        case 'line':
+        case SketchElementType.LINE:
           midpoints.push({
             x: (element.start.x + element.end.x) / 2,
             y: (element.start.y + element.end.y) / 2,
           });
           break;
-        case 'rectangle':
+        case SketchElementType.RECTANGLE:
           const { corner1, corner2 } = element;
           // Four edges of rectangle
           midpoints.push({ x: (corner1.x + corner2.x) / 2, y: corner1.y });
@@ -216,9 +217,9 @@ export function SketchOverlay({
   const circleCenters = useMemo(() => {
     const centers: Point2D[] = [];
     sketch.elements.forEach((element) => {
-      if (element.type === 'circle') {
+      if (element.type === SketchElementType.CIRCLE) {
         centers.push(element.center);
-      } else if (element.type === 'arc' && element.center) {
+      } else if (element.type === SketchElementType.ARC && element.center) {
         centers.push(element.center);
       }
     });
@@ -262,12 +263,12 @@ export function SketchOverlay({
   // Calculate distance from point to sketch element
   const getDistanceToElement = (point: Point2D, element: SketchElement): number => {
     switch (element.type) {
-      case 'line': {
+      case SketchElementType.LINE: {
         const { distance } = projectPointOntoLineSegment(point, element.start, element.end);
         return distance;
       }
 
-      case 'rectangle': {
+      case SketchElementType.RECTANGLE: {
         // Calculate distance to each of the four edges
         const edges: [Point2D, Point2D][] = [
           [element.corner1, { x: element.corner2.x, y: element.corner1.y }],
@@ -284,7 +285,7 @@ export function SketchOverlay({
         return minDistance;
       }
 
-      case 'circle': {
+      case SketchElementType.CIRCLE: {
         // Distance to circle is |distance_to_center - radius|
         const distToCenter = Math.sqrt(
           Math.pow(point.x - element.center.x, 2) + Math.pow(point.y - element.center.y, 2)
@@ -292,7 +293,7 @@ export function SketchOverlay({
         return Math.abs(distToCenter - element.radius);
       }
 
-      case 'polygon': {
+      case SketchElementType.POLYGON: {
         // Distance to nearest edge of polygon
         if (element.points.length < 2) return Infinity;
 
@@ -306,7 +307,7 @@ export function SketchOverlay({
         return minDistance;
       }
 
-      case 'arc': {
+      case SketchElementType.ARC: {
         // Simplified: distance to any of the three points (proper arc distance is more complex)
         if (element.points && element.points.length === 3) {
           let minDistance = Infinity;
@@ -347,7 +348,7 @@ export function SketchOverlay({
           let minDistance = snapDistance;
 
           sketch.elements.forEach((element) => {
-            if (element.type === 'line') {
+            if (element.type === SketchElementType.LINE) {
               const { projection, distance } = projectPointOntoLineSegment(
                 point,
                 element.start,
@@ -357,7 +358,7 @@ export function SketchOverlay({
                 minDistance = distance;
                 closestProjection = projection;
               }
-            } else if (element.type === 'rectangle') {
+            } else if (element.type === SketchElementType.RECTANGLE) {
               // Check all four edges of the rectangle
               const edges = [
                 [element.corner1, { x: element.corner2.x, y: element.corner1.y }],
@@ -456,12 +457,12 @@ export function SketchOverlay({
       const snappedPoint = snapPoint(point2D);
 
       switch (activeTool) {
-        case 'line':
+        case SketchTool.LINE:
           if (currentPoints.length === 0) {
             setCurrentPoints([snappedPoint]);
           } else if (currentPoints.length === 1) {
             const newLine: SketchElement = {
-              type: 'line',
+              type: SketchElementType.LINE,
               id: crypto.randomUUID(),
               start: currentPoints[0],
               end: snappedPoint,
@@ -472,12 +473,12 @@ export function SketchOverlay({
           }
           break;
 
-        case 'rectangle':
+        case SketchTool.RECTANGLE:
           if (currentPoints.length === 0) {
             setCurrentPoints([snappedPoint]);
           } else if (currentPoints.length === 1) {
             const newRect: SketchElement = {
-              type: 'rectangle',
+              type: SketchElementType.RECTANGLE,
               id: crypto.randomUUID(),
               corner1: currentPoints[0],
               corner2: snappedPoint,
@@ -488,7 +489,7 @@ export function SketchOverlay({
           }
           break;
 
-        case 'circle':
+        case SketchTool.CIRCLE:
           if (currentPoints.length === 0) {
             setCurrentPoints([snappedPoint]);
           } else if (currentPoints.length === 1) {
@@ -498,7 +499,7 @@ export function SketchOverlay({
               Math.pow(snappedPoint.y - center.y, 2)
             );
             const newCircle: SketchElement = {
-              type: 'circle',
+              type: SketchElementType.CIRCLE,
               id: crypto.randomUUID(),
               center,
               radius,
@@ -509,16 +510,16 @@ export function SketchOverlay({
           }
           break;
 
-        case 'polygon':
+        case SketchTool.POLYGON:
           setCurrentPoints([...currentPoints, snappedPoint]);
           break;
 
-        case 'arc':
+        case SketchTool.ARC:
           if (currentPoints.length < 2) {
             setCurrentPoints([...currentPoints, snappedPoint]);
           } else if (currentPoints.length === 2) {
             const newArc: SketchElement = {
-              type: 'arc',
+              type: SketchElementType.ARC,
               id: crypto.randomUUID(),
               points: [currentPoints[0], currentPoints[1], snappedPoint],
             };
@@ -574,10 +575,10 @@ export function SketchOverlay({
       }
 
       switch (activeTool) {
-        case 'line':
+        case SketchTool.LINE:
           if (currentPoints.length === 1) {
             setPreviewElement({
-              type: 'line',
+              type: SketchElementType.LINE,
               id: 'preview',
               start: currentPoints[0],
               end: snappedPoint,
@@ -585,10 +586,10 @@ export function SketchOverlay({
           }
           break;
 
-        case 'rectangle':
+        case SketchTool.RECTANGLE:
           if (currentPoints.length === 1) {
             setPreviewElement({
-              type: 'rectangle',
+              type: SketchElementType.RECTANGLE,
               id: 'preview',
               corner1: currentPoints[0],
               corner2: snappedPoint,
@@ -596,7 +597,7 @@ export function SketchOverlay({
           }
           break;
 
-        case 'circle':
+        case SketchTool.CIRCLE:
           if (currentPoints.length === 1) {
             const center = currentPoints[0];
             const radius = Math.sqrt(
@@ -604,7 +605,7 @@ export function SketchOverlay({
               Math.pow(snappedPoint.y - center.y, 2)
             );
             setPreviewElement({
-              type: 'circle',
+              type: SketchElementType.CIRCLE,
               id: 'preview',
               center,
               radius,
@@ -769,7 +770,7 @@ export function SketchOverlay({
 
       {/* Highlight edges when edge constraint is active */}
       {activeConstraint === 'edge' && sketch.elements.map((element, index) => {
-        if (element.type === 'line') {
+        if (element.type === SketchElementType.LINE) {
           return (
             <SketchElementRenderer3D
               key={`edge-highlight-${index}`}
@@ -779,7 +780,7 @@ export function SketchOverlay({
               lineWidth={3}
             />
           );
-        } else if (element.type === 'rectangle') {
+        } else if (element.type === SketchElementType.RECTANGLE) {
           return (
             <SketchElementRenderer3D
               key={`edge-highlight-${index}`}
@@ -829,14 +830,14 @@ function SketchElementRenderer3D({
   const points: THREE.Vector3[] = [];
 
   switch (element.type) {
-    case 'line':
+    case SketchElementType.LINE:
       points.push(
         new THREE.Vector3(element.start.x, element.start.y, 0),
         new THREE.Vector3(element.end.x, element.end.y, 0)
       );
       break;
 
-    case 'rectangle': {
+    case SketchElementType.RECTANGLE: {
       const { corner1, corner2 } = element;
       points.push(
         new THREE.Vector3(corner1.x, corner1.y, 0),
@@ -848,7 +849,7 @@ function SketchElementRenderer3D({
       break;
     }
 
-    case 'circle': {
+    case SketchElementType.CIRCLE: {
       const segments = 64;
       for (let i = 0; i <= segments; i++) {
         const angle = (i / segments) * Math.PI * 2;
@@ -863,7 +864,7 @@ function SketchElementRenderer3D({
       break;
     }
 
-    case 'polygon':
+    case SketchElementType.POLYGON:
       element.points.forEach((p) => {
         points.push(new THREE.Vector3(p.x, p.y, 0));
       });
@@ -873,7 +874,7 @@ function SketchElementRenderer3D({
       }
       break;
 
-    case 'arc':
+    case SketchElementType.ARC:
       // TODO: Implement proper arc rendering with 3 points
       if (element.points && element.points.length === 3) {
         element.points.forEach((p) => {

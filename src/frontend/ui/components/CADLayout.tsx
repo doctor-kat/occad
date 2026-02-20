@@ -12,14 +12,15 @@ import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Grou
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { Cube, Polygon } from '@phosphor-icons/react';
-import type { SketchElement, SketchPlane, ExtrudeParams, SketchTool } from '@/cad/types';
+import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
+import { SketchTool, PlaneType, FeatureTool, ToolCategory, ReferenceGeometryType } from '@/cad/types';
 
 export function CADLayout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(164);
   const theme = useMantineTheme();
-  const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>('features');
+  const [activeSidebarTab, setActiveSidebarTab] = useState<string | null>(ToolCategory.FEATURES);
 
   // Dynamically measure header height so sidebar/main offsets stay correct
   // even when the toolbar scrollbar appears (e.g. narrow Firefox windows)
@@ -99,7 +100,7 @@ export function CADLayout() {
       // Create sketch with the actual face geometry
       if (pendingSketchOnFace === faceId) {
         const plane: SketchPlane = {
-          type: 'custom',
+          type: PlaneType.CUSTOM,
           planeRef: `face-${faceId}`,
           offset: 0,
           origin,
@@ -162,21 +163,21 @@ export function CADLayout() {
   useEffect(() => {
     // Check if activeTool is a sketch tool
     const sketchTools: SketchTool[] = [
-      'line',
-      'rectangle',
-      'circle',
-      'polygon',
-      'arc',
-      'ellipse',
-      'spline',
-      'bezier',
+      SketchTool.LINE,
+      SketchTool.RECTANGLE,
+      SketchTool.CIRCLE,
+      SketchTool.POLYGON,
+      SketchTool.ARC,
+      SketchTool.ELLIPSE,
+      SketchTool.SPLINE,
+      SketchTool.BEZIER,
     ];
 
     if (activeTool && sketchTools.includes(activeTool as SketchTool)) {
       // If no active sketch, create a new one
       if (!activeSketchId) {
         const plane: SketchPlane = {
-          type: 'xy',
+          type: PlaneType.XY,
           planeRef: 'front-plane',
           offset: 0,
         };
@@ -189,7 +190,7 @@ export function CADLayout() {
 
   // Handle extrude tool selection
   useEffect(() => {
-    if (activeTool === 'extrude-boss' || activeTool === 'extruded-cut') {
+    if (activeTool === FeatureTool.EXTRUDE_BOSS || activeTool === FeatureTool.EXTRUDED_CUT) {
       // Check if there are any closed sketches
       const closedSketches = project.sketches.filter((s) => s.isClosed);
 
@@ -209,7 +210,7 @@ export function CADLayout() {
         stopSketchEdit();
       }
 
-      setExtrudeIsCut(activeTool === 'extruded-cut');
+      setExtrudeIsCut(activeTool === FeatureTool.EXTRUDED_CUT);
       setExtrudeActive(true);
       setEditingFeatureId(null); // Reset editing ID for new feature
       // Ensure sidebar is open when operation is active
@@ -219,8 +220,8 @@ export function CADLayout() {
 
   // Handle box tool selection
   useEffect(() => {
-    if (activeTool === 'box') {
-      addFeature(`Box${project.features.length + 1}`, 'box', {
+    if (activeTool === FeatureTool.BOX) {
+      addFeature(`Box${project.features.length + 1}`, FeatureTool.BOX, {
         width: 50,
         height: 50,
         depth: 50,
@@ -248,7 +249,7 @@ export function CADLayout() {
 
       addFeature(
         featureName,
-        extrudeIsCut ? 'extruded-cut' : 'extrude-boss',
+        extrudeIsCut ? FeatureTool.EXTRUDED_CUT : FeatureTool.EXTRUDE_BOSS,
         params,
         sketchId,
         [sketchId]
@@ -279,9 +280,9 @@ export function CADLayout() {
 
     // Check if it's a feature
     const feature = project.features.find((f) => f.id === id);
-    if (feature && (feature.type === 'extrude-boss' || feature.type === 'extruded-cut')) {
+    if (feature && (feature.type === FeatureTool.EXTRUDE_BOSS || feature.type === FeatureTool.EXTRUDED_CUT)) {
       setEditingFeatureId(id);
-      setExtrudeIsCut(feature.type === 'extruded-cut');
+      setExtrudeIsCut(feature.type === FeatureTool.EXTRUDED_CUT);
       setExtrudeActive(true);
       // Ensure sidebar is open
       if (!isSidebarOpen) toggleSidebar();
@@ -399,12 +400,12 @@ export function CADLayout() {
 
     // Check if selected item is a plane
     const selectedPlane = project.referenceGeometry.find((ref) => ref.id === selectedTreeItem);
-    if (selectedPlane && selectedPlane.type === 'plane') {
+    if (selectedPlane && selectedPlane.type === ReferenceGeometryType.PLANE) {
       // Create a new sketch on the selected plane
-      let planeType: 'xy' | 'xz' | 'yz' = 'xy';
-      if (selectedPlane.id === 'front-plane') planeType = 'xy';
-      else if (selectedPlane.id === 'top-plane') planeType = 'xz';
-      else if (selectedPlane.id === 'right-plane') planeType = 'yz';
+      let planeType: PlaneType = PlaneType.XY;
+      if (selectedPlane.id === 'front-plane') planeType = PlaneType.XY;
+      else if (selectedPlane.id === 'top-plane') planeType = PlaneType.XZ;
+      else if (selectedPlane.id === 'right-plane') planeType = PlaneType.YZ;
 
       const plane: SketchPlane = {
         type: planeType,
@@ -590,11 +591,11 @@ export function CADLayout() {
                   >
                     <Tabs.List>
                       <Tabs.Tab
-                        value="features"
+                        value={ToolCategory.FEATURES}
                         style={{
                           // Ensure transition is smooth
                           transition: 'background-color 200ms, border-color 200ms, color 200ms',
-                          ...(activeSidebarTab === 'features' && {
+                          ...(activeSidebarTab === ToolCategory.FEATURES && {
                             color: theme.colors.blue[5],
                             borderBottomColor: theme.colors.blue[5],
                             backgroundColor: `${theme.colors.blue[5]}15`,
@@ -645,7 +646,7 @@ export function CADLayout() {
                       )}
                     </Tabs.List>
       
-                    <Tabs.Panel value="features">
+                    <Tabs.Panel value={ToolCategory.FEATURES}>
                       <FeatureTree
                         items={featureTree}
                         selectedItem={selectedTreeItem}

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { OrthographicCamera } from '@react-three/drei';
-import type { SketchElement, SketchTool, Point2D } from '@/cad/types';
+import type { SketchElement, Point2D } from '@/cad/types';
+import { SketchTool, SketchElementType } from '@/cad/types';
 import { Button, Box, Stack, Text, Group, Kbd, useMantineTheme } from '@mantine/core';
 import { Check, X } from '@phosphor-icons/react';
 
@@ -57,14 +58,14 @@ export function SketchCanvas({
       if (!activeTool) return;
 
       switch (activeTool) {
-        case 'line':
+        case SketchTool.LINE:
           if (currentPoints.length === 0) {
             // First point
             setCurrentPoints([snappedPoint]);
           } else if (currentPoints.length === 1) {
             // Second point - complete line
             const newLine: SketchElement = {
-              type: 'line',
+              type: SketchElementType.LINE,
               id: crypto.randomUUID(),
               start: currentPoints[0],
               end: snappedPoint,
@@ -75,12 +76,12 @@ export function SketchCanvas({
           }
           break;
 
-        case 'rectangle':
+        case SketchTool.RECTANGLE:
           if (currentPoints.length === 0) {
             setCurrentPoints([snappedPoint]);
           } else if (currentPoints.length === 1) {
             const newRect: SketchElement = {
-              type: 'rectangle',
+              type: SketchElementType.RECTANGLE,
               id: crypto.randomUUID(),
               corner1: currentPoints[0],
               corner2: snappedPoint,
@@ -91,7 +92,7 @@ export function SketchCanvas({
           }
           break;
 
-        case 'circle':
+        case SketchTool.CIRCLE:
           if (currentPoints.length === 0) {
             // Center point
             setCurrentPoints([snappedPoint]);
@@ -103,7 +104,7 @@ export function SketchCanvas({
                 Math.pow(snappedPoint.y - center.y, 2)
             );
             const newCircle: SketchElement = {
-              type: 'circle',
+              type: SketchElementType.CIRCLE,
               id: crypto.randomUUID(),
               center,
               radius,
@@ -114,19 +115,19 @@ export function SketchCanvas({
           }
           break;
 
-        case 'polygon':
+        case SketchTool.POLYGON:
           // Add point to polygon
           const newPoints = [...currentPoints, snappedPoint];
           setCurrentPoints(newPoints);
           break;
 
-        case 'arc':
+        case SketchTool.ARC:
           if (currentPoints.length < 2) {
             setCurrentPoints([...currentPoints, snappedPoint]);
           } else if (currentPoints.length === 2) {
             // Three points - complete arc
             const newArc: SketchElement = {
-              type: 'arc',
+              type: SketchElementType.ARC,
               id: crypto.randomUUID(),
               points: [currentPoints[0], currentPoints[1], snappedPoint],
             };
@@ -154,10 +155,10 @@ export function SketchCanvas({
       const snappedPoint = snapPoint(point);
 
       switch (activeTool) {
-        case 'line':
+        case SketchTool.LINE:
           if (currentPoints.length === 1) {
             setPreviewElement({
-              type: 'line',
+              type: SketchElementType.LINE,
               id: 'preview',
               start: currentPoints[0],
               end: snappedPoint,
@@ -165,10 +166,10 @@ export function SketchCanvas({
           }
           break;
 
-        case 'rectangle':
+        case SketchTool.RECTANGLE:
           if (currentPoints.length === 1) {
             setPreviewElement({
-              type: 'rectangle',
+              type: SketchElementType.RECTANGLE,
               id: 'preview',
               corner1: currentPoints[0],
               corner2: snappedPoint,
@@ -176,7 +177,7 @@ export function SketchCanvas({
           }
           break;
 
-        case 'circle':
+        case SketchTool.CIRCLE:
           if (currentPoints.length === 1) {
             const center = currentPoints[0];
             const radius = Math.sqrt(
@@ -184,7 +185,7 @@ export function SketchCanvas({
                 Math.pow(snappedPoint.y - center.y, 2)
             );
             setPreviewElement({
-              type: 'circle',
+              type: SketchElementType.CIRCLE,
               id: 'preview',
               center,
               radius,
@@ -198,9 +199,9 @@ export function SketchCanvas({
 
   // Complete polygon (for polygon tool)
   const handleCompletePolygon = useCallback(() => {
-    if (activeTool === 'polygon' && currentPoints.length >= 3) {
+    if (activeTool === SketchTool.POLYGON && currentPoints.length >= 3) {
       const newPolygon: SketchElement = {
-        type: 'polygon',
+        type: SketchElementType.POLYGON,
         id: crypto.randomUUID(),
         points: currentPoints,
       };
@@ -324,7 +325,7 @@ export function SketchCanvas({
             <Text size="10px" c={`${theme.other.colors.mutedForeground}99`}>
               Press <Kbd size="xs">ESC</Kbd> to cancel
             </Text>
-            {activeTool === 'polygon' && currentPoints.length >= 3 && (
+            {activeTool === SketchTool.POLYGON && currentPoints.length >= 3 && (
               <Text size="10px" c={`${theme.other.colors.mutedForeground}99`} mt={4}>
                 Press <Kbd size="xs">ENTER</Kbd> to complete
               </Text>
@@ -489,14 +490,14 @@ function SketchElementRenderer({
   const points: THREE.Vector3[] = [];
 
   switch (element.type) {
-    case 'line':
+    case SketchElementType.LINE:
       points.push(
         new THREE.Vector3(element.start.x, element.start.y, 0),
         new THREE.Vector3(element.end.x, element.end.y, 0)
       );
       break;
 
-    case 'rectangle': {
+    case SketchElementType.RECTANGLE: {
       const { corner1, corner2 } = element;
       points.push(
         new THREE.Vector3(corner1.x, corner1.y, 0),
@@ -508,7 +509,7 @@ function SketchElementRenderer({
       break;
     }
 
-    case 'circle': {
+    case SketchElementType.CIRCLE: {
       const segments = 64;
       for (let i = 0; i <= segments; i++) {
         const angle = (i / segments) * Math.PI * 2;
@@ -523,7 +524,7 @@ function SketchElementRenderer({
       break;
     }
 
-    case 'polygon':
+    case SketchElementType.POLYGON:
       element.points.forEach((p) => {
         points.push(new THREE.Vector3(p.x, p.y, 0));
       });
@@ -551,17 +552,17 @@ function SketchElementRenderer({
 /** Get helpful hint text for current tool state */
 function getToolHint(tool: SketchTool, pointCount: number): string {
   switch (tool) {
-    case 'line':
+    case SketchTool.LINE:
       return pointCount === 0 ? 'Click to set start point' : 'Click to set end point';
-    case 'rectangle':
+    case SketchTool.RECTANGLE:
       return pointCount === 0 ? 'Click for first corner' : 'Click for opposite corner';
-    case 'circle':
+    case SketchTool.CIRCLE:
       return pointCount === 0 ? 'Click for center point' : 'Click to set radius';
-    case 'polygon':
+    case SketchTool.POLYGON:
       return pointCount < 3
         ? `Click to add point (${pointCount}/3 minimum)`
         : `Click to add point or press ENTER to finish (${pointCount} points)`;
-    case 'arc':
+    case SketchTool.ARC:
       return pointCount === 0
         ? 'Click for start point'
         : pointCount === 1
