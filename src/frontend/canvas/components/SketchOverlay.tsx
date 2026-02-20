@@ -101,11 +101,11 @@ export function SketchOverlay({
   const [snapPoint2D, setSnapPoint2D] = useState<Point2D | null>(null);
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set());
+  const [snapToGrid, setSnapToGrid] = useState(true);
   const { raycaster, camera } = useThree();
   const planeRef = useRef<THREE.Mesh>(null);
 
   const gridSize = 10;
-  const snapToGrid = true; // TODO: Make this configurable
   const snapDistance = 5; // Distance threshold for snapping to points/edges
   const hoverThreshold = 3; // Distance threshold for element hover detection
 
@@ -118,10 +118,48 @@ export function SketchOverlay({
     setHoveredElementId(null);
   }, [activeTool]);
 
-  // Handle keyboard events for deletion
+  // Complete polygon (for polygon tool)
+  const handleCompletePolygon = useCallback(() => {
+    if (activeTool === SketchTool.POLYGON && currentPoints.length >= 3) {
+      const newPolygon: SketchElement = {
+        type: SketchElementType.POLYGON,
+        id: crypto.randomUUID(),
+        points: currentPoints,
+      };
+      onElementsChange(sketch.id, [...sketch.elements, newPolygon]);
+      setCurrentPoints([]);
+      setPreviewElement(null);
+    }
+  }, [activeTool, currentPoints, sketch.elements, sketch.id, onElementsChange]);
+
+  // Handle keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle delete if we're in sketch mode (no active tool or any tool active)
+      // Toggle grid snap
+      if (e.key === 'g' || e.key === 'G') {
+        setSnapToGrid((prev) => !prev);
+        return;
+      }
+
+      // Complete polygon
+      if (e.key === 'Enter') {
+        handleCompletePolygon();
+        return;
+      }
+
+      // Cancel current drawing
+      if (e.key === 'Escape') {
+        if (currentPoints.length > 0) {
+          setCurrentPoints([]);
+          setPreviewElement(null);
+        } else {
+          // If no drawing in progress, clear selection
+          setSelectedElementIds(new Set());
+        }
+        return;
+      }
+
+      // Deletion
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedElementIds.size > 0) {
           // Prevent default browser behavior
@@ -142,7 +180,7 @@ export function SketchOverlay({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange]);
+  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, currentPoints, handleCompletePolygon]);
 
   // Origin crosshair geometries (memoised to avoid per-render allocation)
   const xAxisGeo = useMemo(() => {
@@ -617,6 +655,17 @@ export function SketchOverlay({
     [activeTool, currentPoints, snapPoint, planeTransform, hoverThreshold, sketch.elements, getDistanceToElement]
   );
 
+  const kbdStyle = {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    padding: '2px 8px',
+    borderRadius: 5,
+    border: '1px solid rgba(255, 255, 255, 0.25)',
+    fontSize: '10px',
+    fontWeight: 'bold' as const,
+    boxShadow: '0 1px 0 rgba(255, 255, 255, 0.2)',
+    color: '#fff',
+  };
+
   return (
     <group matrix={planeTransform} matrixAutoUpdate={false}>
       {/* Hotkeys panel */}
@@ -633,25 +682,50 @@ export function SketchOverlay({
           style={{
             backgroundColor: 'rgba(0, 0, 0, 0.75)',
             color: '#ffffff',
-            padding: '8px 12px',
-            borderRadius: 6,
+            padding: '12px 16px',
+            borderRadius: 10,
             fontSize: 12,
             fontFamily: 'monospace',
             pointerEvents: 'none',
-            backdropFilter: 'blur(4px)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
           }}
         >
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span style={{ opacity: 0.6 }}>Hotkeys:</span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <kbd style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                padding: '2px 6px',
-                borderRadius: 3,
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-              }}>DEL</kbd>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', pb: 8, mb: 4 }}>
+              <span style={{ opacity: 0.8, fontWeight: 'bold' }}>Sketcher Hotkeys</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
+                <kbd style={kbdStyle}>DEL</kbd>
+              </div>
               <span style={{ opacity: 0.7 }}>Delete selected</span>
             </div>
+
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
+                <kbd style={kbdStyle}>ESC</kbd>
+              </div>
+              <span style={{ opacity: 0.7 }}>Cancel / Clear</span>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
+                <kbd style={kbdStyle}>G</kbd>
+              </div>
+              <span style={{ color: snapToGrid ? '#22c55e' : '#94a3b8' }}>Grid Snap: {snapToGrid ? 'ON' : 'OFF'}</span>
+            </div>
+
+            {activeTool === SketchTool.POLYGON && currentPoints.length >= 3 && (
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
+                  <kbd style={kbdStyle}>ENTER</kbd>
+                </div>
+                <span style={{ opacity: 0.7 }}>Complete Polygon</span>
+              </div>
+            )}
           </div>
         </div>
       </Html>

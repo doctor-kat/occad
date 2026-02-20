@@ -210,19 +210,16 @@ All edges are combined into a `TopoDS_Wire` via `BRepBuilderAPI_MakeWire`, then 
 - **CADLayout**: Main orchestrator (src/frontend/ui/components/CADLayout.tsx)
 - **CADViewport**: Main viewport container (src/frontend/canvas/components/CADViewport.tsx)
 - **OpenCascadeViewport**: Three.js viewport (src/frontend/canvas/components/OpenCascadeViewport.tsx)
-- **SketchCanvas**: 2D orthographic sketch editor (src/frontend/canvas/components/SketchCanvas.tsx)
 - **SketchOverlay**: 3D sketch overlay (src/frontend/canvas/components/SketchOverlay.tsx)
 - **FeatureTree**: Hierarchical tree (src/frontend/ui/components/FeatureTree.tsx)
 - **FeatureTabs**: Toolbar (src/frontend/ui/components/FeatureTabs.tsx)
 - **OperationPanel**: Parameter input (src/frontend/ui/components/OperationPanel.tsx)
 
-### Dual Sketch System
+### Sketch System
 
-Two independent sketch components implement the same drawing tools:
-1. **SketchCanvas** — 2D orthographic view with grid snapping (toggle with 'G' key)
-2. **SketchOverlay** — 3D overlay with constraint-based snapping (point, midpoint, center, edge constraints)
+The **SketchOverlay** component provides a 3D overlay with grid snapping (toggle with 'G' key) and constraint-based snapping (point, midpoint, center, edge constraints).
 
-Both support: Line, Rectangle, Circle, Polygon, Arc drawing tools. Keyboard: ESC cancels, ENTER completes polygon, G toggles grid snap.
+It supports: Line, Rectangle, Circle, Polygon, Arc drawing tools. Keyboard: ESC cancels/clears, ENTER completes polygon, G toggles grid snap, DEL deletes selected.
 
 ### Face Selection → Sketch Workflow
 
@@ -252,10 +249,10 @@ When removing a hook/import from a file, **scan the entire file for other usages
 
 ### Adding New Sketch Elements
 
-1. Add type to `SketchElement` union in src/cad/types/sketch-elements.ts
+1. Add type to `SketchElement` union in `src/cad/types/sketch/SketchElement.ts`
 2. Implement builder in src/cad/engine/sketchBuilders.ts
 3. Add tool icon/handler to FeatureTabs
-4. Add drawing logic to both SketchCanvas and SketchOverlay
+4. Add drawing logic to `SketchOverlay`
 
 ### Adding New Features
 
