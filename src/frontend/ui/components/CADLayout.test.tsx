@@ -180,6 +180,9 @@ describe("CADLayout", () => {
     const user = userEvent.setup();
     renderWithProviders(<CADLayout />);
 
+    // Clear initial rebuild call on mount
+    mockOCC.rebuild.mockClear();
+
     // Initially no rebuild because no features
     expect(mockOCC.rebuild).not.toHaveBeenCalled();
 

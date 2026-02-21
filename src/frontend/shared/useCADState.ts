@@ -3,8 +3,8 @@ import { useLocalStorage } from '@/frontend/shared/useLocalStorage.ts';
 import {
   CADProject,
   CADState,
-  Tool,
-  ToolCategory,
+  Operation,
+  OperationCategory,
   Sketch,
   Feature,
   FeatureTreeItem,
@@ -62,8 +62,8 @@ function migrateProject(raw: CADProject): CADProject {
 export function useCADState() {
   const [rawProject, setProject] = useLocalStorage<CADProject>(STORAGE_KEY, createNewProject());
   const project = useMemo(() => migrateProject(rawProject), [rawProject]);
-  const [activeTab, setActiveTab] = useState<ToolCategory>(ToolCategory.FEATURES);
-  const [activeTool, setActiveTool] = useState<Tool>(null);
+  const [activeTab, setActiveTab] = useState<OperationCategory>(OperationCategory.FEATURES);
+  const [activeOperation, setActiveOperation] = useState<Operation>(null);
   const [selectedTreeItem, setSelectedTreeItem] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeSketchId, setActiveSketchId] = useState<string | null>(null);
@@ -151,15 +151,15 @@ export function useCADState() {
     return tree;
   }, [project, itemErrors]);
 
-  // Tool selection
-  const selectTool = useCallback((tool: Tool) => {
-    setActiveTool((current) => (current === tool ? null : tool));
+  // Operation selection
+  const selectOperation = useCallback((operation: Operation) => {
+    setActiveOperation((current) => (current === operation ? null : operation));
   }, []);
 
   // Tab switching
-  const switchTab = useCallback((tab: ToolCategory) => {
+  const switchTab = useCallback((tab: OperationCategory) => {
     setActiveTab(tab);
-    setActiveTool(null);
+    setActiveOperation(null);
   }, []);
 
   // Tree item selection
@@ -238,7 +238,7 @@ export function useCADState() {
   // Start editing a sketch (enters sketch mode)
   const startSketchEdit = useCallback((sketchId: string) => {
     setActiveSketchId(sketchId);
-    setActiveTab(ToolCategory.SKETCH);
+    setActiveTab(OperationCategory.SKETCH);
   }, []);
 
   // Stop editing sketch (exits sketch mode)
@@ -407,7 +407,7 @@ export function useCADState() {
   const newProject = useCallback(() => {
     setProject(createNewProject());
     setSelectedTreeItem(null);
-    setActiveTool(null);
+    setActiveOperation(null);
   }, [setProject]);
 
   // Export project as JSON
@@ -531,7 +531,7 @@ export function useCADState() {
     // State
     project,
     activeTab,
-    activeTool,
+    activeOperation,
     selectedTreeItem,
     isSidebarOpen,
     activeSketchId,
@@ -539,7 +539,7 @@ export function useCADState() {
     featureTree,
 
     // Actions
-    selectTool,
+    selectOperation,
     switchTab,
     selectTreeItem,
     toggleTreeItemExpansion,

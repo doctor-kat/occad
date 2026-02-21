@@ -41,7 +41,7 @@ test.describe('Box-Sketch Flow', () => {
         // Switch to Sketch tab in toolbar
         await page.getByRole('tab', { name: 'Sketch' }).click();
 
-        // Click the 'Sketch' tool button to start a sketch on the selected face
+        // Click the 'Sketch' operation button to start a sketch on the selected face
         const sketchButton = page.getByRole('button', { name: /^Sketch$/ }).first();
         await sketchButton.click();
 
@@ -52,9 +52,9 @@ test.describe('Box-Sketch Flow', () => {
         await expect(page.locator('text=Sketch 1')).toBeVisible({ timeout: 15000 });
 
         // 5. Draw a Rectangle
-        const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
-        await rectangleTool.click();
-        await expect(rectangleTool).toHaveAttribute('data-variant', 'light');
+        const rectangleOperation = page.locator('button').filter({ hasText: /^Rectangle$/ });
+        await rectangleOperation.click();
+        await expect(rectangleOperation).toHaveAttribute('data-variant', 'light');
 
         // Wait a bit for the sketch plane mesh to be ready in the DOM/Canvas
         await page.waitForTimeout(1000);
@@ -95,6 +95,6 @@ test.describe('Box-Sketch Flow', () => {
         await expect(page.locator('text=Sketch 1').first()).toBeVisible({ timeout: 15000 });
 
         // Check that we are no longer in sketch mode
-        await expect(rectangleTool).not.toHaveAttribute('data-variant', 'light');
+        await expect(rectangleOperation).not.toHaveAttribute('data-variant', 'light');
     });
 });

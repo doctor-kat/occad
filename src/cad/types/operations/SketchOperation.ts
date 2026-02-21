@@ -1,4 +1,4 @@
-export enum SketchTool {
+export enum SketchOperation {
   LINE = 'line',
   RECTANGLE = 'rectangle',
   CIRCLE = 'circle',

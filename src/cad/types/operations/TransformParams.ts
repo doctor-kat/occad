@@ -1,10 +1,10 @@
 import { Vector3D } from '../geometry/Vector3D';
 import { Point3D } from '../geometry/Point3D';
 import { Axis } from '../geometry/Axis';
-import { TransformTool } from '../tools/TransformTool';
+import { TransformOperation } from './TransformOperation';
 
 export interface TransformParams {
-  type: TransformTool;
+  type: TransformOperation;
   /** Translation vector for MOVE */
   translation?: Vector3D;
   /** Rotation axis and angle (degrees) for ROTATE */

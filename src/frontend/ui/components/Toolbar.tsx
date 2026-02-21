@@ -14,7 +14,7 @@ import {
 } from '@phosphor-icons/react';
 import { Button, Tooltip, Divider, Group, Box, Text, useMantineTheme } from '@mantine/core';
 
-interface HeaderBarProps {
+interface ToolbarProps {
   projectName: string;
   onNew: () => void;
   onOpen: () => void;
@@ -36,7 +36,7 @@ const fileButtonStyle = {
 
 const headerLabelStyle = { label: { fontSize: 12 } };
 
-export function HeaderBar({ projectName, onNew, onOpen, onSave, onExport }: HeaderBarProps) {
+export function Toolbar({ projectName, onNew, onOpen, onSave, onExport }: ToolbarProps) {
   const theme = useMantineTheme();
 
   return (

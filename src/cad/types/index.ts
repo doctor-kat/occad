@@ -37,6 +37,13 @@ export * from './operations/OffsetParams';
 export * from './operations/TransformParams';
 export * from './operations/MeasureParams';
 export * from './operations/OperationParams';
+export * from './operations/OperationCategory';
+export * from './operations/FeatureOperation';
+export * from './operations/SketchOperation';
+export * from './operations/EvaluateOperation';
+export * from './operations/TransformOperation';
+export * from './operations/IOOperation';
+export * from './operations/Operation';
 
 // Project
 export * from './project/Feature';
@@ -46,15 +53,6 @@ export * from './project/CADProject';
 export * from './project/RebuildState';
 export * from './project/CADState';
 export * from './project/createNewProject';
-
-// Tools
-export * from './tools/ToolCategory';
-export * from './tools/FeatureTool';
-export * from './tools/SketchTool';
-export * from './tools/EvaluateTool';
-export * from './tools/TransformTool';
-export * from './tools/IOTool';
-export * from './tools/Tool';
 
 // Mesh
 export * from './mesh/MeshData';

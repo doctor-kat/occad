@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/helpers";
-import { HeaderBar } from "./HeaderBar";
+import { Toolbar } from "./Toolbar";
 
-describe("HeaderBar", () => {
+describe("Toolbar", () => {
   const defaultProps = {
     projectName: "My Project",
     onNew: vi.fn(),
@@ -14,18 +14,18 @@ describe("HeaderBar", () => {
   };
 
   it('should render "OCCAD" app name', () => {
-    renderWithProviders(<HeaderBar {...defaultProps} />);
+    renderWithProviders(<Toolbar {...defaultProps} />);
     expect(screen.getByText("OCCAD")).toBeInTheDocument();
   });
 
   it("should render the project name", () => {
-    renderWithProviders(<HeaderBar {...defaultProps} />);
+    renderWithProviders(<Toolbar {...defaultProps} />);
     expect(screen.getByText("My Project")).toBeInTheDocument();
   });
 
   it("should call onNew when New button is clicked", async () => {
     const onNew = vi.fn();
-    renderWithProviders(<HeaderBar {...defaultProps} onNew={onNew} />);
+    renderWithProviders(<Toolbar {...defaultProps} onNew={onNew} />);
 
     await userEvent.click(screen.getByText("New"));
     expect(onNew).toHaveBeenCalledTimes(1);
@@ -33,7 +33,7 @@ describe("HeaderBar", () => {
 
   it("should call onOpen when Open button is clicked", async () => {
     const onOpen = vi.fn();
-    renderWithProviders(<HeaderBar {...defaultProps} onOpen={onOpen} />);
+    renderWithProviders(<Toolbar {...defaultProps} onOpen={onOpen} />);
 
     await userEvent.click(screen.getByText("Open"));
     expect(onOpen).toHaveBeenCalledTimes(1);
@@ -41,7 +41,7 @@ describe("HeaderBar", () => {
 
   it("should call onSave when Save button is clicked", async () => {
     const onSave = vi.fn();
-    renderWithProviders(<HeaderBar {...defaultProps} onSave={onSave} />);
+    renderWithProviders(<Toolbar {...defaultProps} onSave={onSave} />);
 
     await userEvent.click(screen.getByText("Save"));
     expect(onSave).toHaveBeenCalledTimes(1);
@@ -49,7 +49,7 @@ describe("HeaderBar", () => {
 
   it("should call onExport when Export button is clicked", async () => {
     const onExport = vi.fn();
-    renderWithProviders(<HeaderBar {...defaultProps} onExport={onExport} />);
+    renderWithProviders(<Toolbar {...defaultProps} onExport={onExport} />);
 
     await userEvent.click(screen.getByText("Export"));
     expect(onExport).toHaveBeenCalledTimes(1);

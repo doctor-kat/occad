@@ -3,11 +3,11 @@ import { useThree, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D, SketchPlane } from '@/cad/types';
-import { SketchTool, PlaneType, SketchElementType } from '@/cad/types';
+import { SketchOperation, PlaneType, SketchElementType } from '@/cad/types';
 
 interface SketchOverlayProps {
   sketch: Sketch;
-  activeTool: SketchTool | null;
+  activeOperation: SketchOperation | null;
   activeConstraint?: string;
   onElementsChange: (sketchId: string, elements: SketchElement[]) => void;
   onBackgroundClick?: () => void;
@@ -480,8 +480,8 @@ export function SketchOverlay({
       const point2D: Point2D = { x: localPoint.x, y: localPoint.y };
       console.log(`[SketchOverlay] 3D world (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)}) → 2D sketch (${point2D.x.toFixed(2)}, ${point2D.y.toFixed(2)})`);
 
-      // If no tool is active, handle selection
-      if (!activeTool) {
+      // If no operation is active, handle selection
+      if (!activeOperation) {
         if (hoveredElementId) {
           // Select the hovered element
           setSelectedElementIds(new Set([hoveredElementId]));
@@ -494,8 +494,8 @@ export function SketchOverlay({
 
       const snappedPoint = snapPoint(point2D);
 
-      switch (activeTool) {
-        case SketchTool.LINE:
+      switch (activeOperation) {
+        case SketchOperation.LINE:
           if (currentPoints.length === 0) {
             setCurrentPoints([snappedPoint]);
           } else if (currentPoints.length === 1) {
@@ -581,8 +581,8 @@ export function SketchOverlay({
       const localPoint = point.clone().applyMatrix4(planeTransform.clone().invert());
       const point2D: Point2D = { x: localPoint.x, y: localPoint.y };
 
-      // If no tool is active, detect hover for selection
-      if (!activeTool) {
+      // If no operation is active, detect hover for selection
+      if (!activeOperation) {
         setPreviewElement(null);
         setHoverPoint(null);
 
@@ -612,8 +612,8 @@ export function SketchOverlay({
         return;
       }
 
-      switch (activeTool) {
-        case SketchTool.LINE:
+      switch (activeOperation) {
+        case SketchOperation.LINE:
           if (currentPoints.length === 1) {
             setPreviewElement({
               type: SketchElementType.LINE,
@@ -718,7 +718,7 @@ export function SketchOverlay({
               <span style={{ color: snapToGrid ? '#22c55e' : '#94a3b8' }}>Grid Snap: {snapToGrid ? 'ON' : 'OFF'}</span>
             </div>
 
-            {activeTool === SketchTool.POLYGON && currentPoints.length >= 3 && (
+            {activeOperation === SketchOperation.POLYGON && currentPoints.length >= 3 && (
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
                   <kbd style={kbdStyle}>ENTER</kbd>
@@ -797,7 +797,7 @@ export function SketchOverlay({
       ))}
 
       {/* Render hover point indicator */}
-      {hoverPoint && activeTool && (
+      {hoverPoint && activeOperation && (
         <mesh position={[hoverPoint.x, hoverPoint.y, 0.1]}>
           <circleGeometry args={[0.8, 16]} />
           <meshBasicMaterial color="#60a5fa" transparent opacity={0.5} />
@@ -805,7 +805,7 @@ export function SketchOverlay({
       )}
 
       {/* Render snap point indicator (when snapped to a constraint) */}
-      {snapPoint2D && activeTool && (
+      {snapPoint2D && activeOperation && (
         <group position={[snapPoint2D.x, snapPoint2D.y, 0.15]}>
           {/* Outer ring */}
           <mesh>

@@ -28,7 +28,7 @@ import type {
   Point3D,
   Vector3D,
 } from '@/cad/types';
-import { ShapeType, FeatureTool, TransformTool, PlaneType, SketchElementType } from '@/cad/types';
+import { ShapeType, FeatureOperation, TransformOperation, PlaneType, SketchElementType } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
 import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
@@ -521,7 +521,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
                 } else {
                   console.error(`Boolean union failed for feature ${feature.id}`);
                 }
-              } else if (feature.type === FeatureTool.EXTRUDED_CUT) {
+              } else if (feature.type === FeatureOperation.EXTRUDED_CUT) {
                 const result = performBooleanOperation(ctx, 'subtract', currentBody, newShape);
                 if (!result.IsNull()) {
                   currentBody = result;
@@ -536,7 +536,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
             const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
             ctx.shapeStorage.set(shapeId, currentBody);
           }
-        } else if (feature.type === FeatureTool.REVOLVED_BOSS || feature.type === FeatureTool.REVOLVED_CUT) {
+        } else if (feature.type === FeatureOperation.REVOLVED_BOSS || feature.type === FeatureOperation.REVOLVED_CUT) {
           // Handle revolve features
           const sketchShape = findSketchShape(ctx, feature.sketchId!);
 
@@ -637,7 +637,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.CYLINDER) {
+        } else if (feature.type === FeatureOperation.CYLINDER) {
           // Handle primitive cylinder
           const params = feature.parameters as PrimitiveCylinderParams;
           const center = params.center || { x: 0, y: 0, z: 0 };
@@ -682,7 +682,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.SPHERE) {
+        } else if (feature.type === FeatureOperation.SPHERE) {
           // Handle primitive sphere
           const params = feature.parameters as PrimitiveSphereParams;
           const center = params.center || { x: 0, y: 0, z: 0 };
@@ -718,7 +718,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.CONE) {
+        } else if (feature.type === FeatureOperation.CONE) {
           // Handle primitive cone
           const params = feature.parameters as PrimitiveConeParams;
           const center = params.center || { x: 0, y: 0, z: 0 };
@@ -763,7 +763,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.TORUS) {
+        } else if (feature.type === FeatureOperation.TORUS) {
           // Handle primitive torus
           const params = feature.parameters as PrimitiveTorusParams;
           const center = params.center || { x: 0, y: 0, z: 0 };
@@ -808,7 +808,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.WEDGE) {
+        } else if (feature.type === FeatureOperation.WEDGE) {
           // Handle primitive wedge
           const params = feature.parameters as PrimitiveWedgeParams;
           const center = params.center || { x: 0, y: 0, z: 0 };
@@ -841,7 +841,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.FILLET) {
+        } else if (feature.type === FeatureOperation.FILLET) {
           // Handle fillet operation
           if (!currentBody) {
             throw new Error('Fillet requires an existing body');
@@ -888,7 +888,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.CHAMFER) {
+        } else if (feature.type === FeatureOperation.CHAMFER) {
           // Handle chamfer operation
           if (!currentBody) {
             throw new Error('Chamfer requires an existing body');
@@ -934,7 +934,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.SHELL) {
+        } else if (feature.type === FeatureOperation.SHELL) {
           // Handle shell operation
           if (!currentBody) {
             throw new Error('Shell requires an existing body');
@@ -990,7 +990,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.OFFSET) {
+        } else if (feature.type === FeatureOperation.OFFSET) {
           // Handle offset operation
           if (!currentBody) {
             throw new Error('Offset requires an existing body');
@@ -1024,10 +1024,10 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
         } else if (
-          feature.type === FeatureTool.MOVE ||
-          feature.type === FeatureTool.ROTATE ||
-          feature.type === FeatureTool.MIRROR ||
-          feature.type === FeatureTool.SCALE
+          feature.type === FeatureOperation.MOVE ||
+          feature.type === FeatureOperation.ROTATE ||
+          feature.type === FeatureOperation.MIRROR ||
+          feature.type === FeatureOperation.SCALE
         ) {
           // Handle transformations
           if (!currentBody) {
@@ -1037,11 +1037,11 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           const params = feature.parameters as TransformParams;
           const trsf = new oc.gp_Trsf_1();
 
-          if (feature.type === FeatureTool.MOVE && params.translation) {
+          if (feature.type === FeatureOperation.MOVE && params.translation) {
             const vec = new oc.gp_Vec_4(params.translation.x, params.translation.y, params.translation.z);
             trsf.SetTranslation_1(vec);
             vec.delete();
-          } else if (feature.type === FeatureTool.ROTATE && params.rotation) {
+          } else if (feature.type === FeatureOperation.ROTATE && params.rotation) {
             const axisOrigin = new oc.gp_Pnt_3(params.rotation.axis.origin.x, params.rotation.axis.origin.y, params.rotation.axis.origin.z);
             const axisDir = new oc.gp_Dir_4(params.rotation.axis.direction.x, params.rotation.axis.direction.y, params.rotation.axis.direction.z);
             const axis = new oc.gp_Ax1_2(axisOrigin, axisDir);
@@ -1050,7 +1050,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
             axisOrigin.delete();
             axisDir.delete();
             axis.delete();
-          } else if (feature.type === FeatureTool.MIRROR && params.mirrorPlane) {
+          } else if (feature.type === FeatureOperation.MIRROR && params.mirrorPlane) {
             const axisOrigin = new oc.gp_Pnt_3(params.mirrorPlane.origin.x, params.mirrorPlane.origin.y, params.mirrorPlane.origin.z);
             const axisDir = new oc.gp_Dir_4(params.mirrorPlane.direction.x, params.mirrorPlane.direction.y, params.mirrorPlane.direction.z);
             const axis = new oc.gp_Ax2_3(axisOrigin, axisDir);
@@ -1058,7 +1058,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
             axisOrigin.delete();
             axisDir.delete();
             axis.delete();
-          } else if (feature.type === FeatureTool.SCALE && params.scale) {
+          } else if (feature.type === FeatureOperation.SCALE && params.scale) {
             const center = new oc.gp_Pnt_3(params.scale.center.x, params.scale.center.y, params.scale.center.z);
             trsf.SetScale(center, params.scale.factor);
             center.delete();
@@ -1072,7 +1072,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
-        } else if (feature.type === FeatureTool.MEASURE) {
+        } else if (feature.type === FeatureOperation.MEASURE) {
           // Measure is currently a non-modifying feature in history
           // Results should be posted back to UI, but for now just pass through the body
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;

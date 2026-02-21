@@ -38,9 +38,9 @@ describe("useCADState", () => {
       expect(result.current.project.version).toBe(1);
     });
 
-    it("should have no active tool, sketch, or selection", () => {
+    it("should have no active operation, sketch, or selection", () => {
       const { result } = renderHook(() => useCADState());
-      expect(result.current.activeTool).toBeNull();
+      expect(result.current.activeOperation).toBeNull();
       expect(result.current.activeSketchId).toBeNull();
       expect(result.current.selectedTreeItem).toBeNull();
     });
@@ -65,12 +65,12 @@ describe("useCADState", () => {
       expect(result.current.project.version).toBe(1);
     });
 
-    it("should clear selectedTreeItem and activeTool", () => {
+    it("should clear selectedTreeItem and activeOperation", () => {
       const { result } = renderHook(() => useCADState());
 
       act(() => {
         result.current.selectTreeItem("front-plane");
-        result.current.selectTool("line");
+        result.current.selectOperation("line" as any);
       });
 
       act(() => {
@@ -78,7 +78,7 @@ describe("useCADState", () => {
       });
 
       expect(result.current.selectedTreeItem).toBeNull();
-      expect(result.current.activeTool).toBeNull();
+      expect(result.current.activeOperation).toBeNull();
     });
   });
 
@@ -90,7 +90,7 @@ describe("useCADState", () => {
       let newSketch;
       act(() => {
         newSketch = result.current.addSketch("Test Sketch", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -110,7 +110,7 @@ describe("useCADState", () => {
       
       act(() => {
         const newSketch = result.current.addSketch("Test Sketch", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -131,7 +131,7 @@ describe("useCADState", () => {
 
       act(() => {
         const newSketch = result.current.addSketch("Test Sketch", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -193,10 +193,10 @@ describe("useCADState", () => {
       const versionBefore = result.current.project.version;
 
       act(() => {
-        result.current.addFeature("Test Feature", "extrude-boss", {
+        result.current.addFeature("Test Feature", "extrude-boss" as any, {
           distance: 10,
           isCut: false,
-        });
+        } as any);
       });
 
       expect(result.current.project.features).toHaveLength(1);
@@ -211,7 +211,7 @@ describe("useCADState", () => {
       let newSketch: any;
       act(() => {
         newSketch = result.current.addSketch("To Delete", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -242,7 +242,7 @@ describe("useCADState", () => {
       let newSketch: any;
       act(() => {
         newSketch = result.current.addSketch("To Delete", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -277,11 +277,11 @@ describe("useCADState", () => {
       let sketch: any;
       act(() => {
         sketch = result.current.addSketch("Sketch", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
-        result.current.addFeature("Feature", "extrude-boss", { distance: 10, isCut: false }, sketch.id, [sketch.id]);
+        result.current.addFeature("Feature", "extrude-boss" as any, { distance: 10, isCut: false } as any, sketch.id, [sketch.id]);
       });
 
       const featureItem = result.current.featureTree.find(
@@ -297,7 +297,7 @@ describe("useCADState", () => {
 
       act(() => {
         result.current.addSketch("Standalone", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -317,7 +317,7 @@ describe("useCADState", () => {
       let featureId: string;
 
       act(() => {
-        const feature = result.current.addFeature("Feature", "extrude-boss", { distance: 10, isCut: false });
+        const feature = result.current.addFeature("Feature", "extrude-boss" as any, { distance: 10, isCut: false } as any);
         featureId = feature.id;
       });
 
@@ -343,7 +343,7 @@ describe("useCADState", () => {
 
       act(() => {
         const sketch = result.current.addSketch("Sketch", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -373,7 +373,7 @@ describe("useCADState", () => {
       let newSketch: any;
       act(() => {
         newSketch = result.current.addSketch("Visible Sketch", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -389,8 +389,8 @@ describe("useCADState", () => {
       act(() => {
         result.current.addFeature(
           "Extrude",
-          "extrude-boss",
-          { distance: 10, isCut: false },
+          "extrude-boss" as any,
+          { distance: 10, isCut: false } as any,
           newSketch.id,
           [newSketch.id],
         );
@@ -407,8 +407,8 @@ describe("useCADState", () => {
       const { result } = renderHook(() => useCADState());
 
       act(() => {
-        const sketch = result.current.addSketch("Sketch", { type: "xy", planeRef: "front-plane", offset: 0 });
-        result.current.addFeature("Feature", "extrude-boss", { distance: 10, isCut: false }, sketch.id, [sketch.id]);
+        const sketch = result.current.addSketch("Sketch", { type: "xy" as any, planeRef: "front-plane", offset: 0 });
+        result.current.addFeature("Feature", "extrude-boss" as any, { distance: 10, isCut: false } as any, sketch.id, [sketch.id]);
       });
 
       // Feature visible, consumed sketch hidden
@@ -420,44 +420,44 @@ describe("useCADState", () => {
     });
   });
 
-  describe("selectTool / switchTab", () => {
-    it("should toggle tool on/off", () => {
+  describe("selectOperation / switchTab", () => {
+    it("should toggle operation on/off", () => {
       const { result } = renderHook(() => useCADState());
 
       act(() => {
-        result.current.selectTool("line");
+        result.current.selectOperation("line" as any);
       });
-      expect(result.current.activeTool).toBe("line");
+      expect(result.current.activeOperation).toBe("line");
 
       act(() => {
-        result.current.selectTool("line");
+        result.current.selectOperation("line" as any);
       });
-      expect(result.current.activeTool).toBeNull();
+      expect(result.current.activeOperation).toBeNull();
     });
 
-    it("should switch between tools", () => {
+    it("should switch between operations", () => {
       const { result } = renderHook(() => useCADState());
 
       act(() => {
-        result.current.selectTool("line");
+        result.current.selectOperation("line" as any);
       });
       act(() => {
-        result.current.selectTool("circle");
+        result.current.selectOperation("circle" as any);
       });
-      expect(result.current.activeTool).toBe("circle");
+      expect(result.current.activeOperation).toBe("circle");
     });
 
-    it("should clear active tool when switching tabs", () => {
+    it("should clear active operation when switching tabs", () => {
       const { result } = renderHook(() => useCADState());
 
       act(() => {
-        result.current.selectTool("line");
+        result.current.selectOperation("line" as any);
       });
       act(() => {
-        result.current.switchTab("sketch");
+        result.current.switchTab("sketch" as any);
       });
 
-      expect(result.current.activeTool).toBeNull();
+      expect(result.current.activeOperation).toBeNull();
       expect(result.current.activeTab).toBe("sketch");
     });
   });
@@ -468,7 +468,7 @@ describe("useCADState", () => {
 
       act(() => {
         result.current.addSketch("Persisted Sketch", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });
@@ -486,7 +486,7 @@ describe("useCADState", () => {
 
       act(() => {
         result.current.addSketch("Restored Sketch", {
-          type: "xy",
+          type: "xy" as any,
           planeRef: "front-plane",
           offset: 0,
         });

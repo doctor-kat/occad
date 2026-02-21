@@ -1,4 +1,4 @@
-export enum ToolCategory {
+export enum OperationCategory {
   FEATURES = 'features',
   SKETCH = 'sketch',
   EVALUATE = 'evaluate',

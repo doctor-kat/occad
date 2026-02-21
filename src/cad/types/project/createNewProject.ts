@@ -1,7 +1,7 @@
 import { CADProject } from './CADProject';
 import { DEFAULT_REFERENCE_GEOMETRY } from './ReferenceGeometry';
 import { SketchElementType } from '../sketch/SketchElementType';
-import { FeatureTool } from '../tools/FeatureTool';
+import { FeatureOperation } from '../operations/FeatureOperation';
 import { PlaneType } from '../sketch/SketchPlane';
 
 export const createNewProject = (): CADProject => {

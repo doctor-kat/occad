@@ -1,11 +1,11 @@
 import { ShapeReference } from '../geometry/ShapeReference';
 import { OperationParams } from '../operations/OperationParams';
-import { FeatureTool } from '../tools/FeatureTool';
+import { FeatureOperation } from '../operations/FeatureOperation';
 
 export interface Feature {
   id: string;
   name: string;
-  type: FeatureTool;
+  type: FeatureOperation;
   /** Reference to source sketch (for sketch-based operations) */
   sketchId?: string;
   /** Operation parameters (distance, angle, radius, etc.) */

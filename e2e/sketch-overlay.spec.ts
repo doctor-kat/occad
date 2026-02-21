@@ -24,10 +24,10 @@ test.describe('SketchOverlay', () => {
     // Switch to Sketch tab first
     await page.getByRole('tab', { name: 'Sketch' }).click();
 
-    // Click a sketch tool to start a new sketch
+    // Click a sketch operation to start a new sketch
     // This will automatically create "Sketch 1" on the default plane
-    const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
-    await rectangleTool.click();
+    const rectangleOperation = page.locator('button').filter({ hasText: /^Rectangle$/ });
+    await rectangleOperation.click();
 
     // Verify Sketch 1 appears in Feature Tree
     await expect(page.locator('text=Sketch 1')).toBeVisible({ timeout: 10000 });

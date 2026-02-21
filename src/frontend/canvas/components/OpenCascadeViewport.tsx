@@ -3,7 +3,7 @@ import { Canvas, ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, GizmoHelper, GizmoViewport, Environment, Grid, Text as Text3D } from "@react-three/drei";
 import * as THREE from "three";
 import type { MeshData, CADProject, Sketch, SketchEdgeData } from "@/cad/types";
-import { SketchTool, PlaneType } from "@/cad/types";
+import { SketchOperation, PlaneType } from "@/cad/types";
 import type { OCCStatus } from "@/worker/bridge/useOpenCascade";
 import { CircleNotch, Check, X, Circle, Minus, NavigationArrow, Dot } from "@phosphor-icons/react";
 import { SketchOverlay } from "./SketchOverlay";
@@ -784,7 +784,7 @@ interface SceneProps {
   selectedEdgeIndex?: number | null;
   selectedVertexIndex?: number | null;
   activeSketch?: Sketch | null;
-  activeTool?: SketchTool | null;
+  activeOperation?: SketchOperation | null;
   activeConstraint?: string;
   onPlaneClick?: (planeId: string) => void;
   onFaceClick?: (faceId: number) => void;
@@ -803,7 +803,7 @@ function Scene({
   selectedEdgeIndex,
   selectedVertexIndex,
   activeSketch,
-  activeTool,
+  activeOperation,
   activeConstraint,
   onPlaneClick,
   onFaceClick,
@@ -875,7 +875,7 @@ function Scene({
       {activeSketch && onUpdateSketch && (
         <SketchOverlay
           sketch={activeSketch}
-          activeTool={activeTool}
+          activeOperation={activeOperation}
           activeConstraint={activeConstraint}
           onElementsChange={onUpdateSketch}
           onBackgroundClick={onBackgroundClick}
@@ -1052,8 +1052,8 @@ interface OpenCascadeViewportProps {
   occRetry: () => void;
   /** Active sketch being edited (if in sketch mode) */
   activeSketch?: any | null;
-  /** Active sketch tool */
-  activeTool?: any | null;
+  /** Active sketch operation */
+  activeOperation?: any | null;
   /** Callback when a plane is clicked */
   onPlaneClick?: (planeId: string) => void;
   /** Callback when a face is clicked */
@@ -1082,7 +1082,7 @@ export function OpenCascadeViewport({
   occSketchEdges,
   occRetry,
   activeSketch,
-  activeTool,
+  activeOperation,
   onPlaneClick,
   onFaceClick,
   onEdgeClick,
@@ -1134,7 +1134,7 @@ export function OpenCascadeViewport({
             selectedEdgeIndex={selectedEdgeIndex}
             selectedVertexIndex={selectedVertexIndex}
             activeSketch={activeSketch as Sketch | undefined}
-            activeTool={activeTool as SketchTool | undefined}
+            activeOperation={activeOperation as SketchOperation | undefined}
             activeConstraint={activeConstraint}
             onPlaneClick={onPlaneClick}
             onFaceClick={onFaceClick}

@@ -1,4 +1,4 @@
-export enum IOTool {
+export enum IOOperation {
   IMPORT_STEP = 'import-step',
   IMPORT_IGES = 'import-iges',
   EXPORT_STEP = 'export-step',

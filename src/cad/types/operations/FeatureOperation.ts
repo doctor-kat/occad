@@ -1,4 +1,4 @@
-export enum FeatureTool {
+export enum FeatureOperation {
   // Boss/Base operations
   EXTRUDE_BOSS = 'extrude-boss',
   REVOLVED_BOSS = 'revolved-boss',

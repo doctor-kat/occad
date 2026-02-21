@@ -1,11 +1,11 @@
 import { OpenCascadeViewport } from './OpenCascadeViewport';
-import type { CADProject, SketchEdgeData, SketchTool, MeshData } from '@/cad/types';
+import type { CADProject, SketchEdgeData, SketchOperation, MeshData } from '@/cad/types';
 import type { OCCStatus } from '@/worker/bridge/useOpenCascade';
 
 interface CADViewportProps {
   project: CADProject;
   activeSketchId: string | null;
-  activeTool: SketchTool | null;
+  activeOperation: SketchOperation | null;
   selectedTreeItem?: string | null;
   occStatus: OCCStatus;
   occProgress: string;
@@ -31,7 +31,7 @@ interface CADViewportProps {
 export function CADViewport({
   project,
   activeSketchId,
-  activeTool,
+  activeOperation,
   selectedTreeItem,
   occStatus,
   occProgress,
@@ -65,7 +65,7 @@ export function CADViewport({
       occSketchEdges={occSketchEdges}
       occRetry={occRetry}
       activeSketch={activeSketch}
-      activeTool={activeTool}
+      activeOperation={activeOperation}
       onPlaneClick={onPlaneClick}
       onFaceClick={onFaceClick}
       onEdgeClick={onEdgeClick}

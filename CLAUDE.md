@@ -36,26 +36,24 @@ The codebase is organized into four strictly separated layers to decouple the UI
 
 1.  **`src/frontend/ui/` (The Interface)**: Pure frontend layer.
     *   React components, application layout.
-    *   Depends on: `src/cad/types` (for data models), `src/worker/bridge` (for engine communication), and `src/frontend/state`.
+    *   Depends on: `src/cad/types` (for data models), `src/worker/bridge` (for engine communication), and `src/frontend/shared`.
 
 2.  **`src/frontend/canvas/` (The Visuals)**: Visualization and rendering layer.
-    *   Three.js components (`OpenCascadeViewport`) and HTML5 Canvas overlays (`SketchOverlay`).
-    *   Depends on: `src/cad/types` (for mesh/edge data formats) and `src/frontend/state`.
+    *   Three.js components (`OpenCascadeViewport`) and React-Three-Fiber overlays (`SketchOverlay`).
+    *   Depends on: `src/cad/types` (for mesh/edge data formats) and `src/frontend/shared`.
 
-3.  **`src/frontend/state/` (Shared State)**: Centralized state management.
+3.  **`src/frontend/shared/` (Common State & Utilities)**: Centralized state management and shared logic.
     *   `useCADState.ts`: Manages the project state, feature tree, and UI-level CRUD operations.
     *   `viewportStore.ts`: Zustand store for camera, selection, and hover state.
-
-4.  **`src/frontend/shared/` (Common Utilities)**: Shared logic and theme.
     *   `theme/`: Mantine theme and CAD color palette.
     *   `useLocalStorage.ts`: Persistence helper.
 
-5.  **`src/cad/` (The Engine)**: Core CAD logic and data models.
+4.  **`src/cad/` (The Engine)**: Core CAD logic and data models.
     *   `engine/`: Pure TypeScript wrappers for OpenCascade.js operations (runs inside the worker).
     *   `types/`: Foundational CAD types (`Project`, `Feature`, `SketchElement`) and engine output formats (`MeshData`).
     *   No dependencies on UI or Rendering layers.
 
-6.  **`src/worker/` (The Bridge)**: Infrastructure for cross-thread communication.
+5.  **`src/worker/` (The Bridge)**: Infrastructure for cross-thread communication.
     *   `bridge/opencascadeWorker.ts`: The Web Worker entry point.
     *   `bridge/useOpenCascade.ts`: The React hook used by the UI to send commands to the engine.
     *   `types/`: Strictly defined Request/Response DTOs for message passing.
@@ -72,7 +70,7 @@ The codebase is organized into four strictly separated layers to decouple the UI
 
 ### Import Alias
 
-`@` maps to `./src` — use for all imports: `import { useCADState } from '@/frontend/state/useCADState'`
+`@` maps to `./src` — use for all imports: `import { useCADState } from '@/frontend/shared/useCADState'`
 
 ### Critical Vite Headers
 
@@ -84,9 +82,9 @@ Cross-Origin-Embedder-Policy: require-corp
 
 ### State Management
 
-Custom hook-based (not Redux/Zustand). Central state in `useCADState` (src/ui/hooks/useCADState.ts):
+Custom hook-based (not Redux/Zustand). Central state in `useCADState` (src/frontend/shared/useCADState.ts):
 - CADProject: feature history, sketches, reference geometry, version tracking
-- Tool/tab/selection state, sketch editing state, rebuild progress
+- Operation/tab/selection state, sketch editing state, rebuild progress
 - Auto-persisted to localStorage under key `'occad-project'`
 
 ### Data Types (src/cad/types/...)
@@ -107,7 +105,7 @@ interface Sketch {
 interface Feature {
   id: string;
   name: string;
-  type: FeatureTool;            // 'extrude-boss', 'revolved-cut', etc.
+  type: FeatureOperation;       // 'extrude-boss', 'revolved-cut', etc.
   sketchId?: string;            // Source sketch for sketch-based operations
   parameters?: OperationParams; // ExtrudeParams, RevolveParams, etc.
   geometry?: ShapeReference;    // Reference to OpenCascade shape
@@ -132,7 +130,7 @@ interface CADProject {
 
 ### Hook APIs
 
-**useCADState** (src/ui/hooks/useCADState.ts):
+**useCADState** (src/frontend/shared/useCADState.ts):
 ```typescript
 const {
   project,                      // Current CAD project
@@ -182,8 +180,8 @@ All mesh data uses transferable ArrayBuffers for zero-copy performance.
 
 **Sketch Geometry → OCC Mapping (src/cad/engine/sketchBuilders.ts):**
 
-| Sketch Tool | OpenCascade API Used |
-|-------------|---------------------|
+| Sketch Operation | OpenCascade API Used |
+|------------------|---------------------|
 | Line | `GC_MakeSegment` → `BRepBuilderAPI_MakeEdge` |
 | Circle | `GC_MakeCircle` → edge |
 | Arc | `GC_MakeArcOfCircle` (3-point or center-radius) |
@@ -212,20 +210,21 @@ All edges are combined into a `TopoDS_Wire` via `BRepBuilderAPI_MakeWire`, then 
 - **OpenCascadeViewport**: Three.js viewport (src/frontend/canvas/components/OpenCascadeViewport.tsx)
 - **SketchOverlay**: 3D sketch overlay (src/frontend/canvas/components/SketchOverlay.tsx)
 - **FeatureTree**: Hierarchical tree (src/frontend/ui/components/FeatureTree.tsx)
-- **FeatureTabs**: Toolbar (src/frontend/ui/components/FeatureTabs.tsx)
+- **OperationsBar**: Top operations bar (src/frontend/ui/components/OperationsBar.tsx)
+- **Toolbar**: File/View toolbar (src/frontend/ui/components/Toolbar.tsx)
 - **OperationPanel**: Parameter input (src/frontend/ui/components/OperationPanel.tsx)
 
 ### Sketch System
 
 The **SketchOverlay** component provides a 3D overlay with grid snapping (toggle with 'G' key) and constraint-based snapping (point, midpoint, center, edge constraints).
 
-It supports: Line, Rectangle, Circle, Polygon, Arc drawing tools. Keyboard: ESC cancels/clears, ENTER completes polygon, G toggles grid snap, DEL deletes selected.
+It supports: Line, Rectangle, Circle, Polygon, Arc drawing operations. Keyboard: ESC cancels/clears, ENTER completes polygon, G toggles grid snap, DEL deletes selected.
 
 ### Face Selection → Sketch Workflow
 
 Select face → `getFaceGeometry` extracts plane origin/normal from worker → create sketch on that plane.
 
-### Theme (src/ui/theme/mantine.ts)
+### Theme (src/frontend/shared/theme/mantine.ts)
 
 Dark theme with custom CAD color palette. Primary: Cyan (#0dc2ff), Accent: Purple (#a64dff). CAD-specific colors in `theme.other.colors` (toolbar, canvas, grid, divider, header backgrounds + gradients).
 
@@ -251,16 +250,16 @@ When removing a hook/import from a file, **scan the entire file for other usages
 
 1. Add type to `SketchElement` union in `src/cad/types/sketch/SketchElement.ts`
 2. Implement builder in src/cad/engine/sketchBuilders.ts
-3. Add tool icon/handler to FeatureTabs
+3. Add operation icon/handler to OperationsBar
 4. Add drawing logic to `SketchOverlay`
 
 ### Adding New Features
 
-1. Add feature type to `FeatureTool` and parameter interface in src/cad/types/tools.ts and operation-params.ts
+1. Add feature type to `FeatureOperation` and parameter interface in src/cad/types/operations/ and operation-params.ts
 2. Add worker message type to `src/worker/types/requests/` and `responses/`
 3. Implement handler in src/cad/engine/operations.ts
 4. Add case to `handleRebuild` in operations.ts for parametric rebuild
-5. Add UI controls in FeatureTabs + OperationPanel
+5. Add UI controls in OperationsBar + OperationPanel
 
 ### Parametric Rebuild (src/cad/engine/operations.ts)
 
