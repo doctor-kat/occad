@@ -1,5 +1,5 @@
 import { useRef, useMemo, Suspense, useEffect, useState } from "react";
-import { Canvas, useThree, ThreeEvent } from "@react-three/fiber";
+import { Canvas, ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, GizmoHelper, GizmoViewport, Environment, Grid, Text as Text3D } from "@react-three/drei";
 import * as THREE from "three";
 import type { MeshData, CADProject, Sketch, SketchEdgeData } from "@/cad/types";
@@ -30,23 +30,20 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
   const setHoveredFaceId = useViewportStore((state) => state.setHoveredFaceId);
   const setHoveredEdgeIndex = useViewportStore((state) => state.setHoveredEdgeIndex);
   const faceRef = useRef<THREE.Mesh>(null);
-  const edgeRef = useRef<THREE.LineSegments>(null);
   const highlightRef = useRef<THREE.Mesh>(null);
   const selectedHighlightRef = useRef<THREE.Mesh>(null);
   const vertexRef = useRef<THREE.Points>(null);
   const [hoveredCADFaceId, setHoveredCADFaceId] = useState<number | null>(null);
   const [internalHoveredEdgeIndex, setInternalHoveredEdgeIndex] = useState<number | null>(null);
   const [hoveredVertexIndex, setHoveredVertexIndex] = useState<number | null>(null);
-  const { raycaster, camera } = useThree();
 
   // Combine external hover (from menu) with internal hover (from pointer events)
   const effectiveHoveredFaceId = hoveredFaceId ?? hoveredCADFaceId;
   const effectiveHoveredEdgeIndex = hoveredEdgeIndex ?? internalHoveredEdgeIndex;
 
   // Disable raycasting on the model when in sketch mode
-  // Also set raycasting threshold for edges and vertices
   useEffect(() => {
-    const meshes = [faceRef.current, edgeRef.current, highlightRef.current, selectedHighlightRef.current, vertexRef.current];
+    const meshes = [faceRef.current, highlightRef.current, selectedHighlightRef.current, vertexRef.current];
 
     meshes.forEach(meshRef => {
       if (meshRef) {
@@ -58,17 +55,6 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
         }
       }
     });
-
-    // Set raycasting threshold for edges (makes them easier to hover)
-    if (edgeRef.current && !inSketchMode) {
-      // Increase the threshold for line raycasting to make edges easier to select
-      (edgeRef.current as any).computeLineDistances?.();
-    }
-
-    // Set raycasting threshold for vertices (makes them easier to hover)
-    if (vertexRef.current && !inSketchMode) {
-      // Points already have reasonable raycasting
-    }
   }, [inSketchMode, mesh.edgeVertices]);
 
   const faceGeometry = useMemo(() => {
@@ -137,19 +123,16 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
     return geo;
   }, [effectiveHoveredFaceId, faceGeometry, mesh.faceMapping]);
 
-  const handlePointerMove = (event: any) => {
-    if (!faceRef.current || !mesh.faceMapping) return;
+  const handlePointerMove = (event: ThreeEvent<PointerEvent>) => {
+    if (!mesh.faceMapping) return;
 
-    // Get the intersection
-    const intersects = event.intersections;
-    if (intersects.length > 0 && intersects[0].faceIndex !== undefined) {
-      const triangleIndex = intersects[0].faceIndex;
+    // Use the faceIndex from the event, which is specific to the mesh being hovered
+    if (event.faceIndex !== undefined) {
+      event.stopPropagation();
+      const triangleIndex = event.faceIndex;
       const cadFaceId = mesh.faceMapping[triangleIndex];
       setHoveredCADFaceId(cadFaceId);
       setHoveredFaceId(cadFaceId);
-    } else {
-      setHoveredCADFaceId(null);
-      setHoveredFaceId(null);
     }
   };
 
@@ -161,9 +144,8 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
     if (!mesh.faceMapping) return;
 
-    event.stopPropagation();
-
     if (event.faceIndex !== undefined) {
+      event.stopPropagation();
       const triangleIndex = event.faceIndex;
       const cadFaceId = mesh.faceMapping[triangleIndex];
       onFaceClick?.(cadFaceId);
@@ -218,61 +200,9 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
     return geo;
   }, [selectedFaceId, faceGeometry, mesh.faceMapping]);
 
-  const handleEdgePointerMove = (event: ThreeEvent<PointerEvent>) => {
-    if (event.index !== undefined) {
-      const segmentIndex = Math.floor(event.index / 2); // Each segment has 2 vertices
-      const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[segmentIndex] : segmentIndex;
-      setInternalHoveredEdgeIndex(topologicalEdgeId);
-      setHoveredEdgeIndex(topologicalEdgeId);
-    } else {
-      // Fallback: try to detect which edge segment was hit
-      const point = event.point;
-      if (point && edgeRef.current) {
-        // Find closest edge segment to the hit point
-        const positions = mesh.edgeVertices;
-        let closestSegment = -1;
-        let minDist = Infinity;
-
-        for (let i = 0; i < positions.length / 6; i++) {
-          const p1 = new THREE.Vector3(positions[i * 6], positions[i * 6 + 1], positions[i * 6 + 2]);
-          const p2 = new THREE.Vector3(positions[i * 6 + 3], positions[i * 6 + 4], positions[i * 6 + 5]);
-          const line = new THREE.Line3(p1, p2);
-          const closestPoint = new THREE.Vector3();
-          line.closestPointToPoint(point, true, closestPoint);
-          const dist = point.distanceTo(closestPoint);
-
-          if (dist < minDist && dist < 2) { // Within 2 units
-            minDist = dist;
-            closestSegment = i;
-          }
-        }
-
-        if (closestSegment >= 0) {
-          const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[closestSegment] : closestSegment;
-          setInternalHoveredEdgeIndex(topologicalEdgeId);
-          setHoveredEdgeIndex(topologicalEdgeId);
-        }
-      }
-    }
-  };
-
-  const handleEdgePointerLeave = () => {
-    setInternalHoveredEdgeIndex(null);
-    setHoveredEdgeIndex(null);
-  };
-
-  const handleEdgeClick = (event: ThreeEvent<MouseEvent>) => {
-    event.stopPropagation();
-    // For edges, we'll use the topological edge ID from edgeMapping
-    if (event.index !== undefined) {
-      const segmentIndex = Math.floor(event.index / 2); // Each segment has 2 vertices
-      const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[segmentIndex] : segmentIndex;
-      onEdgeClick?.(topologicalEdgeId);
-    }
-  };
-
   const handleVertexPointerMove = (event: ThreeEvent<PointerEvent>) => {
     if (event.index !== undefined) {
+      event.stopPropagation();
       setHoveredVertexIndex(event.index);
     }
   };
@@ -282,8 +212,8 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
   };
 
   const handleVertexClick = (event: ThreeEvent<MouseEvent>) => {
-    event.stopPropagation();
     if (event.index !== undefined) {
+      event.stopPropagation();
       onVertexClick?.(event.index);
     }
   };
@@ -450,10 +380,13 @@ function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex
               setInternalHoveredEdgeIndex(null);
               setHoveredEdgeIndex(null);
             }}
+            onPointerMove={(e) => {
+              e.stopPropagation();
+            }}
           >
             <cylinderGeometry args={[
-              isSelected ? 0.25 : isHovered ? 0.2 : 1.0,
-              isSelected ? 0.25 : isHovered ? 0.2 : 1.0,
+              0.5, // Consistent hit radius
+              0.5,
               length,
               8
             ]} />
