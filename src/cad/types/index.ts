@@ -28,6 +28,7 @@ export * from './operations/PrimitiveSphereParams';
 export * from './operations/PrimitiveCylinderParams';
 export * from './operations/PrimitiveConeParams';
 export * from './operations/PrimitiveTorusParams';
+export * from './operations/PrimitiveWedgeParams';
 export * from './operations/BooleanParams';
 export * from './operations/FilletParams';
 export * from './operations/ChamferParams';

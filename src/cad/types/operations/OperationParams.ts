@@ -5,6 +5,7 @@ import { PrimitiveSphereParams } from './PrimitiveSphereParams';
 import { PrimitiveCylinderParams } from './PrimitiveCylinderParams';
 import { PrimitiveConeParams } from './PrimitiveConeParams';
 import { PrimitiveTorusParams } from './PrimitiveTorusParams';
+import { PrimitiveWedgeParams } from './PrimitiveWedgeParams';
 import { BooleanParams } from './BooleanParams';
 import { FilletParams } from './FilletParams';
 import { ChamferParams } from './ChamferParams';
@@ -17,6 +18,7 @@ export type OperationParams =
   | PrimitiveCylinderParams
   | PrimitiveConeParams
   | PrimitiveTorusParams
+  | PrimitiveWedgeParams
   | BooleanParams
   | FilletParams
   | ChamferParams;

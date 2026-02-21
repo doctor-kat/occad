@@ -109,6 +109,7 @@ export function CADLayout() {
 
         const newSketch = addSketch(`Sketch ${project.sketches.length + 1}`, plane);
         startSketchEdit(newSketch.id);
+        selectTreeItem(newSketch.id);
         notifications.show({ color: 'blue', message: `Sketch created on Face ${faceId + 1}` });
         setPendingSketchOnFace(null);
       }
@@ -252,6 +253,48 @@ export function CADLayout() {
       });
       selectTool(null);
       notifications.show({ color: 'green', message: 'Sphere created' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
+  // Handle cone tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.CONE) {
+      addFeature(`Cone${project.features.length + 1}`, FeatureTool.CONE, {
+        radius1: 25,
+        radius2: 0,
+        height: 50,
+        center: { x: 0, y: 0, z: 0 },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Cone created' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
+  // Handle torus tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.TORUS) {
+      addFeature(`Torus${project.features.length + 1}`, FeatureTool.TORUS, {
+        majorRadius: 40,
+        minorRadius: 10,
+        center: { x: 0, y: 0, z: 0 },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Torus created' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
+  // Handle wedge tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.WEDGE) {
+      addFeature(`Wedge${project.features.length + 1}`, FeatureTool.WEDGE, {
+        width: 50,
+        height: 50,
+        depth: 50,
+        ltx: 25,
+        center: { x: 0, y: 0, z: 0 },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Wedge created' });
     }
   }, [activeTool, project.features.length, addFeature, selectTool]);
 

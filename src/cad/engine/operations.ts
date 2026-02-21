@@ -15,6 +15,7 @@ import type {
   PrimitiveSphereParams,
   PrimitiveConeParams,
   PrimitiveTorusParams,
+  PrimitiveWedgeParams,
   CADProject,
   MeshData,
   SketchEdgeData,
@@ -708,6 +709,129 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           axisOrigin.delete();
           sphere.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.CONE) {
+          // Handle primitive cone
+          const params = feature.parameters as PrimitiveConeParams;
+          const center = params.center || { x: 0, y: 0, z: 0 };
+
+          const axisOrigin = new oc.gp_Pnt_3(center.x, center.y, center.z);
+          const axisDir = new oc.gp_Dir_4(0, 0, 1); // Default to Z-up
+          const axis = new oc.gp_Ax2_3(axisOrigin, axisDir);
+
+          const cone = new oc.BRepPrimAPI_MakeCone_2(axis, params.radius1, params.radius2, params.height);
+          if (!cone.IsDone()) {
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+            cone.delete();
+            throw new Error('BRepPrimAPI_MakeCone failed');
+          }
+          const newShape = cone.Shape();
+          if (newShape.IsNull()) {
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+            cone.delete();
+            throw new Error('BRepPrimAPI_MakeCone returned null shape');
+          }
+
+          // Apply boolean operation if we have an existing body
+          if (currentBody) {
+            const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
+            if (!result.IsNull() && validateShape(ctx, result)) {
+              currentBody = result;
+            } else {
+              console.error(`Boolean union failed for cone feature ${feature.id}`);
+            }
+          } else {
+            currentBody = newShape;
+          }
+
+          axisOrigin.delete();
+          axisDir.delete();
+          axis.delete();
+          cone.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.TORUS) {
+          // Handle primitive torus
+          const params = feature.parameters as PrimitiveTorusParams;
+          const center = params.center || { x: 0, y: 0, z: 0 };
+
+          const axisOrigin = new oc.gp_Pnt_3(center.x, center.y, center.z);
+          const axisDir = new oc.gp_Dir_4(0, 0, 1); // Default to Z-up
+          const axis = new oc.gp_Ax2_3(axisOrigin, axisDir);
+
+          const torus = new oc.BRepPrimAPI_MakeTorus_1(axis, params.majorRadius, params.minorRadius);
+          if (!torus.IsDone()) {
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+            torus.delete();
+            throw new Error('BRepPrimAPI_MakeTorus failed');
+          }
+          const newShape = torus.Shape();
+          if (newShape.IsNull()) {
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+            torus.delete();
+            throw new Error('BRepPrimAPI_MakeTorus returned null shape');
+          }
+
+          // Apply boolean operation if we have an existing body
+          if (currentBody) {
+            const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
+            if (!result.IsNull() && validateShape(ctx, result)) {
+              currentBody = result;
+            } else {
+              console.error(`Boolean union failed for torus feature ${feature.id}`);
+            }
+          } else {
+            currentBody = newShape;
+          }
+
+          axisOrigin.delete();
+          axisDir.delete();
+          axis.delete();
+          torus.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.WEDGE) {
+          // Handle primitive wedge
+          const params = feature.parameters as PrimitiveWedgeParams;
+          const center = params.center || { x: 0, y: 0, z: 0 };
+
+          // BRepPrimAPI_MakeWedge_4(dx, dy, dz, ltx)
+          const wedge = new oc.BRepPrimAPI_MakeWedge_4(params.width, params.height, params.depth, params.ltx);
+          if (!wedge.IsDone()) {
+            wedge.delete();
+            throw new Error('BRepPrimAPI_MakeWedge failed');
+          }
+          const newShape = wedge.Shape();
+          if (newShape.IsNull()) {
+            wedge.delete();
+            throw new Error('BRepPrimAPI_MakeWedge returned null shape');
+          }
+
+          // Apply boolean operation if we have an existing body
+          if (currentBody) {
+            const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
+            if (!result.IsNull() && validateShape(ctx, result)) {
+              currentBody = result;
+            } else {
+              console.error(`Boolean union failed for wedge feature ${feature.id}`);
+            }
+          } else {
+            currentBody = newShape;
+          }
+
+          wedge.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
