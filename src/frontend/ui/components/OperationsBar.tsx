@@ -224,11 +224,6 @@ const ioOperations: { id: IOOperation; icon: React.ReactNode; label: string }[] 
 const disabledOperations: Operation[] = [
   // 3D Operations - not yet implemented
   'sweep', 'loft',
-  // Boolean operations - backend exists but no UI yet
-  'union', 'intersect',
-  // Modifications - not yet implemented
-  // Evaluate - not yet implemented
-  // Transform - not yet implemented
   // I/O - not yet implemented
   'import-step', 'import-iges', 'export-step', 'export-iges', 'export-stl', 'export-gltf',
 ];

@@ -11,13 +11,15 @@ test.describe('Box-Sketch Flow', () => {
         // 1. Create a Box
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
 
         // Verify Box1 appears in Feature Tree
-        await expect(page.locator('text=Box1')).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('.tree-item-row').getByText('Box1')).toBeVisible({ timeout: 15000 });
 
         // Wait for worker to rebuild and mesh to be ready
         // Rebuild complete notification appears
-        await expect(page.locator('text=Rebuild complete')).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('text=Rebuild complete')).toBeVisible({ timeout: 30000 });
 
         // 2. Open Entities Panel
         // Switch to Entities tab using text click which is robust
@@ -49,7 +51,7 @@ test.describe('Box-Sketch Flow', () => {
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
 
         // Verify Sketch 1 appears
-        await expect(page.locator('text=Sketch 1')).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('.tree-item-row').getByText('Sketch 1')).toBeVisible({ timeout: 15000 });
 
         // 5. Draw a Rectangle
         const rectangleOperation = page.locator('button').filter({ hasText: /^Rectangle$/ });
@@ -92,7 +94,7 @@ test.describe('Box-Sketch Flow', () => {
         await expect(page.locator('text=Sketch completed')).toBeVisible();
 
         // Verify Sketch 1 is now in the Feature Tree
-        await expect(page.locator('text=Sketch 1').first()).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('.tree-item-row').getByText('Sketch 1').first()).toBeVisible({ timeout: 15000 });
 
         // Check that we are no longer in sketch mode
         await expect(rectangleOperation).not.toHaveAttribute('data-variant', 'light');

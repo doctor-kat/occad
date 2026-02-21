@@ -153,282 +153,50 @@ export function CADLayout() {
     }
   }, [project.id, project.version, occStatus, rebuild, project, clearAllItemErrors]);
 
-  // Extrude operation state
-  const [extrudeActive, setExtrudeActive] = useState(false);
-  const [extrudeIsCut, setExtrudeIsCut] = useState(false);
+  // Operation panel state
+  const [operationPanelOpen, setOperationPanelOpen] = useState(false);
   const [editingFeatureId, setEditingFeatureId] = useState<string | null>(null);
 
-  // Handle entering sketch mode when a sketch operation is selected
+  // Handle operation selection from OperationsBar
   useEffect(() => {
-    // Check if activeOperation is a sketch operation
-    const sketchOperations: SketchOperation[] = [
-      SketchOperation.LINE,
-      SketchOperation.RECTANGLE,
-      SketchOperation.CIRCLE,
-      SketchOperation.POLYGON,
-      SketchOperation.ARC,
-      SketchOperation.ELLIPSE,
-      SketchOperation.SPLINE,
-      SketchOperation.BEZIER,
-    ];
+    if (activeOperation) {
+      // Check if it's a sketch operation
+      const sketchOperations: SketchOperation[] = [
+        SketchOperation.LINE,
+        SketchOperation.RECTANGLE,
+        SketchOperation.CIRCLE,
+        SketchOperation.POLYGON,
+        SketchOperation.ARC,
+        SketchOperation.ELLIPSE,
+        SketchOperation.SPLINE,
+        SketchOperation.BEZIER,
+      ];
 
-    if (activeOperation && sketchOperations.includes(activeOperation as SketchOperation)) {
-      // If no active sketch, create a new one
-      if (!activeSketchId) {
-        const plane: SketchPlane = {
-          type: PlaneType.XY,
-          planeRef: 'front-plane',
-          offset: 0,
-        };
-        const newSketch = addSketch(`Sketch ${project.sketches.length + 1}`, plane);
-        startSketchEdit(newSketch.id);
-        notifications.show({ color: 'blue', message: 'Sketch mode active' });
-      }
-    }
-  }, [activeOperation, activeSketchId, project.sketches.length, addSketch, startSketchEdit]);
-
-  // Handle extrude operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.EXTRUDE_BOSS || activeOperation === FeatureOperation.EXTRUDED_CUT) {
-      // Check if there are any closed sketches
-      const closedSketches = project.sketches.filter((s) => s.isClosed);
-
-      if (closedSketches.length === 0) {
-        // No closed sketches - deselect operation and show error
-        selectOperation(null);
-        notifications.show({
-          color: 'yellow',
-          title: 'No closed sketches',
-          message: 'Create a closed sketch (rectangle, circle, etc.) before extruding.',
-        });
-        return;
-      }
-
-      // Exit sketch mode before opening extrude panel
-      if (activeSketchId) {
-        stopSketchEdit();
-      }
-
-      setExtrudeIsCut(activeOperation === FeatureOperation.EXTRUDED_CUT);
-      setExtrudeActive(true);
-      setEditingFeatureId(null); // Reset editing ID for new feature
-      // Ensure sidebar is open when operation is active
-      if (!isSidebarOpen) toggleSidebar();
-    }
-  }, [activeOperation, project.sketches, activeSketchId, stopSketchEdit, selectOperation, isSidebarOpen, toggleSidebar]);
-
-  // Handle box operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.BOX) {
-      addFeature(`Box${project.features.length + 1}`, FeatureOperation.BOX, {
-        width: 50,
-        height: 50,
-        depth: 50,
-        center: { x: 0, y: 0, z: 0 },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Box created' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle cylinder operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.CYLINDER) {
-      addFeature(`Cylinder${project.features.length + 1}`, FeatureOperation.CYLINDER, {
-        radius: 25,
-        height: 50,
-        center: { x: 0, y: 0, z: 0 },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Cylinder created' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle sphere operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.SPHERE) {
-      addFeature(`Sphere${project.features.length + 1}`, FeatureOperation.SPHERE, {
-        radius: 25,
-        center: { x: 0, y: 0, z: 0 },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Sphere created' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle cone operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.CONE) {
-      addFeature(`Cone${project.features.length + 1}`, FeatureOperation.CONE, {
-        radius1: 25,
-        radius2: 0,
-        height: 50,
-        center: { x: 0, y: 0, z: 0 },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Cone created' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle torus operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.TORUS) {
-      addFeature(`Torus${project.features.length + 1}`, FeatureOperation.TORUS, {
-        majorRadius: 40,
-        minorRadius: 10,
-        center: { x: 0, y: 0, z: 0 },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Torus created' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle wedge operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.WEDGE) {
-      addFeature(`Wedge${project.features.length + 1}`, FeatureOperation.WEDGE, {
-        width: 50,
-        height: 50,
-        depth: 50,
-        ltx: 25,
-        center: { x: 0, y: 0, z: 0 },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Wedge created' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle fillet operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.FILLET) {
-      if (selectedEdgeIndex !== null) {
-        addFeature(`Fillet${project.features.length + 1}`, FeatureOperation.FILLET, {
-          radius: 5,
-          edges: [`edge-${selectedEdgeIndex}`],
-        });
-        selectOperation(null);
-        notifications.show({ color: 'green', message: 'Fillet applied to edge' });
+      if (sketchOperations.includes(activeOperation as SketchOperation)) {
+        // Handle entering sketch mode
+        if (!activeSketchId) {
+          const plane: SketchPlane = {
+            type: PlaneType.XY,
+            planeRef: 'front-plane',
+            offset: 0,
+          };
+          const newSketch = addSketch(`Sketch ${project.sketches.length + 1}`, plane);
+          startSketchEdit(newSketch.id);
+          notifications.show({ color: 'blue', message: 'Sketch mode active' });
+        }
       } else {
-        notifications.show({ color: 'yellow', message: 'Select an edge first to apply fillet' });
-        selectOperation(null);
+        // For all other operations, open the OperationPanel
+        setOperationPanelOpen(true);
+        setEditingFeatureId(null);
+        if (!isSidebarOpen) toggleSidebar();
       }
+    } else {
+      setOperationPanelOpen(false);
     }
-  }, [activeOperation, project.features.length, addFeature, selectOperation, selectedEdgeIndex]);
+  }, [activeOperation, activeSketchId, project.sketches.length, addSketch, startSketchEdit, isSidebarOpen, toggleSidebar]);
 
-  // Handle chamfer operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.CHAMFER) {
-      if (selectedEdgeIndex !== null) {
-        addFeature(`Chamfer${project.features.length + 1}`, FeatureOperation.CHAMFER, {
-          distance: 5,
-          edges: [`edge-${selectedEdgeIndex}`],
-        });
-        selectOperation(null);
-        notifications.show({ color: 'green', message: 'Chamfer applied to edge' });
-      } else {
-        notifications.show({ color: 'yellow', message: 'Select an edge first to apply chamfer' });
-        selectOperation(null);
-      }
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation, selectedEdgeIndex]);
-
-  // Handle shell operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.SHELL) {
-      addFeature(`Shell${project.features.length + 1}`, FeatureOperation.SHELL, {
-        thickness: 2,
-        faces: selectedFaceId !== null ? [`face-${selectedFaceId}`] : [],
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Shell operation applied' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation, selectedFaceId]);
-
-  // Handle offset operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.OFFSET) {
-      addFeature(`Offset${project.features.length + 1}`, FeatureOperation.OFFSET, {
-        distance: 5,
-        faces: [], // For now, offset full body
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Offset applied to body' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle move operation selection
-  useEffect(() => {
-    if (activeOperation === TransformOperation.MOVE) {
-      addFeature(`Move${project.features.length + 1}`, FeatureOperation.MOVE, {
-        type: TransformOperation.MOVE,
-        translation: { x: 10, y: 0, z: 0 },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Move transformation applied' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle rotate operation selection
-  useEffect(() => {
-    if (activeOperation === TransformOperation.ROTATE) {
-      addFeature(`Rotate${project.features.length + 1}`, FeatureOperation.ROTATE, {
-        type: TransformOperation.ROTATE,
-        rotation: {
-          axis: { origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } },
-          angle: 45,
-        },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Rotate transformation applied' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle mirror operation selection
-  useEffect(() => {
-    if (activeOperation === TransformOperation.MIRROR) {
-      addFeature(`Mirror${project.features.length + 1}`, FeatureOperation.MIRROR, {
-        type: TransformOperation.MIRROR,
-        mirrorPlane: { origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Mirror transformation applied' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle scale operation selection
-  useEffect(() => {
-    if (activeOperation === TransformOperation.SCALE) {
-      addFeature(`Scale${project.features.length + 1}`, FeatureOperation.SCALE, {
-        type: TransformOperation.SCALE,
-        scale: {
-          factor: 1.5,
-          center: { x: 0, y: 0, z: 0 },
-        },
-      });
-      selectOperation(null);
-      notifications.show({ color: 'green', message: 'Scale transformation applied' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation]);
-
-  // Handle measure operation selection
-  useEffect(() => {
-    if (activeOperation === FeatureOperation.MEASURE) {
-      const entities: string[] = [];
-      if (selectedFaceId !== null) entities.push(`face-${selectedFaceId}`);
-      if (selectedEdgeIndex !== null) entities.push(`edge-${selectedEdgeIndex}`);
-      if (selectedVertexIndex !== null) entities.push(`vertex-${selectedVertexIndex}`);
-
-      addFeature(`Measure${project.features.length + 1}`, FeatureOperation.MEASURE, {
-        type: 'distance',
-        entities,
-      });
-      selectOperation(null);
-      notifications.show({ color: 'blue', message: 'Measurement feature added' });
-    }
-  }, [activeOperation, project.features.length, addFeature, selectOperation, selectedFaceId, selectedEdgeIndex, selectedVertexIndex]);
-
-  // Handle extrude confirmation
-  const handleExtrudeConfirm = (sketchId: string, params: ExtrudeParams) => {
+  // Handle operation confirmation
+  const handleOperationConfirm = (params: OperationParams, sketchId?: string) => {
     if (editingFeatureId) {
       // Update existing feature
       const feature = project.features.find((f) => f.id === editingFeatureId);
@@ -438,28 +206,31 @@ export function CADLayout() {
       }
     } else {
       // Create new feature
-      const featureName = extrudeIsCut
-        ? `Cut-Extrude${project.features.length + 1}`
-        : `Boss-Extrude${project.features.length + 1}`;
+      let featureName = 'Feature';
+      if (activeOperation) {
+        // Map operation to a friendly name
+        const opName = activeOperation.toString().split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+        featureName = `${opName}${project.features.length + 1}`;
+      }
 
       addFeature(
         featureName,
-        extrudeIsCut ? FeatureOperation.EXTRUDED_CUT : FeatureOperation.EXTRUDE_BOSS,
+        activeOperation as FeatureOperation,
         params,
         sketchId,
-        [sketchId]
+        sketchId ? [sketchId] : []
       );
-      notifications.show({ color: 'green', message: `${extrudeIsCut ? 'Cut' : 'Extrude'} feature created` });
+      notifications.show({ color: 'green', message: `${featureName} created` });
     }
 
     selectOperation(null);
-    setExtrudeActive(false);
+    setOperationPanelOpen(false);
     setEditingFeatureId(null);
   };
 
-  const handleExtrudeCancel = () => {
+  const handleOperationCancel = () => {
     selectOperation(null);
-    setExtrudeActive(false);
+    setOperationPanelOpen(false);
     setEditingFeatureId(null);
   };
 
@@ -475,10 +246,10 @@ export function CADLayout() {
 
     // Check if it's a feature
     const feature = project.features.find((f) => f.id === id);
-    if (feature && (feature.type === FeatureOperation.EXTRUDE_BOSS || feature.type === FeatureOperation.EXTRUDED_CUT)) {
+    if (feature) {
       setEditingFeatureId(id);
-      setExtrudeIsCut(feature.type === FeatureOperation.EXTRUDED_CUT);
-      setExtrudeActive(true);
+      selectOperation(feature.type);
+      setOperationPanelOpen(true);
       // Ensure sidebar is open
       if (!isSidebarOpen) toggleSidebar();
       return;
@@ -737,19 +508,29 @@ export function CADLayout() {
               }}
             >
               <Box style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                {extrudeActive ? (
-                  <Box mt={8} style={{ flex: 1, borderTop: `1px solid ${theme.other.colors.sidebarBorder}` }}>
+                {operationPanelOpen && activeOperation && (
+                  <Box style={{ 
+                    flexShrink: 0, 
+                    maxHeight: '60%', 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    borderBottom: `2px solid ${theme.other.colors.border}`,
+                    zIndex: 5
+                  }}>
                     <OperationPanel
-                      title={editingFeatureId ? `Edit ${project.features.find(f => f.id === editingFeatureId)?.name}` : (extrudeIsCut ? 'Extruded Cut' : 'Extrude Boss')}
-                      sketches={project.sketches}
-                      selectedSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : (project.sketches.some(s => s.id === selectedTreeItem) ? selectedTreeItem : undefined)}
-                      initialParams={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.parameters as ExtrudeParams) : undefined}
-                      isCut={extrudeIsCut}
-                      onConfirm={handleExtrudeConfirm}
-                      onCancel={handleExtrudeCancel}
+                      title={editingFeatureId ? `Edit ${project.features.find(f => f.id === editingFeatureId)?.name}` : activeOperation.toString().split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}
+                      operation={activeOperation as FeatureOperation | TransformOperation | SketchOperation}
+                      project={project}
+                      initialParams={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.parameters) : undefined}
+                      initialSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : undefined}
+                      selectedTreeItem={selectedTreeItem}
+                      onConfirm={handleOperationConfirm}
+                      onCancel={handleOperationCancel}
                     />
                   </Box>
-                ) : (
+                )}
+                
+                <Box style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   <Tabs
                     variant="unstyled"
                     value={activeSidebarTab}
@@ -880,7 +661,7 @@ export function CADLayout() {
                       )}
                     </Tabs.Panel>
             </Tabs>
-          )}
+          </Box>
         </Box>
       </AppShell.Navbar>
 

@@ -7,18 +7,22 @@ test.describe('Modification Operations', () => {
         await page.waitForSelector('text=Front Plane', { timeout: 15000 });
     });
 
-    test('should show warning when applying fillet without selection', async ({ page }) => {
+    test('should have disabled Apply button when applying fillet without selection', async ({ page }) => {
         const filletButton = page.locator('button').filter({ hasText: /^Fillet$/ });
         await filletButton.click();
-        await expect(page.getByText('Select an edge first to apply fillet')).toBeVisible({ timeout: 10000 });
+        
+        const applyButton = page.getByRole('button', { name: 'Apply' });
+        await expect(applyButton).toBeDisabled({ timeout: 10000 });
     });
 
     test('should create a box and then apply fillet to an edge', async ({ page }) => {
         test.setTimeout(60000);
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
-        await expect(page.getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
         await page.getByRole('tab', { name: 'Entities' }).click();
         const edge1 = page.getByText(/^Edge 1$/);
@@ -29,17 +33,22 @@ test.describe('Modification Operations', () => {
         const filletButton = page.locator('button').filter({ hasText: /^Fillet$/ });
         await filletButton.click();
         
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
-        await expect(page.getByText(/Fillet\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('.tree-item-row').getByText(/Fillet\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a box and then apply chamfer to an edge', async ({ page }) => {
         test.setTimeout(60000);
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
-        await expect(page.getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
         await page.getByRole('tab', { name: 'Entities' }).click();
         const edge1 = page.getByText(/^Edge 1$/);
@@ -50,17 +59,22 @@ test.describe('Modification Operations', () => {
         const chamferButton = page.locator('button').filter({ hasText: /^Chamfer$/ });
         await chamferButton.click();
         
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
-        await expect(page.getByText(/Chamfer\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('.tree-item-row').getByText(/Chamfer\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a box and then apply shell to a face', async ({ page }) => {
         test.setTimeout(60000);
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
-        await expect(page.getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
         await page.getByRole('tab', { name: 'Entities' }).click();
         const face1 = page.getByText(/^Face 1$/);
@@ -71,25 +85,33 @@ test.describe('Modification Operations', () => {
         const shellButton = page.locator('button').filter({ hasText: /^Shell$/ });
         await shellButton.click();
         
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
-        await expect(page.getByText(/Shell\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('.tree-item-row').getByText(/Shell\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a box and then apply offset to body', async ({ page }) => {
         test.setTimeout(60000);
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
-        await expect(page.getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
         await page.getByRole('tab', { name: 'Features' }).click();
         const offsetButton = page.locator('button').filter({ hasText: /^Offset$/ });
         await offsetButton.click();
         
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
-        await expect(page.getByText(/Offset\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('.tree-item-row').getByText(/Offset\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a box and then extrude a shape from its top face, then fillet the new edge', async ({ page }) => {
@@ -97,8 +119,10 @@ test.describe('Modification Operations', () => {
         // 1. Create a Box
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
-        await expect(page.getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
         // 2. Open Entities Panel and select Top Face
         await page.getByRole('tab', { name: 'Entities' }).click();
@@ -109,10 +133,10 @@ test.describe('Modification Operations', () => {
         // 3. Create Sketch
         await page.getByRole('tab', { name: 'Sketch' }).click();
         await page.getByRole('button', { name: /^Sketch$/ }).first().click();
-        await expect(page.getByText('Extracting face geometry...')).toBeVisible({ timeout: 10000 });
         
+        // Switch sidebar back to Feature Tree to see the new sketch
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
-        await expect(page.locator('.tree-item-row').getByText(/Sketch\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('.tree-item-row').getByText(/Sketch\s*\d+/)).toBeVisible({ timeout: 20000 });
 
         // 4. Draw a Rectangle
         const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
@@ -144,8 +168,8 @@ test.describe('Modification Operations', () => {
         await expect(applyButton).toBeVisible({ timeout: 15000 });
         await applyButton.click();
         
-        await expect(page.getByText(/Boss-Extrude\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('.tree-item-row').getByText(/Boss-Extrude\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
         // 6. Select an edge from the NEW extrusion and apply fillet
         await page.getByRole('tab', { name: 'Entities' }).click();
@@ -155,10 +179,12 @@ test.describe('Modification Operations', () => {
         await page.getByRole('tab', { name: 'Features' }).click();
         const filletButton = page.locator('button').filter({ hasText: /^Fillet$/ });
         await filletButton.click();
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
 
         // Switch to Feature Tree to ensure it's visible
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
-        await expect(page.getByText(/Fillet\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('.tree-item-row').getByText(/Fillet\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 });

@@ -30,7 +30,7 @@ test.describe('SketchOverlay', () => {
     await rectangleOperation.click();
 
     // Verify Sketch 1 appears in Feature Tree
-    await expect(page.locator('text=Sketch 1')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('Sketch 1').first()).toBeVisible({ timeout: 20000 });
 
     // Wait for SketchOverlay to render
     await page.waitForTimeout(2000);

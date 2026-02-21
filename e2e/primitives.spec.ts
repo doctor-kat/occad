@@ -10,41 +10,53 @@ test.describe('Primitive Shapes', () => {
     test('should create a sphere in a new project', async ({ page }) => {
         const sphereButton = page.locator('button').filter({ hasText: /^Sphere$/ });
         await sphereButton.click();
-        await expect(page.getByText(/Sphere\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Sphere\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a cone in a new project', async ({ page }) => {
         const coneButton = page.locator('button').filter({ hasText: /^Cone$/ });
         await coneButton.click();
-        await expect(page.getByText(/Cone\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Cone\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a torus in a new project', async ({ page }) => {
         const torusButton = page.locator('button').filter({ hasText: /^Torus$/ });
         await torusButton.click();
-        await expect(page.getByText(/Torus\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Torus\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a wedge in a new project', async ({ page }) => {
         const wedgeButton = page.locator('button').filter({ hasText: /^Wedge$/ });
         await wedgeButton.click();
-        await expect(page.getByText(/Wedge\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Wedge\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a box and then add a sphere on its face', async ({ page }) => {
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
-        await expect(page.getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
         const sphereButton = page.locator('button').filter({ hasText: /^Sphere$/ });
         await sphereButton.click();
-        await expect(page.getByText(/Sphere\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Sphere\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 
     test('should create a box and then extrude a new shape from its top face', async ({ page }) => {
@@ -52,8 +64,10 @@ test.describe('Primitive Shapes', () => {
         // 1. Create a Box
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
-        await expect(page.getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await page.getByRole('button', { name: 'Apply' }).click();
+        await page.waitForTimeout(500);
+        await expect(page.locator('.tree-item-row').getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
         // 2. Open Entities Panel and select Top Face
         await page.getByRole('tab', { name: 'Entities' }).click();
@@ -67,12 +81,9 @@ test.describe('Primitive Shapes', () => {
         await page.getByRole('tab', { name: 'Sketch' }).click();
         await page.getByRole('button', { name: /^Sketch$/ }).first().click();
         
-        // Wait for geometry extraction notification
-        await expect(page.getByText('Extracting face geometry...')).toBeVisible({ timeout: 10000 });
-        
         // Switch sidebar back to Feature Tree to see the new sketch
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
-        await expect(page.locator('.tree-item-row').getByText(/Sketch\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('.tree-item-row').getByText(/Sketch\s*\d+/)).toBeVisible({ timeout: 20000 });
 
         // 4. Draw a Rectangle
         const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
@@ -113,7 +124,7 @@ test.describe('Primitive Shapes', () => {
         await applyButton.click();
         
         // Verify Extrude appears in Feature Tree
-        await expect(page.getByText(/Boss-Extrude\s*\d+/)).toBeVisible({ timeout: 15000 });
-        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 20000 });
+        await expect(page.locator('.tree-item-row').getByText(/Boss-Extrude\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
     });
 });

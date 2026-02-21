@@ -190,6 +190,13 @@ describe("CADLayout", () => {
     const boxButton = screen.getByText("Box");
     await user.click(boxButton);
 
+    // Should not rebuild yet (panel is open)
+    expect(mockOCC.rebuild).not.toHaveBeenCalled();
+
+    // Click Apply in the operation panel
+    const applyButton = screen.getByText("Apply");
+    await user.click(applyButton);
+
     // Now rebuild should be called
     expect(mockOCC.rebuild).toHaveBeenCalled();
   });

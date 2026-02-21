@@ -1,9 +1,29 @@
-import { useState, useEffect } from 'react';
-import { Button, TextInput, Select, Stack, Group, Text, Alert, Box, useMantineTheme, ActionIcon, Title } from '@mantine/core';
+import { useState, useEffect, useMemo } from 'react';
+import { Button, TextInput, Select, Stack, Group, Text, Alert, Box, useMantineTheme, ActionIcon, Title, NumberInput, Checkbox, MultiSelect } from '@mantine/core';
 import { X, Check } from '@phosphor-icons/react';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
-import type { Sketch, ExtrudeParams, SketchPlane, Vector3D } from '@/cad/types';
-import { PlaneType } from '@/cad/types';
+import type { 
+  Sketch, 
+  ExtrudeParams, 
+  RevolveParams,
+  PrimitiveBoxParams,
+  PrimitiveSphereParams,
+  PrimitiveCylinderParams,
+  PrimitiveConeParams,
+  PrimitiveTorusParams,
+  PrimitiveWedgeParams,
+  FilletParams,
+  ChamferParams,
+  ShellParams,
+  OffsetParams,
+  TransformParams,
+  OperationParams,
+  SketchPlane, 
+  Vector3D,
+  Point3D,
+  CADProject
+} from '@/cad/types';
+import { PlaneType, FeatureOperation, TransformOperation, SketchOperation } from '@/cad/types';
 
 /**
  * Helper to get the normal vector for a sketch plane
@@ -21,101 +41,598 @@ function getSketchNormal(plane: SketchPlane): Vector3D {
 
 interface OperationPanelProps {
   title: string;
-  sketches: Sketch[];
-  selectedSketchId?: string;
-  initialParams?: ExtrudeParams;
-  isCut: boolean;
-  onConfirm: (sketchId: string, params: ExtrudeParams) => void;
+  operation: FeatureOperation | TransformOperation | SketchOperation;
+  project: CADProject;
+  initialParams?: OperationParams;
+  initialSketchId?: string;
+  selectedTreeItem?: string | null;
+  onConfirm: (params: OperationParams, sketchId?: string) => void;
   onCancel: () => void;
 }
 
 export function OperationPanel({
   title,
-  sketches,
-  selectedSketchId,
+  operation,
+  project,
   initialParams,
-  isCut,
+  initialSketchId,
+  selectedTreeItem,
   onConfirm,
   onCancel,
 }: OperationPanelProps) {
   const theme = useMantineTheme();
-  const [sketchId, setSketchId] = useState(selectedSketchId || sketches[0]?.id || '');
-  const [distance, setDistance] = useState(initialParams ? Math.abs(initialParams.distance).toString() : '10');
-  const [direction, setDirection] = useState<'normal' | 'reverse'>(
-    initialParams ? (initialParams.distance >= 0 ? 'normal' : 'reverse') : 'normal'
-  );
+  
+  // Viewport selections
+  const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
+  const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
+  const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
 
-  // Sync sketchId state when props change
+  // --- Common State ---
+  const [sketchId, setSketchId] = useState<string>('');
+  const [isCut, setIsCut] = useState(false);
+
+  // --- Extrude/Revolve State ---
+  const [distance, setDistance] = useState<number>(10);
+  const [angle, setAngle] = useState<number>(360);
+  const [direction, setDirection] = useState<'normal' | 'reverse'>('normal');
+
+  // --- Primitive State ---
+  const [width, setWidth] = useState<number>(50);
+  const [height, setHeight] = useState<number>(50);
+  const [depth, setDepth] = useState<number>(50);
+  const [radius, setRadius] = useState<number>(25);
+  const [radius2, setRadius2] = useState<number>(0);
+  const [majorRadius, setMajorRadius] = useState<number>(40);
+  const [minorRadius, setMinorRadius] = useState<number>(10);
+  const [ltx, setLtx] = useState<number>(25);
+
+  // --- Modification State ---
+  const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
+  const [selectedFaces, setSelectedFaces] = useState<string[]>([]);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [thickness, setThickness] = useState<number>(2);
+
+  // --- Transform State ---
+  const [translateX, setTranslateX] = useState<number>(0);
+  const [translateY, setTranslateY] = useState<number>(0);
+  const [translateZ, setTranslateZ] = useState<number>(0);
+  const [rotateAngle, setTranslateAngle] = useState<number>(0);
+  const [scaleFactor, setScaleFactor] = useState<number>(1);
+
+  // Initialize state based on operation and initialParams
   useEffect(() => {
-    if (selectedSketchId && sketches.some(s => s.id === selectedSketchId)) {
-      if (sketchId !== selectedSketchId) {
-        setSketchId(selectedSketchId);
+    // Determine if it's a cut operation
+    const isCutOp = operation === FeatureOperation.EXTRUDED_CUT || operation === FeatureOperation.REVOLVED_CUT;
+    setIsCut(isCutOp);
+
+    if (initialSketchId) {
+      setSketchId(initialSketchId);
+    } else if (!sketchId) {
+      // If no sketchId set yet, try to find a valid one based on selection or defaults
+      const selectedSketch = project.sketches.find(s => s.id === selectedTreeItem);
+      if (selectedSketch) {
+        setSketchId(selectedSketch.id);
+      } else {
+        const closedSketches = project.sketches.filter(s => s.isClosed);
+        if (closedSketches.length > 0) {
+          setSketchId(closedSketches[0].id);
+        }
       }
-    } else if (sketches.length > 0) {
-      // If current sketchId is not valid for the new sketches list, reset it to the first valid sketch
-      if (sketchId === '' || !sketches.some(s => s.id === sketchId)) {
-        setSketchId(sketches[0].id);
-      }
-    } else if (sketchId !== '') {
-      setSketchId('');
     }
-  }, [selectedSketchId, sketches]); // Removed 'sketchId' from dependencies to avoid loop
 
-  // Sync state with initialParams if they change (e.g. when switching which feature is being edited)
-  useEffect(() => {
     if (initialParams) {
-      setDistance(Math.abs(initialParams.distance).toString());
-      setDirection(initialParams.distance >= 0 ? 'normal' : 'reverse');
+      // TODO: Populate all states from initialParams
+      if ('distance' in initialParams) {
+        setDistance(Math.abs(initialParams.distance));
+        setDirection(initialParams.distance >= 0 ? 'normal' : 'reverse');
+      }
+      if ('angle' in initialParams) setAngle(initialParams.angle);
+      if ('width' in initialParams) setWidth(initialParams.width);
+      if ('height' in initialParams) setHeight(initialParams.height);
+      if ('depth' in initialParams) setDepth(initialParams.depth);
+      if ('radius' in initialParams) setRadius(initialParams.radius);
+      if ('radius1' in initialParams) setRadius(initialParams.radius1);
+      if ('radius2' in initialParams) setRadius2(initialParams.radius2);
+      if ('majorRadius' in initialParams) setMajorRadius(initialParams.majorRadius);
+      if ('minorRadius' in initialParams) setMinorRadius(initialParams.minorRadius);
+      if ('ltx' in initialParams) setLtx(initialParams.ltx);
+      if ('edges' in initialParams) setSelectedEdges(initialParams.edges);
+      if ('faces' in initialParams) setSelectedFaces(initialParams.faces);
+      if ('featureIds' in (initialParams as any)) setSelectedFeatures((initialParams as any).featureIds);
+      if ('thickness' in initialParams) setThickness(initialParams.thickness);
+    } else {
+      // Default initializations for some ops based on selection
+      if (operation === FeatureOperation.FILLET || operation === FeatureOperation.CHAMFER) {
+        if (selectedEdgeIndex !== null) {
+          setSelectedEdges([`edge-${selectedEdgeIndex}`]);
+        }
+      } else if (operation === FeatureOperation.SHELL) {
+        if (selectedFaceId !== null) {
+          setSelectedFaces([`face-${selectedFaceId}`]);
+        }
+      } else if (operation === FeatureOperation.UNION || operation === FeatureOperation.INTERSECT) {
+        if (selectedTreeItem && project.features.some(f => f.id === selectedTreeItem)) {
+          setSelectedFeatures([selectedTreeItem]);
+        }
+      }
     }
-  }, [initialParams]);
+  }, [operation, initialParams, selectedEdgeIndex, selectedFaceId, initialSketchId, project.sketches, project.features, selectedTreeItem]);
+
+  // Append new selections from viewport while panel is open
+  useEffect(() => {
+    if (operation === FeatureOperation.FILLET || operation === FeatureOperation.CHAMFER) {
+      if (selectedEdgeIndex !== null) {
+        const edgeRef = `edge-${selectedEdgeIndex}`;
+        setSelectedEdges(prev => prev.includes(edgeRef) ? prev : [...prev, edgeRef]);
+      }
+    } else if (operation === FeatureOperation.SHELL || operation === FeatureOperation.OFFSET) {
+      if (selectedFaceId !== null) {
+        const faceRef = `face-${selectedFaceId}`;
+        setSelectedFaces(prev => prev.includes(faceRef) ? prev : [...prev, faceRef]);
+      }
+    } else if (operation === FeatureOperation.UNION || operation === FeatureOperation.INTERSECT) {
+      if (selectedTreeItem && project.features.some(f => f.id === selectedTreeItem)) {
+        setSelectedFeatures(prev => prev.includes(selectedTreeItem) ? prev : [...prev, selectedTreeItem]);
+      }
+    }
+  }, [selectedEdgeIndex, selectedFaceId, selectedTreeItem, operation, project.features]);
+
+  // Set default sketch for sketch-based operations
+  useEffect(() => {
+    if (operation === FeatureOperation.EXTRUDE_BOSS || operation === FeatureOperation.EXTRUDED_CUT || 
+        operation === FeatureOperation.REVOLVED_BOSS || operation === FeatureOperation.REVOLVED_CUT) {
+      if (!sketchId) {
+        const closedSketches = project.sketches.filter(s => s.isClosed);
+        if (closedSketches.length > 0) {
+          setSketchId(closedSketches[0].id);
+        }
+      }
+    }
+  }, [operation, project.sketches, sketchId]);
 
   const handleConfirm = () => {
-    const selectedSketch = sketches.find(s => s.id === sketchId);
-    if (!selectedSketch) return;
+    let params: OperationParams;
 
-    const distanceValue = parseFloat(distance);
-    if (isNaN(distanceValue) || distanceValue === 0) {
-      return;
+    switch (operation) {
+      case FeatureOperation.REVOLVED_BOSS:
+      case FeatureOperation.REVOLVED_CUT: {
+        const selectedSketch = project.sketches.find(s => s.id === sketchId);
+        if (!selectedSketch) return;
+        params = {
+          sketchId,
+          axis: { origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } },
+          angle,
+          isCut,
+        } as RevolveParams;
+        onConfirm(params, sketchId);
+        break;
+      }
+      case FeatureOperation.UNION:
+      case FeatureOperation.INTERSECT:
+        params = { 
+          type: operation === FeatureOperation.UNION ? 'union' : 'intersect', 
+          featureIds: selectedFeatures 
+        } as any;
+        onConfirm(params);
+        break;
+      case FeatureOperation.BOX:
+        params = { width, height, depth, center: { x: 0, y: 0, z: 0 } } as PrimitiveBoxParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.SPHERE:
+        params = { radius, center: { x: 0, y: 0, z: 0 } } as PrimitiveSphereParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.CYLINDER:
+        params = { radius, height, center: { x: 0, y: 0, z: 0 } } as PrimitiveCylinderParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.CONE:
+        params = { radius1: radius, radius2, height, center: { x: 0, y: 0, z: 0 } } as PrimitiveConeParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.TORUS:
+        params = { majorRadius, minorRadius, center: { x: 0, y: 0, z: 0 } } as PrimitiveTorusParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.WEDGE:
+        params = { width, height, depth, ltx, center: { x: 0, y: 0, z: 0 } } as PrimitiveWedgeParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.FILLET:
+        params = { radius, edges: selectedEdges } as FilletParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.CHAMFER:
+        params = { distance, edges: selectedEdges } as ChamferParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.SHELL:
+        params = { thickness, faces: selectedFaces } as ShellParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.OFFSET:
+        params = { distance, faces: selectedFaces } as OffsetParams;
+        onConfirm(params);
+        break;
+      case TransformOperation.MOVE:
+        params = { 
+          type: TransformOperation.MOVE, 
+          translation: { x: translateX, y: translateY, z: translateZ } 
+        } as TransformParams;
+        onConfirm(params);
+        break;
+      case TransformOperation.ROTATE:
+        params = {
+          type: TransformOperation.ROTATE,
+          rotation: {
+            axis: { origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } },
+            angle: rotateAngle,
+          },
+        } as TransformParams;
+        onConfirm(params);
+        break;
+      case TransformOperation.MIRROR: {
+        const plane = project.referenceGeometry.find(r => r.id === selectedTreeItem && r.type === 'plane');
+        if (!plane) return;
+        
+        let origin: Point3D = { x: 0, y: 0, z: 0 };
+        let normal: Vector3D = { x: 0, y: 0, z: 1 };
+        
+        if (plane.id === 'front-plane') {
+          normal = { x: 0, y: 0, z: 1 };
+        } else if (plane.id === 'top-plane') {
+          normal = { x: 0, y: 1, z: 0 };
+        } else if (plane.id === 'right-plane') {
+          normal = { x: 1, y: 0, z: 0 };
+        }
+        
+        params = {
+          type: TransformOperation.MIRROR,
+          mirrorPlane: { origin, direction: normal },
+        } as TransformParams;
+        onConfirm(params);
+        break;
+      }
+      case TransformOperation.SCALE:
+        params = {
+          type: TransformOperation.SCALE,
+          scale: {
+            factor: scaleFactor,
+            center: { x: 0, y: 0, z: 0 },
+          },
+        } as TransformParams;
+        onConfirm(params);
+        break;
+      case FeatureOperation.MEASURE:
+        const entities: string[] = [];
+        if (selectedFaceId !== null) entities.push(`face-${selectedFaceId}`);
+        if (selectedEdgeIndex !== null) entities.push(`edge-${selectedEdgeIndex}`);
+        if (selectedVertexIndex !== null) entities.push(`vertex-${selectedVertexIndex}`);
+        params = {
+          type: 'distance',
+          entities,
+        } as MeasureParams;
+        onConfirm(params);
+        break;
+      // Add more cases as needed
+      default:
+        console.warn(`Confirm not implemented for ${operation}`);
+        onCancel();
     }
-
-    const planeNormal = getSketchNormal(selectedSketch.plane);
-
-    const params: ExtrudeParams = {
-      distance: direction === 'normal' ? distanceValue : -distanceValue,
-      direction: planeNormal,
-      isCut,
-    };
-
-    onConfirm(sketchId, params);
   };
 
   // Sync extrude preview to viewport store
   const setExtrudePreview = useViewportStore((state) => state.setExtrudePreview);
   useEffect(() => {
-    if (sketchId) {
+    if (sketchId && (operation === FeatureOperation.EXTRUDE_BOSS || operation === FeatureOperation.EXTRUDED_CUT)) {
       setExtrudePreview({
         sketchId,
-        distance: parseFloat(distance) || 0,
+        distance: distance || 0,
         direction,
       });
     } else {
       setExtrudePreview(null);
     }
-
     return () => setExtrudePreview(null);
-  }, [sketchId, distance, direction, setExtrudePreview]);
+  }, [sketchId, distance, direction, operation, setExtrudePreview]);
 
-  const closedSketches = sketches.filter((s) => s.isClosed);
+  const renderInputs = () => {
+    const closedSketches = project.sketches.filter((s) => s.isClosed);
+
+    switch (operation) {
+      case FeatureOperation.EXTRUDE_BOSS:
+      case FeatureOperation.EXTRUDED_CUT:
+        return (
+          <>
+            {closedSketches.length === 0 ? (
+              <Alert color="yellow" title="No closed sketches">
+                Create a closed sketch first to perform this operation.
+              </Alert>
+            ) : (
+              <>
+                <Select
+                  label="Sketch"
+                  placeholder="Select a sketch"
+                  value={sketchId}
+                  onChange={(value) => setSketchId(value || '')}
+                  data={closedSketches.map((sketch) => ({
+                    value: sketch.id,
+                    label: sketch.name,
+                  }))}
+                  size="sm"
+                />
+                <NumberInput
+                  label="Distance"
+                  value={distance}
+                  onChange={(val) => setDistance(Number(val))}
+                  min={0.1}
+                  step={1}
+                  size="sm"
+                />
+                <Select
+                  label="Direction"
+                  value={direction}
+                  onChange={(value) => setDirection(value as 'normal' | 'reverse')}
+                  data={[
+                    { value: 'normal', label: 'Normal' },
+                    { value: 'reverse', label: 'Reverse' },
+                  ]}
+                  size="sm"
+                />
+              </>
+            )}
+          </>
+        );
+
+      case FeatureOperation.REVOLVED_BOSS:
+      case FeatureOperation.REVOLVED_CUT:
+        return (
+          <>
+            {closedSketches.length === 0 ? (
+              <Alert color="yellow" title="No closed sketches">
+                Create a closed sketch first to perform this operation.
+              </Alert>
+            ) : (
+              <>
+                <Select
+                  label="Sketch"
+                  placeholder="Select a sketch"
+                  value={sketchId}
+                  onChange={(value) => setSketchId(value || '')}
+                  data={closedSketches.map((sketch) => ({
+                    value: sketch.id,
+                    label: sketch.name,
+                  }))}
+                  size="sm"
+                />
+                <NumberInput
+                  label="Angle"
+                  value={angle}
+                  onChange={(val) => setAngle(Number(val))}
+                  min={0.1}
+                  max={360}
+                  step={1}
+                  size="sm"
+                />
+              </>
+            )}
+          </>
+        );
+
+      case FeatureOperation.UNION:
+      case FeatureOperation.INTERSECT:
+        return (
+          <>
+            <MultiSelect
+              label="Features"
+              placeholder="Select features"
+              value={selectedFeatures}
+              onChange={setSelectedFeatures}
+              data={project.features.map(f => ({ value: f.id, label: f.name }))}
+              size="sm"
+            />
+            <Text size="xs" c="dimmed">Select features in the tree to combine them.</Text>
+          </>
+        );
+
+      case FeatureOperation.BOX:
+        return (
+          <>
+            <NumberInput label="Width" value={width} onChange={(val) => setWidth(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Height" value={height} onChange={(val) => setHeight(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Depth" value={depth} onChange={(val) => setDepth(Number(val))} min={0.1} size="sm" />
+          </>
+        );
+
+      case FeatureOperation.SPHERE:
+        return <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />;
+
+      case FeatureOperation.CYLINDER:
+        return (
+          <>
+            <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Height" value={height} onChange={(val) => setHeight(Number(val))} min={0.1} size="sm" />
+          </>
+        );
+
+      case FeatureOperation.CONE:
+        return (
+          <>
+            <NumberInput label="Base Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Top Radius" value={radius2} onChange={(val) => setRadius2(Number(val))} min={0} size="sm" />
+            <NumberInput label="Height" value={height} onChange={(val) => setHeight(Number(val))} min={0.1} size="sm" />
+          </>
+        );
+
+      case FeatureOperation.TORUS:
+        return (
+          <>
+            <NumberInput label="Major Radius" value={majorRadius} onChange={(val) => setMajorRadius(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Minor Radius" value={minorRadius} onChange={(val) => setMinorRadius(Number(val))} min={0.1} size="sm" />
+          </>
+        );
+
+      case FeatureOperation.WEDGE:
+        return (
+          <>
+            <NumberInput label="Width" value={width} onChange={(val) => setWidth(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Height" value={height} onChange={(val) => setHeight(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Depth" value={depth} onChange={(val) => setDepth(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Top X Length (LTX)" value={ltx} onChange={(val) => setLtx(Number(val))} min={0} size="sm" />
+          </>
+        );
+
+      case FeatureOperation.FILLET:
+        return (
+          <>
+            <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
+            <MultiSelect
+              label="Edges"
+              placeholder="Select edges"
+              value={selectedEdges}
+              onChange={setSelectedEdges}
+              data={selectedEdges.map(e => ({ value: e, label: e }))}
+              size="sm"
+              readOnly
+            />
+            <Text size="xs" c="dimmed">Click edges in the viewport to add them.</Text>
+          </>
+        );
+
+      case FeatureOperation.CHAMFER:
+        return (
+          <>
+            <NumberInput label="Distance" value={distance} onChange={(val) => setDistance(Number(val))} min={0.1} size="sm" />
+            <MultiSelect
+              label="Edges"
+              placeholder="Select edges"
+              value={selectedEdges}
+              onChange={setSelectedEdges}
+              data={selectedEdges.map(e => ({ value: e, label: e }))}
+              size="sm"
+              readOnly
+            />
+            <Text size="xs" c="dimmed">Click edges in the viewport to add them.</Text>
+          </>
+        );
+
+      case FeatureOperation.SHELL:
+        return (
+          <>
+            <NumberInput label="Thickness" value={thickness} onChange={(val) => setThickness(Number(val))} min={0.1} size="sm" />
+            <MultiSelect
+              label="Faces to Remove"
+              placeholder="Select faces"
+              value={selectedFaces}
+              onChange={setSelectedFaces}
+              data={selectedFaces.map(f => ({ value: f, label: f }))}
+              size="sm"
+              readOnly
+            />
+            <Text size="xs" c="dimmed">Click faces in the viewport to remove them.</Text>
+          </>
+        );
+
+      case FeatureOperation.OFFSET:
+        return (
+          <>
+            <NumberInput label="Distance" value={distance} onChange={(val) => setDistance(Number(val))} min={0.1} size="sm" />
+            <Text size="xs" c="dimmed">Offset full body by given distance.</Text>
+          </>
+        );
+
+      case TransformOperation.MOVE:
+        return (
+          <>
+            <NumberInput label="X" value={translateX} onChange={(val) => setTranslateX(Number(val))} size="sm" />
+            <NumberInput label="Y" value={translateY} onChange={(val) => setTranslateY(Number(val))} size="sm" />
+            <NumberInput label="Z" value={translateZ} onChange={(val) => setTranslateZ(Number(val))} size="sm" />
+          </>
+        );
+
+      case TransformOperation.ROTATE:
+        return <NumberInput label="Angle" value={rotateAngle} onChange={(val) => setTranslateAngle(Number(val))} size="sm" />;
+
+      case TransformOperation.MIRROR:
+        return (
+          <Stack gap="xs">
+            <Text size="sm">Mirror Plane:</Text>
+            {selectedTreeItem && project.referenceGeometry.find(r => r.id === selectedTreeItem && r.type === 'plane') ? (
+              <Text size="xs">Using {project.referenceGeometry.find(r => r.id === selectedTreeItem)?.name}</Text>
+            ) : (
+              <Text size="xs" c="dimmed">Select a plane in the tree to use as mirror plane.</Text>
+            )}
+          </Stack>
+        );
+
+      case TransformOperation.SCALE:
+        return <NumberInput label="Factor" value={scaleFactor} onChange={(val) => setScaleFactor(Number(val))} min={0.01} step={0.1} size="sm" />;
+
+      case FeatureOperation.MEASURE:
+        return (
+          <Stack gap="xs">
+            <Text size="sm">Selected entities for measurement:</Text>
+            <Group gap="xs">
+              {selectedFaceId !== null && <Text size="xs">Face {selectedFaceId + 1}</Text>}
+              {selectedEdgeIndex !== null && <Text size="xs">Edge {selectedEdgeIndex + 1}</Text>}
+              {selectedVertexIndex !== null && <Text size="xs">Vertex {selectedVertexIndex + 1}</Text>}
+            </Group>
+            {selectedFaceId === null && selectedEdgeIndex === null && selectedVertexIndex === null && (
+              <Text size="xs" c="dimmed">Select entities in the viewport to measure.</Text>
+            )}
+          </Stack>
+        );
+
+      default:
+        return <Text size="sm">Operation parameters for {operation} not yet implemented.</Text>;
+    }
+  };
+
+  const isValid = useMemo(() => {
+    switch (operation) {
+      case FeatureOperation.EXTRUDE_BOSS:
+      case FeatureOperation.EXTRUDED_CUT:
+      case FeatureOperation.REVOLVED_BOSS:
+      case FeatureOperation.REVOLVED_CUT:
+        return !!sketchId;
+      case FeatureOperation.UNION:
+      case FeatureOperation.INTERSECT:
+        return selectedFeatures.length > 0;
+      case FeatureOperation.FILLET:
+      case FeatureOperation.CHAMFER:
+        return selectedEdges.length > 0;
+      case FeatureOperation.SHELL:
+        return selectedFaces.length > 0;
+      case FeatureOperation.BOX:
+      case FeatureOperation.SPHERE:
+      case FeatureOperation.CYLINDER:
+      case FeatureOperation.CONE:
+      case FeatureOperation.TORUS:
+      case FeatureOperation.WEDGE:
+      case FeatureOperation.OFFSET:
+      case TransformOperation.MOVE:
+      case TransformOperation.ROTATE:
+        return true;
+      case TransformOperation.MIRROR:
+        return !!selectedTreeItem && !!project.referenceGeometry.find(r => r.id === selectedTreeItem && r.type === 'plane');
+      case TransformOperation.SCALE:
+      case FeatureOperation.MEASURE:
+        return true; // Primitives and transforms usually have defaults
+      default:
+        return false;
+    }
+  }, [operation, sketchId, selectedEdges, selectedFaces, selectedFeatures, selectedTreeItem, project.referenceGeometry]);
 
   return (
-    <Stack gap={0} style={{ height: '100%', backgroundColor: theme.other.colors.background }}>
+    <Stack gap={0} style={{ backgroundColor: theme.other.colors.background }}>
       {/* Header */}
       <Box
         px={16}
         py={12}
         style={{
           borderBottom: `1px solid ${theme.other.colors.sidebarBorder}`,
-          backgroundColor: `${theme.colors.blue[5]}15`, // Match active tab
+          backgroundColor: `${theme.colors.blue[5]}15`,
         }}
       >
         <Group justify="space-between" align="center" wrap="nowrap">
@@ -126,7 +643,7 @@ export function OperationPanel({
             <ActionIcon variant="subtle" color="gray" onClick={onCancel}>
               <X size={16} />
             </ActionIcon>
-            <ActionIcon variant="filled" color="blue" onClick={handleConfirm} disabled={!sketchId || !distance}>
+            <ActionIcon variant="filled" color="blue" onClick={handleConfirm} disabled={!isValid}>
               <Check size={16} />
             </ActionIcon>
           </Group>
@@ -134,64 +651,19 @@ export function OperationPanel({
       </Box>
 
       {/* Content */}
-      <Box p={16} style={{ flex: 1, overflowY: 'auto' }}>
+      <Box p={16} style={{ overflowY: 'auto' }}>
         <Stack gap="md">
-          {closedSketches.length === 0 ? (
-            <Alert color="yellow" title="No closed sketches">
-              Create a closed sketch first to perform this operation.
-            </Alert>
-          ) : (
-            <>
-              <Select
-                label="Sketch"
-                placeholder="Select a sketch"
-                value={sketchId}
-                onChange={(value) => setSketchId(value || '')}
-                data={closedSketches.map((sketch) => ({
-                  value: sketch.id,
-                  label: sketch.name,
-                }))}
-                size="sm"
-              />
-
-              <TextInput
-                label="Distance"
-                type="number"
-                value={distance}
-                onChange={(e) => setDistance(e.target.value)}
-                placeholder="Enter distance"
-                step={0.1}
-                size="sm"
-              />
-
-              <Select
-                label="Direction"
-                value={direction}
-                onChange={(value) => setDirection(value as 'normal' | 'reverse')}
-                data={[
-                  { value: 'normal', label: 'Normal' },
-                  { value: 'reverse', label: 'Reverse' },
-                ]}
-                size="sm"
-              />
-
-              <Alert variant="light" color="blue" p="xs">
-                <Text size="xs">
-                  {isCut ? 'Removing' : 'Adding'} material by {Math.abs(parseFloat(distance) || 0)} units.
-                </Text>
-              </Alert>
-            </>
-          )}
+          {renderInputs()}
         </Stack>
       </Box>
 
-      {/* Footer Buttons (Mobile/Secondary) */}
+      {/* Footer Buttons */}
       <Box p={16} style={{ borderTop: `1px solid ${theme.other.colors.sidebarBorder}` }}>
         <Group grow>
           <Button variant="subtle" size="sm" onClick={onCancel}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleConfirm} disabled={!sketchId || !distance || closedSketches.length === 0}>
+          <Button size="sm" onClick={handleConfirm} disabled={!isValid}>
             Apply
           </Button>
         </Group>
