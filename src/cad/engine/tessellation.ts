@@ -38,16 +38,12 @@ export function tessellate(
   let cadFaceId = 0; // Unique ID for each CAD face
 
   // ---- Extract triangulated faces ----
-  const faceExplorer = new oc.TopExp_Explorer_2(
-    shape,
-    oc.TopAbs_ShapeEnum.TopAbs_FACE,
-    oc.TopAbs_ShapeEnum.TopAbs_SHAPE
-  );
+  const faceMap = new oc.TopTools_IndexedMapOfShape_1();
+  oc.TopExp.MapShapes_1(shape, oc.TopAbs_ShapeEnum.TopAbs_FACE, faceMap);
 
-  let faceCount = 0;
-  for (; faceExplorer.More(); faceExplorer.Next()) {
-    faceCount++;
-    const face = oc.TopoDS.Face_1(faceExplorer.Current());
+  const faceCount = faceMap.Extent();
+  for (let i = 1; i <= faceCount; i++) {
+    const face = oc.TopoDS.Face_1(faceMap.FindKey(i));
     const location = new oc.TopLoc_Location_1();
     const handleTriangulation = oc.BRep_Tool.Triangulation(face, location, 0);
 
@@ -60,20 +56,20 @@ export function tessellate(
     const triangulation = handleTriangulation.get();
     const nNodes = triangulation.NbNodes();
     const nTriangles = triangulation.NbTriangles();
-    console.log(`[OC Worker] Face ${faceCount}: Nodes=${nNodes}, Triangles=${nTriangles}`);
+    console.log(`[OC Worker] Face ${i}: Nodes=${nNodes}, Triangles=${nTriangles}`);
     const transform = location.Transformation();
     const isReversed = face.Orientation_1() === oc.TopAbs_Orientation.TopAbs_REVERSED;
 
     // Vertices (apply location transform)
-    for (let i = 1; i <= nNodes; i++) {
-      const pnt = triangulation.Node(i).Transformed(transform);
+    for (let j = 1; j <= nNodes; j++) {
+      const pnt = triangulation.Node(j).Transformed(transform);
       faceVertices.push(pnt.X(), pnt.Y(), pnt.Z());
       pnt.delete();
     }
 
     // Triangle indices (flip winding for reversed faces)
-    for (let i = 1; i <= nTriangles; i++) {
-      const tri = triangulation.Triangle(i);
+    for (let j = 1; j <= nTriangles; j++) {
+      const tri = triangulation.Triangle(j);
       let n1 = tri.Value(1);
       let n2 = tri.Value(2);
       let n3 = tri.Value(3);
@@ -96,7 +92,7 @@ export function tessellate(
     handleTriangulation.delete();
     transform.delete();
   }
-  faceExplorer.delete();
+  faceMap.delete();
 
   // ---- Extract edge polylines ----
   // Use TopExp.MapShapes_1 to get unique edges (HashCode is unreliable for deduplication)

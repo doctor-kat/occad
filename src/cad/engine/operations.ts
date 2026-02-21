@@ -850,16 +850,14 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           const params = feature.parameters as FilletParams;
           const mkFillet = new oc.BRepFilletAPI_MakeFillet(currentBody, oc.ChFi3d_FilletShape.ChFi3d_Rational);
 
-          // Get all edges from the current body
-          const edgeExplorer = new oc.TopExp_Explorer_2(
-            currentBody,
-            oc.TopAbs_ShapeEnum.TopAbs_EDGE,
-            oc.TopAbs_ShapeEnum.TopAbs_SHAPE
-          );
+          // Get all edges from the current body using the same deduplication logic as tessellation
+          const edgeMap = new oc.TopTools_IndexedMapOfShape_1();
+          oc.TopExp.MapShapes_1(currentBody, oc.TopAbs_ShapeEnum.TopAbs_EDGE, edgeMap);
 
+          const edgeCount = edgeMap.Extent();
           const allEdges: any[] = [];
-          for (; edgeExplorer.More(); edgeExplorer.Next()) {
-            allEdges.push(oc.TopoDS.Edge_1(edgeExplorer.Current()));
+          for (let i = 1; i <= edgeCount; i++) {
+            allEdges.push(oc.TopoDS.Edge_1(edgeMap.FindKey(i)));
           }
 
           // Apply fillet to requested edges
@@ -886,7 +884,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           }
 
           mkFillet.delete();
-          edgeExplorer.delete();
+          edgeMap.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
@@ -899,16 +897,14 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           const params = feature.parameters as ChamferParams;
           const mkChamfer = new oc.BRepFilletAPI_MakeChamfer(currentBody);
 
-          // Get all edges from the current body
-          const edgeExplorer = new oc.TopExp_Explorer_2(
-            currentBody,
-            oc.TopAbs_ShapeEnum.TopAbs_EDGE,
-            oc.TopAbs_ShapeEnum.TopAbs_SHAPE
-          );
+          // Get all edges from the current body using the same deduplication logic as tessellation
+          const edgeMap = new oc.TopTools_IndexedMapOfShape_1();
+          oc.TopExp.MapShapes_1(currentBody, oc.TopAbs_ShapeEnum.TopAbs_EDGE, edgeMap);
 
+          const edgeCount = edgeMap.Extent();
           const allEdges: any[] = [];
-          for (; edgeExplorer.More(); edgeExplorer.Next()) {
-            allEdges.push(oc.TopoDS.Edge_1(edgeExplorer.Current()));
+          for (let i = 1; i <= edgeCount; i++) {
+            allEdges.push(oc.TopoDS.Edge_1(edgeMap.FindKey(i)));
           }
 
           // Apply chamfer to requested edges
@@ -934,7 +930,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           }
 
           mkChamfer.delete();
-          edgeExplorer.delete();
+          edgeMap.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
@@ -946,16 +942,14 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const params = feature.parameters as ShellParams;
           
-          // Get faces to remove
-          const faceExplorer = new oc.TopExp_Explorer_2(
-            currentBody,
-            oc.TopAbs_ShapeEnum.TopAbs_FACE,
-            oc.TopAbs_ShapeEnum.TopAbs_SHAPE
-          );
+          // Get faces to remove using deduplicated indexing
+          const faceMap = new oc.TopTools_IndexedMapOfShape_1();
+          oc.TopExp.MapShapes_1(currentBody, oc.TopAbs_ShapeEnum.TopAbs_FACE, faceMap);
 
+          const faceCount = faceMap.Extent();
           const allFaces: any[] = [];
-          for (; faceExplorer.More(); faceExplorer.Next()) {
-            allFaces.push(oc.TopoDS.Face_1(faceExplorer.Current()));
+          for (let i = 1; i <= faceCount; i++) {
+            allFaces.push(oc.TopoDS.Face_1(faceMap.FindKey(i)));
           }
 
           const facesToRemove = new oc.TopTools_ListOfShape_1();
@@ -992,7 +986,7 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           mkShell.delete();
           facesToRemove.delete();
-          faceExplorer.delete();
+          faceMap.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
@@ -1165,25 +1159,19 @@ export function handleGetFaceGeometry(ctx: WorkerContext, faceId: number, shapeI
       throw new Error(`Shape ${shapeId} not found in storage`);
     }
 
-    // Iterate through faces to find the one with matching ID
-    const faceExplorer = new oc.TopExp_Explorer_2(
-      shape,
-      oc.TopAbs_ShapeEnum.TopAbs_FACE,
-      oc.TopAbs_ShapeEnum.TopAbs_SHAPE
-    );
+    // Iterate through faces to find the one with matching ID using deduplicated indexing
+    const faceMap = new oc.TopTools_IndexedMapOfShape_1();
+    oc.TopExp.MapShapes_1(shape, oc.TopAbs_ShapeEnum.TopAbs_FACE, faceMap);
 
-    let currentFaceId = 0;
+    const faceCount = faceMap.Extent();
     let targetFace = null;
 
-    for (; faceExplorer.More(); faceExplorer.Next()) {
-      if (currentFaceId === faceId) {
-        targetFace = oc.TopoDS.Face_1(faceExplorer.Current());
-        break;
-      }
-      currentFaceId++;
+    if (faceId >= 0 && faceId < faceCount) {
+      targetFace = oc.TopoDS.Face_1(faceMap.FindKey(faceId + 1));
     }
 
     if (!targetFace) {
+      faceMap.delete();
       throw new Error(`Face ${faceId} not found in shape ${shapeId}`);
     }
 
@@ -1195,6 +1183,7 @@ export function handleGetFaceGeometry(ctx: WorkerContext, faceId: number, shapeI
     const isPlanar = surfaceTypeName === 'Geom_Plane*';
 
     if (!isPlanar) {
+      faceMap.delete();
       // Non-planar face - return error
       post({
         type: 'error',
@@ -1233,6 +1222,9 @@ export function handleGetFaceGeometry(ctx: WorkerContext, faceId: number, shapeI
       y: ny,
       z: nz,
     };
+
+    // Clean up
+    faceMap.delete();
 
     // Send response
     post({
