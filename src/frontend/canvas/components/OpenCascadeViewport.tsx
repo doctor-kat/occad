@@ -687,7 +687,7 @@ function OriginPoint({ visible, selectedPlaneId, dimmed = false }: OriginPointPr
   const axisOpacity = dimmed ? 0.15 : 0.6;
 
   return (
-    <group>
+    <group renderOrder={1000}>
       {/* Origin sphere */}
       <mesh position={[0, 0, 0]}>
         <sphereGeometry args={[size, 16, 16]} />
@@ -695,25 +695,26 @@ function OriginPoint({ visible, selectedPlaneId, dimmed = false }: OriginPointPr
           color={isSelected ? "#ffffff" : "#888888"}
           transparent
           opacity={sphereOpacity}
+          depthTest={false}
         />
       </mesh>
 
       {/* X axis - Red */}
       <mesh position={[axisLength / 2, 0, 0]}>
         <boxGeometry args={[axisLength, 0.2, 0.2]} />
-        <meshBasicMaterial color="#ef4444" transparent opacity={axisOpacity} />
+        <meshBasicMaterial color="#ef4444" transparent opacity={axisOpacity} depthTest={false} />
       </mesh>
 
       {/* Y axis - Green */}
       <mesh position={[0, axisLength / 2, 0]}>
         <boxGeometry args={[0.2, axisLength, 0.2]} />
-        <meshBasicMaterial color="#22c55e" transparent opacity={axisOpacity} />
+        <meshBasicMaterial color="#22c55e" transparent opacity={axisOpacity} depthTest={false} />
       </mesh>
 
       {/* Z axis - Blue */}
       <mesh position={[0, 0, axisLength / 2]}>
         <boxGeometry args={[0.2, 0.2, axisLength]} />
-        <meshBasicMaterial color="#3b82f6" transparent opacity={axisOpacity} />
+        <meshBasicMaterial color="#3b82f6" transparent opacity={axisOpacity} depthTest={false} />
       </mesh>
     </group>
   );

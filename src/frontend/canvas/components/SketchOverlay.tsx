@@ -755,16 +755,16 @@ export function SketchOverlay({
       />
 
       {/* Origin crosshair — red X, green Y */}
-      <line geometry={xAxisGeo} position={[0, 0, 0.02]}>
-        <lineBasicMaterial color="#ef4444" transparent opacity={0.35} />
+      <line geometry={xAxisGeo} position={[0, 0, 0.02]} renderOrder={1000}>
+        <lineBasicMaterial color="#ef4444" transparent opacity={0.35} depthTest={false} />
       </line>
-      <line geometry={yAxisGeo} position={[0, 0, 0.02]}>
-        <lineBasicMaterial color="#22c55e" transparent opacity={0.35} />
+      <line geometry={yAxisGeo} position={[0, 0, 0.02]} renderOrder={1000}>
+        <lineBasicMaterial color="#22c55e" transparent opacity={0.35} depthTest={false} />
       </line>
       {/* Origin dot */}
-      <mesh position={[0, 0, 0.03]}>
+      <mesh position={[0, 0, 0.03]} renderOrder={1001}>
         <circleGeometry args={[1.5, 24]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.6} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.6} depthTest={false} />
       </mesh>
 
       {/* Render existing sketch elements */}
