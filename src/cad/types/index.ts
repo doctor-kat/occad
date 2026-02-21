@@ -32,6 +32,8 @@ export * from './operations/PrimitiveWedgeParams';
 export * from './operations/BooleanParams';
 export * from './operations/FilletParams';
 export * from './operations/ChamferParams';
+export * from './operations/ShellParams';
+export * from './operations/OffsetParams';
 export * from './operations/OperationParams';
 
 // Project

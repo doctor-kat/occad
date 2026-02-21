@@ -227,7 +227,6 @@ const disabledTools: Tool[] = [
   // Boolean operations - backend exists but no UI yet
   'union', 'intersect',
   // Modifications - not yet implemented
-  'fillet', 'chamfer', 'shell', 'offset',
   // Evaluate - not yet implemented
   'measure',
   // Transform - not yet implemented

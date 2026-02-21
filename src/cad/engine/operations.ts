@@ -16,6 +16,10 @@ import type {
   PrimitiveConeParams,
   PrimitiveTorusParams,
   PrimitiveWedgeParams,
+  FilletParams,
+  ChamferParams,
+  ShellParams,
+  OffsetParams,
   CADProject,
   MeshData,
   SketchEdgeData,
@@ -832,6 +836,103 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           }
 
           wedge.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.FILLET) {
+          // Handle fillet operation
+          if (!currentBody) {
+            throw new Error('Fillet requires an existing body');
+          }
+
+          const params = feature.parameters as FilletParams;
+          const mkFillet = new oc.BRepFilletAPI_MakeFillet(currentBody, oc.ChFi3d_FilletShape.ChFi3d_Rational);
+
+          // Get all edges from the current body
+          const edgeExplorer = new oc.TopExp_Explorer_2(
+            currentBody,
+            oc.TopAbs_ShapeEnum.TopAbs_EDGE,
+            oc.TopAbs_ShapeEnum.TopAbs_SHAPE
+          );
+
+          const allEdges: any[] = [];
+          for (; edgeExplorer.More(); edgeExplorer.Next()) {
+            allEdges.push(oc.TopoDS.Edge_1(edgeExplorer.Current()));
+          }
+
+          // Apply fillet to requested edges
+          let edgesAdded = 0;
+          params.edges.forEach(edgeRef => {
+            // edgeRef is expected to be in format "edge-N" where N is the index
+            const match = edgeRef.match(/edge-(\d+)/);
+            if (match) {
+              const edgeIdx = parseInt(match[1]);
+              if (edgeIdx >= 0 && edgeIdx < allEdges.length) {
+                mkFillet.Add_2(params.radius, allEdges[edgeIdx]);
+                edgesAdded++;
+              }
+            }
+          });
+
+          if (edgesAdded > 0) {
+            mkFillet.Build(new oc.Message_ProgressRange_1());
+            if (mkFillet.IsDone()) {
+              currentBody = mkFillet.Shape();
+            } else {
+              console.error(`Fillet operation failed for feature ${feature.id}`);
+            }
+          }
+
+          mkFillet.delete();
+          edgeExplorer.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.CHAMFER) {
+          // Handle chamfer operation
+          if (!currentBody) {
+            throw new Error('Chamfer requires an existing body');
+          }
+
+          const params = feature.parameters as ChamferParams;
+          const mkChamfer = new oc.BRepFilletAPI_MakeChamfer(currentBody);
+
+          // Get all edges from the current body
+          const edgeExplorer = new oc.TopExp_Explorer_2(
+            currentBody,
+            oc.TopAbs_ShapeEnum.TopAbs_EDGE,
+            oc.TopAbs_ShapeEnum.TopAbs_SHAPE
+          );
+
+          const allEdges: any[] = [];
+          for (; edgeExplorer.More(); edgeExplorer.Next()) {
+            allEdges.push(oc.TopoDS.Edge_1(edgeExplorer.Current()));
+          }
+
+          // Apply chamfer to requested edges
+          let edgesAdded = 0;
+          params.edges.forEach(edgeRef => {
+            const match = edgeRef.match(/edge-(\d+)/);
+            if (match) {
+              const edgeIdx = parseInt(match[1]);
+              if (edgeIdx >= 0 && edgeIdx < allEdges.length) {
+                mkChamfer.Add_2(params.distance, allEdges[edgeIdx]);
+                edgesAdded++;
+              }
+            }
+          });
+
+          if (edgesAdded > 0) {
+            mkChamfer.Build(new oc.Message_ProgressRange_1());
+            if (mkChamfer.IsDone()) {
+              currentBody = mkChamfer.Shape();
+            } else {
+              console.error(`Chamfer operation failed for feature ${feature.id}`);
+            }
+          }
+
+          mkChamfer.delete();
+          edgeExplorer.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);

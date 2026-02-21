@@ -9,6 +9,8 @@ import { PrimitiveWedgeParams } from './PrimitiveWedgeParams';
 import { BooleanParams } from './BooleanParams';
 import { FilletParams } from './FilletParams';
 import { ChamferParams } from './ChamferParams';
+import { ShellParams } from './ShellParams';
+import { OffsetParams } from './OffsetParams';
 
 export type OperationParams =
   | ExtrudeParams
@@ -21,4 +23,6 @@ export type OperationParams =
   | PrimitiveWedgeParams
   | BooleanParams
   | FilletParams
-  | ChamferParams;
+  | ChamferParams
+  | ShellParams
+  | OffsetParams;

@@ -298,6 +298,40 @@ export function CADLayout() {
     }
   }, [activeTool, project.features.length, addFeature, selectTool]);
 
+  // Handle fillet tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.FILLET) {
+      if (selectedEdgeIndex !== null) {
+        addFeature(`Fillet${project.features.length + 1}`, FeatureTool.FILLET, {
+          radius: 5,
+          edges: [`edge-${selectedEdgeIndex}`],
+        });
+        selectTool(null);
+        notifications.show({ color: 'green', message: 'Fillet applied to edge' });
+      } else {
+        notifications.show({ color: 'yellow', message: 'Select an edge first to apply fillet' });
+        selectTool(null);
+      }
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool, selectedEdgeIndex]);
+
+  // Handle chamfer tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.CHAMFER) {
+      if (selectedEdgeIndex !== null) {
+        addFeature(`Chamfer${project.features.length + 1}`, FeatureTool.CHAMFER, {
+          distance: 5,
+          edges: [`edge-${selectedEdgeIndex}`],
+        });
+        selectTool(null);
+        notifications.show({ color: 'green', message: 'Chamfer applied to edge' });
+      } else {
+        notifications.show({ color: 'yellow', message: 'Select an edge first to apply chamfer' });
+        selectTool(null);
+      }
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool, selectedEdgeIndex]);
+
   // Handle extrude confirmation
   const handleExtrudeConfirm = (sketchId: string, params: ExtrudeParams) => {
     if (editingFeatureId) {
