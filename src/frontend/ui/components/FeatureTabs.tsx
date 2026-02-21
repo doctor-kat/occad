@@ -223,7 +223,7 @@ const ioTools: { id: IOTool; icon: React.ReactNode; label: string }[] = [
 // Tools that are not yet implemented (disabled in UI)
 const disabledTools: Tool[] = [
   // Primitives - not yet implemented
-  'sphere', 'cone', 'torus', 'wedge',
+  'cone', 'torus', 'wedge',
   // 3D Operations - not yet implemented
   'sweep', 'loft',
   // Boolean operations - backend exists but no UI yet

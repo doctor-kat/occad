@@ -243,6 +243,18 @@ export function CADLayout() {
     }
   }, [activeTool, project.features.length, addFeature, selectTool]);
 
+  // Handle sphere tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.SPHERE) {
+      addFeature(`Sphere${project.features.length + 1}`, FeatureTool.SPHERE, {
+        radius: 25,
+        center: { x: 0, y: 0, z: 0 },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Sphere created' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
   // Handle extrude confirmation
   const handleExtrudeConfirm = (sketchId: string, params: ExtrudeParams) => {
     if (editingFeatureId) {

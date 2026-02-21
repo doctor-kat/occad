@@ -12,6 +12,9 @@ import type {
   RevolveParams,
   PrimitiveBoxParams,
   PrimitiveCylinderParams,
+  PrimitiveSphereParams,
+  PrimitiveConeParams,
+  PrimitiveTorusParams,
   CADProject,
   MeshData,
   SketchEdgeData,
@@ -669,6 +672,42 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           axisDir.delete();
           axis.delete();
           cylinder.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.SPHERE) {
+          // Handle primitive sphere
+          const params = feature.parameters as PrimitiveSphereParams;
+          const center = params.center || { x: 0, y: 0, z: 0 };
+
+          const axisOrigin = new oc.gp_Pnt_3(center.x, center.y, center.z);
+          const sphere = new oc.BRepPrimAPI_MakeSphere_4(axisOrigin, params.radius);
+          if (!sphere.IsDone()) {
+            axisOrigin.delete();
+            sphere.delete();
+            throw new Error('BRepPrimAPI_MakeSphere failed');
+          }
+          const newShape = sphere.Shape();
+          if (newShape.IsNull()) {
+            axisOrigin.delete();
+            sphere.delete();
+            throw new Error('BRepPrimAPI_MakeSphere returned null shape');
+          }
+
+          // Apply boolean operation if we have an existing body
+          if (currentBody) {
+            const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
+            if (!result.IsNull() && validateShape(ctx, result)) {
+              currentBody = result;
+            } else {
+              console.error(`Boolean union failed for sphere feature ${feature.id}`);
+            }
+          } else {
+            currentBody = newShape;
+          }
+
+          axisOrigin.delete();
+          sphere.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
