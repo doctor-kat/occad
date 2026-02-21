@@ -232,6 +232,19 @@ export function CADLayout() {
     }
   }, [activeTool, project.features.length, addFeature, selectTool]);
 
+  // Handle cylinder tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.CYLINDER) {
+      addFeature(`Cylinder${project.features.length + 1}`, FeatureTool.CYLINDER, {
+        radius: 25,
+        height: 50,
+        center: { x: 0, y: 0, z: 0 },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Cylinder created' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
   // Handle extrude confirmation
   const handleExtrudeConfirm = (sketchId: string, params: ExtrudeParams) => {
     if (editingFeatureId) {

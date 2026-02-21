@@ -11,6 +11,7 @@ import type {
   ExtrudeParams,
   RevolveParams,
   PrimitiveBoxParams,
+  PrimitiveCylinderParams,
   CADProject,
   MeshData,
   SketchEdgeData,
@@ -639,6 +640,51 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           pMin.delete();
           pMax.delete();
           box.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.CYLINDER) {
+          // Handle primitive cylinder
+          const params = feature.parameters as PrimitiveCylinderParams;
+          const center = params.center || { x: 0, y: 0, z: 0 };
+
+          const axisOrigin = new oc.gp_Pnt_3(center.x, center.y, center.z);
+          const axisDir = new oc.gp_Dir_4(0, 0, 1); // Default to Z-up
+          const axis = new oc.gp_Ax2_3(axisOrigin, axisDir);
+
+          const cylinder = new oc.BRepPrimAPI_MakeCylinder_2(axis, params.radius, params.height);
+          if (!cylinder.IsDone()) {
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+            cylinder.delete();
+            throw new Error('BRepPrimAPI_MakeCylinder failed');
+          }
+          const newShape = cylinder.Shape();
+          if (newShape.IsNull()) {
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+            cylinder.delete();
+            throw new Error('BRepPrimAPI_MakeCylinder returned null shape');
+          }
+
+          // Apply boolean operation if we have an existing body
+          if (currentBody) {
+            const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
+            if (!result.IsNull() && validateShape(ctx, result)) {
+              currentBody = result;
+            } else {
+              console.error(`Boolean union failed for cylinder feature ${feature.id}`);
+            }
+          } else {
+            currentBody = newShape;
+          }
+
+          axisOrigin.delete();
+          axisDir.delete();
+          axis.delete();
+          cylinder.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
