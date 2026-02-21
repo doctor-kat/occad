@@ -20,13 +20,15 @@ import type {
   ChamferParams,
   ShellParams,
   OffsetParams,
+  TransformParams,
+  MeasureParams,
   CADProject,
   MeshData,
   SketchEdgeData,
   Point3D,
   Vector3D,
 } from '@/cad/types';
-import { ShapeType, FeatureTool, PlaneType, SketchElementType } from '@/cad/types';
+import { ShapeType, FeatureTool, TransformTool, PlaneType, SketchElementType } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
 import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
@@ -1025,6 +1027,60 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           mkOffset.delete();
 
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (
+          feature.type === FeatureTool.MOVE ||
+          feature.type === FeatureTool.ROTATE ||
+          feature.type === FeatureTool.MIRROR ||
+          feature.type === FeatureTool.SCALE
+        ) {
+          // Handle transformations
+          if (!currentBody) {
+            throw new Error('Transformation requires an existing body');
+          }
+
+          const params = feature.parameters as TransformParams;
+          const trsf = new oc.gp_Trsf_1();
+
+          if (feature.type === FeatureTool.MOVE && params.translation) {
+            const vec = new oc.gp_Vec_4(params.translation.x, params.translation.y, params.translation.z);
+            trsf.SetTranslation_1(vec);
+            vec.delete();
+          } else if (feature.type === FeatureTool.ROTATE && params.rotation) {
+            const axisOrigin = new oc.gp_Pnt_3(params.rotation.axis.origin.x, params.rotation.axis.origin.y, params.rotation.axis.origin.z);
+            const axisDir = new oc.gp_Dir_4(params.rotation.axis.direction.x, params.rotation.axis.direction.y, params.rotation.axis.direction.z);
+            const axis = new oc.gp_Ax1_2(axisOrigin, axisDir);
+            const angleRad = (params.rotation.angle * Math.PI) / 180;
+            trsf.SetRotation_1(axis, angleRad);
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+          } else if (feature.type === FeatureTool.MIRROR && params.mirrorPlane) {
+            const axisOrigin = new oc.gp_Pnt_3(params.mirrorPlane.origin.x, params.mirrorPlane.origin.y, params.mirrorPlane.origin.z);
+            const axisDir = new oc.gp_Dir_4(params.mirrorPlane.direction.x, params.mirrorPlane.direction.y, params.mirrorPlane.direction.z);
+            const axis = new oc.gp_Ax2_3(axisOrigin, axisDir);
+            trsf.SetMirror_3(axis);
+            axisOrigin.delete();
+            axisDir.delete();
+            axis.delete();
+          } else if (feature.type === FeatureTool.SCALE && params.scale) {
+            const center = new oc.gp_Pnt_3(params.scale.center.x, params.scale.center.y, params.scale.center.z);
+            trsf.SetScale(center, params.scale.factor);
+            center.delete();
+          }
+
+          const transformer = new oc.BRepBuilderAPI_Transform_2(currentBody, trsf, true);
+          currentBody = transformer.Shape();
+          
+          transformer.delete();
+          trsf.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.MEASURE) {
+          // Measure is currently a non-modifying feature in history
+          // Results should be posted back to UI, but for now just pass through the body
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
         }

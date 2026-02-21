@@ -11,7 +11,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:primitives": "playwright test e2e/primitives.spec.ts",
+    "test:e2e:modifications": "playwright test e2e/modifications.spec.ts",
+    "test:e2e:transformations": "playwright test e2e/transformations.spec.ts",
+    "test:e2e:all": "playwright test e2e/*.spec.ts"
   },
   "dependencies": {
     "@mantine/core": "7",

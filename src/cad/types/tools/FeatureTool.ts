@@ -22,5 +22,12 @@ export enum FeatureTool {
   FILLET = 'fillet',
   CHAMFER = 'chamfer',
   SHELL = 'shell',
-  OFFSET = 'offset'
+  OFFSET = 'offset',
+  // Transformations
+  MOVE = 'move',
+  ROTATE = 'rotate',
+  MIRROR = 'mirror',
+  SCALE = 'scale',
+  // Evaluation
+  MEASURE = 'measure'
 }

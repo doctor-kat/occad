@@ -11,6 +11,8 @@ import { FilletParams } from './FilletParams';
 import { ChamferParams } from './ChamferParams';
 import { ShellParams } from './ShellParams';
 import { OffsetParams } from './OffsetParams';
+import { TransformParams } from './TransformParams';
+import { MeasureParams } from './MeasureParams';
 
 export type OperationParams =
   | ExtrudeParams
@@ -25,4 +27,6 @@ export type OperationParams =
   | FilletParams
   | ChamferParams
   | ShellParams
-  | OffsetParams;
+  | OffsetParams
+  | TransformParams
+  | MeasureParams;

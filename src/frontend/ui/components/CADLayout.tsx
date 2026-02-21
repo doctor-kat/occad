@@ -13,7 +13,7 @@ import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { Cube, Polygon } from '@phosphor-icons/react';
 import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
-import { SketchTool, PlaneType, FeatureTool, ToolCategory, ReferenceGeometryType } from '@/cad/types';
+import { SketchTool, PlaneType, FeatureTool, TransformTool, ToolCategory, ReferenceGeometryType } from '@/cad/types';
 
 export function CADLayout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -355,6 +355,77 @@ export function CADLayout() {
       notifications.show({ color: 'green', message: 'Offset applied to body' });
     }
   }, [activeTool, project.features.length, addFeature, selectTool]);
+
+  // Handle move tool selection
+  useEffect(() => {
+    if (activeTool === TransformTool.MOVE) {
+      addFeature(`Move${project.features.length + 1}`, FeatureTool.MOVE, {
+        type: TransformTool.MOVE,
+        translation: { x: 10, y: 0, z: 0 },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Move transformation applied' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
+  // Handle rotate tool selection
+  useEffect(() => {
+    if (activeTool === TransformTool.ROTATE) {
+      addFeature(`Rotate${project.features.length + 1}`, FeatureTool.ROTATE, {
+        type: TransformTool.ROTATE,
+        rotation: {
+          axis: { origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } },
+          angle: 45,
+        },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Rotate transformation applied' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
+  // Handle mirror tool selection
+  useEffect(() => {
+    if (activeTool === TransformTool.MIRROR) {
+      addFeature(`Mirror${project.features.length + 1}`, FeatureTool.MIRROR, {
+        type: TransformTool.MIRROR,
+        mirrorPlane: { origin: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Mirror transformation applied' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
+  // Handle scale tool selection
+  useEffect(() => {
+    if (activeTool === TransformTool.SCALE) {
+      addFeature(`Scale${project.features.length + 1}`, FeatureTool.SCALE, {
+        type: TransformTool.SCALE,
+        scale: {
+          factor: 1.5,
+          center: { x: 0, y: 0, z: 0 },
+        },
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Scale transformation applied' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
+  // Handle measure tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.MEASURE) {
+      const entities: string[] = [];
+      if (selectedFaceId !== null) entities.push(`face-${selectedFaceId}`);
+      if (selectedEdgeIndex !== null) entities.push(`edge-${selectedEdgeIndex}`);
+      if (selectedVertexIndex !== null) entities.push(`vertex-${selectedVertexIndex}`);
+
+      addFeature(`Measure${project.features.length + 1}`, FeatureTool.MEASURE, {
+        type: 'distance',
+        entities,
+      });
+      selectTool(null);
+      notifications.show({ color: 'blue', message: 'Measurement feature added' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool, selectedFaceId, selectedEdgeIndex, selectedVertexIndex]);
 
   // Handle extrude confirmation
   const handleExtrudeConfirm = (sketchId: string, params: ExtrudeParams) => {

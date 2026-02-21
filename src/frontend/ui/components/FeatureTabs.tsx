@@ -228,9 +228,7 @@ const disabledTools: Tool[] = [
   'union', 'intersect',
   // Modifications - not yet implemented
   // Evaluate - not yet implemented
-  'measure',
   // Transform - not yet implemented
-  'move', 'rotate', 'mirror', 'scale',
   // I/O - not yet implemented
   'import-step', 'import-iges', 'export-step', 'export-iges', 'export-stl', 'export-gltf',
 ];
