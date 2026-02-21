@@ -185,13 +185,13 @@ export function SketchOverlay({
   // Origin crosshair geometries (memoised to avoid per-render allocation)
   const xAxisGeo = useMemo(() => {
     const geo = new THREE.BufferGeometry();
-    geo.setFromPoints([new THREE.Vector3(-100, 0, 0), new THREE.Vector3(100, 0, 0)]);
+    geo.setFromPoints([new THREE.Vector3(-50, 0, 0), new THREE.Vector3(50, 0, 0)]);
     return geo;
   }, []);
 
   const yAxisGeo = useMemo(() => {
     const geo = new THREE.BufferGeometry();
-    geo.setFromPoints([new THREE.Vector3(0, -100, 0), new THREE.Vector3(0, 100, 0)]);
+    geo.setFromPoints([new THREE.Vector3(0, -50, 0), new THREE.Vector3(0, 50, 0)]);
     return geo;
   }, []);
 

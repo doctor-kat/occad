@@ -681,7 +681,7 @@ function OriginPoint({ visible, selectedPlaneId, dimmed = false }: OriginPointPr
 
   const isSelected = selectedPlaneId === 'origin';
   const size = isSelected ? 0.8 : 0.5;
-  const axisLength = 15;
+  const axisLength = 7.5;
 
   const sphereOpacity = dimmed ? 0.2 : isSelected ? 1 : 0.8;
   const axisOpacity = dimmed ? 0.15 : 0.6;
