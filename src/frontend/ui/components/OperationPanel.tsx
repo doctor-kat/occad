@@ -47,12 +47,19 @@ export function OperationPanel({
 
   // Sync sketchId state when props change
   useEffect(() => {
-    if (selectedSketchId) {
-      setSketchId(selectedSketchId);
-    } else if (sketches.length > 0 && !sketchId) {
-      setSketchId(sketches[0].id);
+    if (selectedSketchId && sketches.some(s => s.id === selectedSketchId)) {
+      if (sketchId !== selectedSketchId) {
+        setSketchId(selectedSketchId);
+      }
+    } else if (sketches.length > 0) {
+      // If current sketchId is not valid for the new sketches list, reset it to the first valid sketch
+      if (sketchId === '' || !sketches.some(s => s.id === sketchId)) {
+        setSketchId(sketches[0].id);
+      }
+    } else if (sketchId !== '') {
+      setSketchId('');
     }
-  }, [selectedSketchId, sketches, sketchId]);
+  }, [selectedSketchId, sketches]); // Removed 'sketchId' from dependencies to avoid loop
 
   // Sync state with initialParams if they change (e.g. when switching which feature is being edited)
   useEffect(() => {
@@ -63,15 +70,15 @@ export function OperationPanel({
   }, [initialParams]);
 
   const handleConfirm = () => {
-    if (!sketchId) return;
+    const selectedSketch = sketches.find(s => s.id === sketchId);
+    if (!selectedSketch) return;
 
     const distanceValue = parseFloat(distance);
     if (isNaN(distanceValue) || distanceValue === 0) {
       return;
     }
 
-    const selectedSketch = sketches.find(s => s.id === sketchId);
-    const planeNormal = selectedSketch ? getSketchNormal(selectedSketch.plane) : { x: 0, y: 0, z: 1 };
+    const planeNormal = getSketchNormal(selectedSketch.plane);
 
     const params: ExtrudeParams = {
       distance: direction === 'normal' ? distanceValue : -distanceValue,

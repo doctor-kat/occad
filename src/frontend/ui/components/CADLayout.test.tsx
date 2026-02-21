@@ -59,7 +59,7 @@ describe("CADLayout", () => {
     expect(screen.getByText("Top Plane")).toBeInTheDocument();
     expect(screen.getByText("Right Plane")).toBeInTheDocument();
     expect(screen.getByText("Origin")).toBeInTheDocument();
-    expect(screen.getByText("Boss-Extrude1")).toBeInTheDocument();
+    expect(screen.queryByText("Boss-Extrude1")).not.toBeInTheDocument();
     expect(screen.getByTestId("mock-viewport")).toBeInTheDocument();
   });
 
@@ -84,7 +84,7 @@ describe("CADLayout", () => {
 
     // A new sketch should appear in the tree
     await waitFor(() => {
-      expect(screen.getByText(/Sketch 2/)).toBeInTheDocument();
+      expect(screen.getByText(/Sketch 1/)).toBeInTheDocument();
     });
   });
 
@@ -123,7 +123,7 @@ describe("CADLayout", () => {
 
     // A new sketch should now appear
     await waitFor(() => {
-      expect(screen.getByText(/Sketch 2/)).toBeInTheDocument();
+      expect(screen.getByText(/Sketch 1/)).toBeInTheDocument();
     });
   });
 
@@ -176,10 +176,18 @@ describe("CADLayout", () => {
     expect(screen.getByTestId("occ-status").textContent).toBe("ready");
   });
 
-  it("should trigger rebuild when status is ready and features exist", () => {
+  it("should trigger rebuild when status is ready and features exist", async () => {
+    const user = userEvent.setup();
     renderWithProviders(<CADLayout />);
 
-    // The default project has a Boss-Extrude1 feature, so rebuild should be called
+    // Initially no rebuild because no features
+    expect(mockOCC.rebuild).not.toHaveBeenCalled();
+
+    // Add a feature (e.g. Box)
+    const boxButton = screen.getByText("Box");
+    await user.click(boxButton);
+
+    // Now rebuild should be called
     expect(mockOCC.rebuild).toHaveBeenCalled();
   });
 

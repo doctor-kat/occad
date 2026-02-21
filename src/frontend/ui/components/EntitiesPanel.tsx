@@ -1,4 +1,4 @@
-import { Stack, Text, Box, ScrollArea, useMantineTheme, Group, ActionIcon, Badge } from '@mantine/core';
+import { Stack, Text, Box, ScrollArea, useMantineTheme, Group, ActionIcon, Badge, Center } from '@mantine/core';
 import { CaretRight, CaretDown, Polygon, LineSegment } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { MeshData } from '@/cad/types';
@@ -25,14 +25,25 @@ export function EntitiesPanel({
   const [facesExpanded, setFacesExpanded] = useState(true);
   const [edgesExpanded, setEdgesExpanded] = useState(true);
 
-  if (!mesh) return null;
-
   // Derive face count from faceMapping (max value + 1)
-  const faceMapping = mesh.faceMapping || [];
+  const faceMapping = mesh?.faceMapping || [];
   const faceCount = faceMapping.length > 0 ? Math.max(...faceMapping) + 1 : 0;
 
   // Use the deduplicated edge count from the worker
-  const edgeCount = mesh.edgeCount;
+  const edgeCount = mesh?.edgeCount || 0;
+
+  if (!mesh || (edgeCount === 0 && faceCount === 0)) {
+    return (
+      <Center style={{ flex: 1, height: '100%' }} p="md">
+        <Stack align="center" gap="xs">
+          <Polygon size={32} weight="thin" color={theme.other.colors.mutedForeground} />
+          <Text size="xs" c="dimmed" ta="center">
+            No geometry entities found. Create a feature to see its faces and edges.
+          </Text>
+        </Stack>
+      </Center>
+    );
+  }
 
   return (
     <Stack gap={0} style={{ flex: 1, height: '100%' }}>

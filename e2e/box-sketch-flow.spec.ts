@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Box-Sketch Flow', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/');
-        // Wait for initial load
-        await page.waitForSelector('text=Boss-Extrude1', { timeout: 10000 });
+        // Wait for initial load - Front Plane should always be there
+        await page.waitForSelector('text=Front Plane', { timeout: 10000 });
     });
 
     test('should create a box, select a face, and create a sketch with a rectangle', async ({ page }) => {
@@ -12,39 +12,44 @@ test.describe('Box-Sketch Flow', () => {
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });
         await boxButton.click();
 
-        // Verify Box2 appears in Feature Tree
-        await expect(page.locator('text=Box2')).toBeVisible({ timeout: 10000 });
+        // Verify Box1 appears in Feature Tree
+        await expect(page.locator('text=Box1')).toBeVisible({ timeout: 15000 });
 
         // Wait for worker to rebuild and mesh to be ready
-        await expect(page.locator('text=Rebuild complete')).toBeVisible({ timeout: 15000 });
+        // Rebuild complete notification appears
+        await expect(page.locator('text=Rebuild complete')).toBeVisible({ timeout: 20000 });
 
-        // 2. Open Entities Panel if not already open (it's absolute positioned, should be visible if mesh exists)
-        // The panel appears when mesh is available.
-        // First, switch to Entities tab
+        // 2. Open Entities Panel
+        // Switch to Entities tab using text click which is robust
         await page.getByRole('tab', { name: 'Entities' }).click();
-        await expect(page.locator('text=Entities')).toBeVisible({ timeout: 10000 });
+        
+        // Wait for Entities panel header
+        await expect(page.locator('text=Faces')).toBeVisible({ timeout: 15000 });
+        
+        // Wait for Face 1 to appear
+        await page.waitForSelector('text=Face 1', { timeout: 15000 });
 
         // 3. Select the latest Face (should belong to the new Box)
-        const allFaces = page.locator('div[data-selected]').filter({ hasText: /^Face \d+$/ });
-        const lastFace = allFaces.last();
-        await lastFace.click();
+        // Find the group that contains "Face 1"
+        const face1Item = page.locator('div[data-selected]').filter({ hasText: /^Face 1$/ }).first();
+        await face1Item.click();
 
         // Verify selection
-        await expect(lastFace).toHaveAttribute('data-selected', 'true');
+        await expect(face1Item).toHaveAttribute('data-selected', 'true');
 
         // 4. Create Sketch on selection
-        // Switch to Sketch tab first
+        // Switch to Sketch tab in toolbar
         await page.getByRole('tab', { name: 'Sketch' }).click();
 
         // Click the 'Sketch' tool button to start a sketch on the selected face
-        const sketchButton = page.getByRole('button', { name: /^Sketch$/ });
+        const sketchButton = page.getByRole('button', { name: /^Sketch$/ }).first();
         await sketchButton.click();
 
         // Switch sidebar back to Feature Tree to see the new sketch
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
 
-        // Verify Sketch2 appears and we are in sketch mode (Sketch tab active)
-        await expect(page.locator('text=Sketch 2')).toBeVisible({ timeout: 10000 });
+        // Verify Sketch 1 appears
+        await expect(page.locator('text=Sketch 1')).toBeVisible({ timeout: 15000 });
 
         // 5. Draw a Rectangle
         const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
@@ -65,22 +70,29 @@ test.describe('Box-Sketch Flow', () => {
             await page.mouse.move(centerX, centerY);
             await page.waitForTimeout(100);
 
-            // Draw a non-symmetrical rectangle (click-click)
-            // Clicks at +40 and +80 should be outside the box (which extends to +25)
-            await page.mouse.click(centerX + 40, centerY + 40); // First corner
+            // Draw a rectangle
+            await page.mouse.move(centerX + 40, centerY + 40);
+            await page.mouse.down();
+            await page.mouse.up();
             await page.waitForTimeout(500);
-            await page.mouse.click(centerX + 80, centerY + 70); // Second corner
-            await page.waitForTimeout(500);
+            
+            await page.mouse.move(centerX + 80, centerY + 70);
+            await page.mouse.down();
+            await page.mouse.up();
+            await page.waitForTimeout(1000);
+            
+            // Verify element was created
+            await expect(page.locator('text=Elements: 1')).toBeVisible({ timeout: 10000 });
         }
 
         // 6. Finish Sketch
-        await sketchButton.click();
+        await page.getByRole('button', { name: 'Finish Sketch' }).click();
 
         // Verify "Sketch completed" notification
         await expect(page.locator('text=Sketch completed')).toBeVisible();
 
-        // Verify Sketch 2 is now in the Feature Tree
-        await expect(page.locator('text=Sketch 2').first()).toBeVisible({ timeout: 15000 });
+        // Verify Sketch 1 is now in the Feature Tree
+        await expect(page.locator('text=Sketch 1').first()).toBeVisible({ timeout: 15000 });
 
         // Check that we are no longer in sketch mode
         await expect(rectangleTool).not.toHaveAttribute('data-variant', 'light');

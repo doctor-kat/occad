@@ -5,9 +5,9 @@ import { FeatureTree } from './FeatureTree';
 import { CADViewport } from '@/frontend/canvas/components/CADViewport';
 import { OperationPanel } from './OperationPanel';
 import { EntitiesPanel } from './EntitiesPanel';
-import { useCADState } from '@/frontend/state/useCADState';
+import { useCADState } from '@/frontend/shared/useCADState';
 import { useOpenCascade } from '@/worker/bridge/useOpenCascade';
-import { useViewportStore } from '@/frontend/state/viewportStore';
+import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Group } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
@@ -144,10 +144,8 @@ export function CADLayout() {
   useEffect(() => {
     if (occStatus !== 'ready') return;
 
-    if (
-      (project.features.length > 0 || project.sketches.length > 0) &&
-      (project.version !== lastRebuiltVersion.current || lastRebuiltVersion.current === 0)
-    ) {
+    // Trigger rebuild if version has increased since last rebuild
+    if (project.version > lastRebuiltVersion.current) {
       lastRebuiltVersion.current = project.version;
       clearAllItemErrors();
       rebuild(project);
@@ -560,7 +558,7 @@ export function CADLayout() {
                     <OperationPanel
                       title={editingFeatureId ? `Edit ${project.features.find(f => f.id === editingFeatureId)?.name}` : (extrudeIsCut ? 'Extruded Cut' : 'Extrude Boss')}
                       sketches={project.sketches}
-                      selectedSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : (selectedTreeItem || undefined)}
+                      selectedSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : (project.sketches.some(s => s.id === selectedTreeItem) ? selectedTreeItem : undefined)}
                       initialParams={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.parameters as ExtrudeParams) : undefined}
                       isCut={extrudeIsCut}
                       onConfirm={handleExtrudeConfirm}
@@ -605,6 +603,7 @@ export function CADLayout() {
                     <Tabs.List>
                       <Tabs.Tab
                         value={ToolCategory.FEATURES}
+                        data-testid="feature-tree-tab"
                         style={{
                           // Ensure transition is smooth
                           transition: 'background-color 200ms, border-color 200ms, color 200ms',
@@ -627,6 +626,7 @@ export function CADLayout() {
                       </Tabs.Tab>
                       <Tabs.Tab
                         value="entities"
+                        data-testid="entities-tab"
                         style={{
                           transition: 'background-color 200ms, border-color 200ms, color 200ms',
                           ...(activeSidebarTab === 'entities' && {

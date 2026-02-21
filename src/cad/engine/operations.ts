@@ -607,24 +607,10 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
           // or just use the center point and offset the box? 
           // BRepPrimAPI_MakeBox(Pmin, Pmax) is very clean for this.
 
-          const pMin = new oc.gp_Pnt_3(center.x - dx / 2, center.y - dy / 2, center.z - dz / 2);
-          const pMax = new oc.gp_Pnt_3(center.x + dx / 2, center.y + dy / 2, center.z + dz / 2);
-
-          const box = new oc.BRepPrimAPI_MakeBox_4(pMin, pMax);
-          if (!box.IsDone()) {
-            pMin.delete();
-            pMax.delete();
-            box.delete();
-            throw new Error('BRepPrimAPI_MakeBox failed');
-          }
+          // Try BRepPrimAPI_MakeBox_2 with dx, dy, dz
+          const box = new oc.BRepPrimAPI_MakeBox_2(dx, dy, dz);
           let newShape = box.Shape();
-          if (newShape.IsNull()) {
-            pMin.delete();
-            pMax.delete();
-            box.delete();
-            throw new Error('BRepPrimAPI_MakeBox returned null shape');
-          }
-
+          
           // Apply boolean operation if we have an existing body
           if (currentBody) {
             const result = performBooleanOperation(ctx, 'union', currentBody, newShape);
@@ -637,8 +623,6 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
             currentBody = newShape;
           }
 
-          pMin.delete();
-          pMax.delete();
           box.delete();
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;

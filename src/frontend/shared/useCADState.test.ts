@@ -23,21 +23,14 @@ describe("useCADState", () => {
       ]);
     });
 
-    it("should have 1 default sketch (Sketch1 with rectangle)", () => {
+    it("should have 0 default sketches", () => {
       const { result } = renderHook(() => useCADState());
-      expect(result.current.project.sketches).toHaveLength(1);
-      expect(result.current.project.sketches[0].name).toBe("Sketch1");
-      expect(result.current.project.sketches[0].elements).toHaveLength(1);
-      expect(result.current.project.sketches[0].elements[0].type).toBe(
-        "rectangle",
-      );
+      expect(result.current.project.sketches).toHaveLength(0);
     });
 
-    it("should have 1 default feature (Boss-Extrude1)", () => {
+    it("should have 0 default features", () => {
       const { result } = renderHook(() => useCADState());
-      expect(result.current.project.features).toHaveLength(1);
-      expect(result.current.project.features[0].name).toBe("Boss-Extrude1");
-      expect(result.current.project.features[0].type).toBe("extrude-boss");
+      expect(result.current.project.features).toHaveLength(0);
     });
 
     it("should have version 1", () => {
@@ -103,7 +96,7 @@ describe("useCADState", () => {
         });
       });
 
-      expect(result.current.project.sketches).toHaveLength(2);
+      expect(result.current.project.sketches).toHaveLength(1);
       expect(result.current.project.version).toBe(versionBefore + 1);
       expect(newSketch).toHaveProperty("id");
       expect(newSketch).toHaveProperty("name", "Test Sketch");
@@ -113,7 +106,16 @@ describe("useCADState", () => {
   describe("startSketchEdit / stopSketchEdit", () => {
     it("should set activeSketchId and switch tab to sketch", () => {
       const { result } = renderHook(() => useCADState());
-      const sketchId = result.current.project.sketches[0].id;
+      let sketchId: string;
+      
+      act(() => {
+        const newSketch = result.current.addSketch("Test Sketch", {
+          type: "xy",
+          planeRef: "front-plane",
+          offset: 0,
+        });
+        sketchId = newSketch.id;
+      });
 
       act(() => {
         result.current.startSketchEdit(sketchId);
@@ -125,7 +127,16 @@ describe("useCADState", () => {
 
     it("should clear activeSketchId on stopSketchEdit", () => {
       const { result } = renderHook(() => useCADState());
-      const sketchId = result.current.project.sketches[0].id;
+      let sketchId: string;
+
+      act(() => {
+        const newSketch = result.current.addSketch("Test Sketch", {
+          type: "xy",
+          planeRef: "front-plane",
+          offset: 0,
+        });
+        sketchId = newSketch.id;
+      });
 
       act(() => {
         result.current.startSketchEdit(sketchId);
@@ -188,7 +199,7 @@ describe("useCADState", () => {
         });
       });
 
-      expect(result.current.project.features).toHaveLength(2);
+      expect(result.current.project.features).toHaveLength(1);
       expect(result.current.project.version).toBe(versionBefore + 1);
     });
   });
@@ -197,7 +208,7 @@ describe("useCADState", () => {
     it("should delete a sketch by ID", () => {
       const { result } = renderHook(() => useCADState());
 
-      let newSketch;
+      let newSketch: any;
       act(() => {
         newSketch = result.current.addSketch("To Delete", {
           type: "xy",
@@ -206,13 +217,13 @@ describe("useCADState", () => {
         });
       });
 
-      expect(result.current.project.sketches).toHaveLength(2);
+      expect(result.current.project.sketches).toHaveLength(1);
 
       act(() => {
         result.current.deleteTreeItem(newSketch!.id);
       });
 
-      expect(result.current.project.sketches).toHaveLength(1);
+      expect(result.current.project.sketches).toHaveLength(0);
     });
 
     it("should not delete reference geometry", () => {
@@ -228,7 +239,7 @@ describe("useCADState", () => {
     it("should clear selection if the deleted item was selected", () => {
       const { result } = renderHook(() => useCADState());
 
-      let newSketch;
+      let newSketch: any;
       act(() => {
         newSketch = result.current.addSketch("To Delete", {
           type: "xy",
@@ -262,6 +273,17 @@ describe("useCADState", () => {
 
     it("should nest sketch under parent feature", () => {
       const { result } = renderHook(() => useCADState());
+      
+      let sketch: any;
+      act(() => {
+        sketch = result.current.addSketch("Sketch", {
+          type: "xy",
+          planeRef: "front-plane",
+          offset: 0,
+        });
+        result.current.addFeature("Feature", "extrude-boss", { distance: 10, isCut: false }, sketch.id, [sketch.id]);
+      });
+
       const featureItem = result.current.featureTree.find(
         (i) => i.type === "feature",
       );
@@ -292,7 +314,12 @@ describe("useCADState", () => {
   describe("visibility toggling", () => {
     it("should toggle feature isVisible correctly", () => {
       const { result } = renderHook(() => useCADState());
-      const featureId = result.current.project.features[0].id;
+      let featureId: string;
+
+      act(() => {
+        const feature = result.current.addFeature("Feature", "extrude-boss", { distance: 10, isCut: false });
+        featureId = feature.id;
+      });
 
       // Default feature is visible
       expect(result.current.project.features[0].isVisible).toBe(true);
@@ -312,15 +339,18 @@ describe("useCADState", () => {
 
     it("should toggle sketch isVisible correctly", () => {
       const { result } = renderHook(() => useCADState());
-      const sketchId = result.current.project.sketches[0].id;
-
-      // Default consumed sketch is hidden (isVisible: false)
-      expect(result.current.project.sketches[0].isVisible).toBe(false);
+      let sketchId: string;
 
       act(() => {
-        result.current.toggleTreeItemVisibility(sketchId);
+        const sketch = result.current.addSketch("Sketch", {
+          type: "xy",
+          planeRef: "front-plane",
+          offset: 0,
+        });
+        sketchId = sketch.id;
       });
 
+      // Standalone sketch is visible (isVisible: true)
       expect(result.current.project.sketches[0].isVisible).toBe(true);
 
       act(() => {
@@ -328,6 +358,12 @@ describe("useCADState", () => {
       });
 
       expect(result.current.project.sketches[0].isVisible).toBe(false);
+
+      act(() => {
+        result.current.toggleTreeItemVisibility(sketchId);
+      });
+
+      expect(result.current.project.sketches[0].isVisible).toBe(true);
     });
 
     it("should auto-hide sketch when consumed by addFeature", () => {
@@ -370,7 +406,12 @@ describe("useCADState", () => {
     it("feature tree reflects visibility for features and consumed sketches", () => {
       const { result } = renderHook(() => useCADState());
 
-      // Default: feature visible, consumed sketch hidden
+      act(() => {
+        const sketch = result.current.addSketch("Sketch", { type: "xy", planeRef: "front-plane", offset: 0 });
+        result.current.addFeature("Feature", "extrude-boss", { distance: 10, isCut: false }, sketch.id, [sketch.id]);
+      });
+
+      // Feature visible, consumed sketch hidden
       const featureItem = result.current.featureTree.find(
         (i) => i.type === "feature",
       );
@@ -436,8 +477,8 @@ describe("useCADState", () => {
       const stored = JSON.parse(
         localStorage.getItem("occad-project") || "{}",
       );
-      expect(stored.sketches).toHaveLength(2);
-      expect(stored.sketches[1].name).toBe("Persisted Sketch");
+      expect(stored.sketches).toHaveLength(1);
+      expect(stored.sketches[0].name).toBe("Persisted Sketch");
     });
 
     it("should restore from localStorage on re-render", () => {
@@ -457,7 +498,7 @@ describe("useCADState", () => {
       // Re-render — should load from localStorage
       const { result: result2 } = renderHook(() => useCADState());
       expect(result2.current.project.id).toBe(projectId);
-      expect(result2.current.project.sketches).toHaveLength(2);
+      expect(result2.current.project.sketches).toHaveLength(1);
     });
   });
 });

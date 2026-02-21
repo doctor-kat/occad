@@ -256,7 +256,12 @@ export function useCADState() {
               sketches: prev.sketches.filter((s) => s.id !== currentSketchId),
             };
           }
-          return prev;
+          // Increment version even if not deleted so a rebuild is triggered to build the sketch geometry
+          return {
+            ...prev,
+            version: prev.version + 1,
+            updatedAt: Date.now(),
+          };
         });
       }
       return null;

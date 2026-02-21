@@ -18,21 +18,19 @@ test.describe('SketchOverlay', () => {
   });
 
   test('should enter sketch mode without R3F namespace errors', async ({ page }) => {
-    // Wait for the app to load - check that the FeatureTree shows expected items
-    await page.waitForSelector('text=Sketch1', { timeout: 10000 });
-    await page.waitForSelector('text=Boss-Extrude1', { timeout: 5000 });
+    // Wait for the app to load - Front Plane should always be there
+    await page.waitForSelector('text=Front Plane', { timeout: 10000 });
 
-    // Click "Sketch1" in the FeatureTree to select it
-    await page.click('text=Sketch1');
+    // Switch to Sketch tab first
+    await page.getByRole('tab', { name: 'Sketch' }).click();
 
-    // Wait a moment for the selection to register and UI to update
-    await page.waitForTimeout(500);
+    // Click a sketch tool to start a new sketch
+    // This will automatically create "Sketch 1" on the default plane
+    const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
+    await rectangleTool.click();
 
-    // Find the edit button - it should be visible in the Sketch1 row
-    // The edit button has a PencilSimple icon and appears after selection
-    const sketch1Row = page.locator('.tree-item-row', { has: page.locator('text=Sketch1') });
-    const editButton = sketch1Row.locator('button').filter({ has: page.locator('svg') }).nth(2); // Third button (visibility, expand/collapse, edit)
-    await editButton.click({ timeout: 10000 });
+    // Verify Sketch 1 appears in Feature Tree
+    await expect(page.locator('text=Sketch 1')).toBeVisible({ timeout: 10000 });
 
     // Wait for SketchOverlay to render
     await page.waitForTimeout(2000);
