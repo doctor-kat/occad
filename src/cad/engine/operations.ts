@@ -936,6 +936,97 @@ export function handleRebuild(ctx: WorkerContext, project: CADProject): void {
 
           const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
           ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.SHELL) {
+          // Handle shell operation
+          if (!currentBody) {
+            throw new Error('Shell requires an existing body');
+          }
+
+          const params = feature.parameters as ShellParams;
+          
+          // Get faces to remove
+          const faceExplorer = new oc.TopExp_Explorer_2(
+            currentBody,
+            oc.TopAbs_ShapeEnum.TopAbs_FACE,
+            oc.TopAbs_ShapeEnum.TopAbs_SHAPE
+          );
+
+          const allFaces: any[] = [];
+          for (; faceExplorer.More(); faceExplorer.Next()) {
+            allFaces.push(oc.TopoDS.Face_1(faceExplorer.Current()));
+          }
+
+          const facesToRemove = new oc.TopTools_ListOfShape_1();
+          params.faces.forEach(faceRef => {
+            const match = faceRef.match(/face-(\d+)/);
+            if (match) {
+              const faceIdx = parseInt(match[1]);
+              if (faceIdx >= 0 && faceIdx < allFaces.length) {
+                facesToRemove.Append_1(allFaces[faceIdx]);
+              }
+            }
+          });
+
+          // BRepOffsetAPI_MakeThickSolid(S, closingFaces, offset, tolerance)
+          const mkShell = new oc.BRepOffsetAPI_MakeThickSolid_1();
+          mkShell.MakeThickSolidByJoin(
+            currentBody, 
+            facesToRemove, 
+            -params.thickness, // OC uses positive for outward, we'll follow that convention but negate for typical "inward" shell
+            1e-6,
+            oc.BRepOffset_Mode.BRepOffset_Skin,
+            false,
+            false,
+            oc.GeomAbs_JoinType.GeomAbs_Arc,
+            false,
+            new oc.Message_ProgressRange_1()
+          );
+
+          if (mkShell.IsDone()) {
+            currentBody = mkShell.Shape();
+          } else {
+            console.error(`Shell operation failed for feature ${feature.id}`);
+          }
+
+          mkShell.delete();
+          facesToRemove.delete();
+          faceExplorer.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
+        } else if (feature.type === FeatureTool.OFFSET) {
+          // Handle offset operation
+          if (!currentBody) {
+            throw new Error('Offset requires an existing body');
+          }
+
+          const params = feature.parameters as OffsetParams;
+          
+          // If faces are specified, we might want to offset just those, 
+          // but BRepOffsetAPI_MakeOffsetShape usually offsets the whole solid.
+          // For now, implement full body offset.
+          const mkOffset = new oc.BRepOffsetAPI_MakeOffsetShape_2(
+            currentBody,
+            params.distance,
+            1e-6,
+            oc.BRepOffset_Mode.BRepOffset_Skin,
+            false,
+            false,
+            oc.GeomAbs_JoinType.GeomAbs_Arc,
+            false,
+            new oc.Message_ProgressRange_1()
+          );
+
+          if (mkOffset.IsDone()) {
+            currentBody = mkOffset.Shape();
+          } else {
+            console.error(`Offset operation failed for feature ${feature.id}`);
+          }
+
+          mkOffset.delete();
+
+          const shapeId = `feature_${feature.id}_${shapeIdCounter++}`;
+          ctx.shapeStorage.set(shapeId, currentBody);
         }
 
         processedFeatures++;

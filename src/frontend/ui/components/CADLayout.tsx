@@ -332,6 +332,30 @@ export function CADLayout() {
     }
   }, [activeTool, project.features.length, addFeature, selectTool, selectedEdgeIndex]);
 
+  // Handle shell tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.SHELL) {
+      addFeature(`Shell${project.features.length + 1}`, FeatureTool.SHELL, {
+        thickness: 2,
+        faces: selectedFaceId !== null ? [`face-${selectedFaceId}`] : [],
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Shell operation applied' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool, selectedFaceId]);
+
+  // Handle offset tool selection
+  useEffect(() => {
+    if (activeTool === FeatureTool.OFFSET) {
+      addFeature(`Offset${project.features.length + 1}`, FeatureTool.OFFSET, {
+        distance: 5,
+        faces: [], // For now, offset full body
+      });
+      selectTool(null);
+      notifications.show({ color: 'green', message: 'Offset applied to body' });
+    }
+  }, [activeTool, project.features.length, addFeature, selectTool]);
+
   // Handle extrude confirmation
   const handleExtrudeConfirm = (sketchId: string, params: ExtrudeParams) => {
     if (editingFeatureId) {
