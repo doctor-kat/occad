@@ -3,4 +3,6 @@ export enum SketchConstraintType {
   COINCIDENT = 'coincident',
   HORIZONTAL = 'horizontal',
   VERTICAL = 'vertical',
+  PARALLEL = 'parallel',
+  PERPENDICULAR = 'perpendicular'
 }
