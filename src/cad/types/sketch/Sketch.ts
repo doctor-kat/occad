@@ -1,6 +1,6 @@
 import { ShapeReference } from '../geometry/ShapeReference';
-import { SketchElement } from './SketchElement';
-import { SketchPlane } from './SketchPlane/SketchPlane';
+import { SketchPoint } from './SketchPoint';
+import { SketchConstraint } from './SketchConstraint';
 
 export interface Sketch {
   id: string;
@@ -9,6 +9,10 @@ export interface Sketch {
   plane: SketchPlane;
   /** 2D geometry elements in this sketch */
   elements: SketchElement[];
+  /** Discrete points in the sketch (used by constraints and sketch elements) */
+  points: SketchPoint[];
+  /** Constraints applied to sketch elements and points */
+  constraints: SketchConstraint[];
   /** Reference to the OpenCascade wire/face generated from this sketch */
   geometry?: ShapeReference;
   /** Whether the sketch is closed (can be used for extrude/revolve) */
