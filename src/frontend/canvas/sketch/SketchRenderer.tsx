@@ -1,11 +1,13 @@
 import { useRef } from 'react';
-import { Line, Sphere } from '@react-three/drei';
-import { BufferGeometry, Float32BufferAttribute, Vector3 } from 'three';
+import { Line, Sphere, Circle } from '@react-three/drei'; // Added Circle
+import { BufferGeometry, Float32BufferAttribute, Vector3, Quaternion } from 'three'; // Added Quaternion
 import { Sketch } from '@/cad/types/sketch/Sketch';
 import { SketchElementType } from '@/cad/types/sketch/SketchElementType';
 import { Point2D } from '@/cad/types/geometry/Point2D';
 import { SketchPoint } from '@/cad/types/sketch/SketchPoint';
 import { SketchPlane } from '@/cad/types/sketch/SketchPlane/SketchPlane';
+import { SketchCircle } from '@/cad/types/sketch/SketchCircle'; // New import
+import { SketchArc } from '@/cad/types/sketch/SketchArc';     // New import
 
 interface SketchRendererProps {
   sketch: Sketch;
@@ -33,19 +35,24 @@ const convertSketchPointTo3D = (
   const origin = new Vector3(sketchPlane.origin.x, sketchPlane.origin.y, sketchPlane.origin.z);
   const normal = new Vector3(sketchPlane.normal.x, sketchPlane.normal.y, sketchPlane.normal.z);
 
-  // For simplicity, handle only XY plane for now, expand for others later
-  if (sketchPlane.type === 'XY') {
-    return new Vector3(currentX, currentY, offset);
-  } else if (sketchPlane.type === 'custom' && sketchPlane.origin && sketchPlane.normal) {
-    // Reimplement the transformation logic from worker's sketchPointTo3D
-    // to ensure consistency. This is a simplified version.
-    // Full transformation involves constructing a local coordinate system.
-    // For now, let's just project along normal from origin for custom planes.
-    // This needs to be robustly implemented later.
-    return origin.clone().add(new Vector3(currentX, currentY, 0).applyQuaternion(new Vector3(0,0,1).cross(normal).normalize().multiplyScalar(currentX).add(new Vector3().crossVectors(normal, new Vector3(0,0,1)).normalize().multiplyScalar(currentY))));
+  // Determine an 'up' vector for the plane's orientation
+  let upVector = new Vector3(0, 1, 0); // Default up
+  if (normal.y > 0.9) { // If normal is close to Y-axis, use Z as up
+    upVector = new Vector3(0, 0, 1);
+  } else if (normal.y < -0.9) { // If normal is close to negative Y-axis, use Z as up
+    upVector = new Vector3(0, 0, 1);
   }
 
-  return new Vector3(currentX, currentY, offset); // Fallback
+  // Create a quaternion to rotate from default Z-up (0,0,1) to the plane's normal
+  const targetNormal = normal.clone().normalize();
+  const defaultZ = new Vector3(0, 0, 1);
+  const quaternion = new Quaternion().setFromUnitVectors(defaultZ, targetNormal);
+
+  // Position on the plane relative to its origin
+  let localPoint = new Vector3(currentX, currentY, 0); // Start in XY plane
+  localPoint.applyQuaternion(quaternion); // Rotate into the custom plane's orientation
+
+  return origin.clone().add(localPoint);
 };
 
 
@@ -85,7 +92,84 @@ export function SketchRenderer({ sketch }: SketchRendererProps) {
           </Sphere>
         );
       }
-      // TODO: Add cases for other SketchElementTypes (Circle, Arc, etc.)
+      case SketchElementType.CIRCLE: {
+        const circle = element as SketchCircle;
+        const centerPoint2D: Point2D = { id: circle.centerId, x: 0, y: 0 }; // x,y dummy, will be overridden
+        const center = convertSketchPointTo3D(centerPoint2D, sketch.plane, pointsMap.current);
+
+        // For a wireframe circle, we use a Line to draw its circumference.
+        const segments = 64; // Number of segments to approximate the circle
+        const circlePoints: number[] = [];
+        for (let i = 0; i <= segments; i++) {
+          const angle = (i / segments) * Math.PI * 2;
+          const x = circle.radius * Math.cos(angle);
+          const y = circle.radius * Math.sin(angle);
+          const z = 0; // Local z-coordinate on the plane
+
+          // Convert local 2D circle point to 3D world space
+          const localPoint = new Vector3(x, y, z);
+          const transformedPoint = localPoint.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0,0,1), new Vector3().copy(sketch.plane.normal as Vector3).normalize())).add(center);
+          circlePoints.push(transformedPoint.x, transformedPoint.y, transformedPoint.z);
+        }
+
+        return (
+          <Line
+            key={circle.id}
+            points={circlePoints}
+            color="green"
+            lineWidth={2}
+            dashed={false}
+          />
+        );
+      }
+      case SketchElementType.ARC: {
+        const arc = element as SketchArc;
+        const centerPoint2D: Point2D = { id: arc.centerId, x: 0, y: 0 }; // x,y dummy, will be overridden
+        const center = convertSketchPointTo3D(centerPoint2D, sketch.plane, pointsMap.current);
+
+        const startPoint = convertSketchPointTo3D({ id: arc.startPointId, x:0, y:0 }, sketch.plane, pointsMap.current);
+        const endPoint = convertSketchPointTo3D({ id: arc.endPointId, x:0, y:0 }, sketch.plane, pointsMap.current);
+
+        // Vectors from center to start/end points in the plane's local XY
+        const startVectorLocal = new Vector3().subVectors(startPoint, center);
+        const endVectorLocal = new Vector3().subVectors(endPoint, center);
+
+        let startAngle = Math.atan2(startVectorLocal.y, startVectorLocal.x);
+        let endAngle = Math.atan2(endVectorLocal.y, endVectorLocal.x);
+
+        // Normalize angles to 0-2PI range
+        if (startAngle < 0) startAngle += 2 * Math.PI;
+        if (endAngle < 0) endAngle += 2 * Math.PI;
+
+        // Ensure arc sweeps in positive direction
+        if (endAngle < startAngle) endAngle += 2 * Math.PI;
+
+        // Generate points along the arc
+        const segments = 64;
+        const arcPoints: number[] = [];
+        for (let i = 0; i <= segments; i++) {
+          const angle = startAngle + (i / segments) * (endAngle - startAngle);
+          const x = arc.radius * Math.cos(angle);
+          const y = arc.radius * Math.sin(angle);
+          const z = 0; // Local z-coordinate on the plane
+
+          // Convert local 2D arc point to 3D world space
+          const localPoint = new Vector3(x, y, z);
+          const transformedPoint = localPoint.applyQuaternion(new Quaternion().setFromUnitVectors(new Vector3(0,0,1), new Vector3().copy(sketch.plane.normal as Vector3).normalize())).add(center);
+          arcPoints.push(transformedPoint.x, transformedPoint.y, transformedPoint.z);
+        }
+
+        return (
+          <Line
+            key={arc.id}
+            points={arcPoints}
+            color="purple"
+            lineWidth={2}
+            dashed={false}
+          />
+        );
+      }
+      // TODO: Add cases for other SketchElementTypes (Rectangle, Polygon, Ellipse, Spline, Bezier)
       default:
         return null;
     }
