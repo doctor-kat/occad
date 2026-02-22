@@ -6,6 +6,7 @@ import { SketchPolygon } from './SketchPolygon';
 import { SketchEllipse } from './SketchEllipse';
 import { SketchSpline } from './SketchSpline';
 import { SketchBezier } from './SketchBezier';
+import { SketchPoint } from './SketchPoint';
 
 export type SketchElement =
   | SketchLine
@@ -15,4 +16,5 @@ export type SketchElement =
   | SketchPolygon
   | SketchEllipse
   | SketchSpline
-  | SketchBezier;
+  | SketchBezier
+  | SketchPoint;

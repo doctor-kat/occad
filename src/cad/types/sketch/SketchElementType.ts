@@ -6,5 +6,6 @@ export enum SketchElementType {
   POLYGON = 'polygon',
   ELLIPSE = 'ellipse',
   SPLINE = 'spline',
-  BEZIER = 'bezier'
+  BEZIER = 'bezier',
+  POINT = 'point'
 }
