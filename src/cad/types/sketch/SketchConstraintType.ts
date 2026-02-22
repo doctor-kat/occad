@@ -5,5 +5,6 @@ export enum SketchConstraintType {
   VERTICAL = 'vertical',
   PARALLEL = 'parallel',
   PERPENDICULAR = 'perpendicular',
-  DISTANCE = 'distance'
+  DISTANCE = 'distance',
+  RADIUS = 'radius'
 }
