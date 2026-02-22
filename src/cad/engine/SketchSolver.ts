@@ -5,8 +5,11 @@ import { CoincidentConstraint } from '@/cad/types/sketch/constraints/CoincidentC
 import { ParallelConstraint } from '@/cad/types/sketch/constraints/ParallelConstraint';
 import { PerpendicularConstraint } from '@/cad/types/sketch/constraints/PerpendicularConstraint';
 import { DistanceConstraint } from '@/cad/types/sketch/constraints/DistanceConstraint';
+import { RadiusConstraint } from '@/cad/types/sketch/constraints/RadiusConstraint'; // New import
 import { SketchConstraintType } from '@/cad/types/sketch/SketchConstraintType';
 import { SketchLine } from '@/cad/types/sketch/SketchLine';
+import { SketchCircle } from '@/cad/types/sketch/SketchCircle'; // New import
+import { SketchArc } from '@/cad/types/sketch/SketchArc';     // New import
 import { SketchElementType } from '@/cad/types/sketch/SketchElementType';
 
 /**
@@ -32,7 +35,9 @@ interface LinePoints {
 export class SketchSolver {
   private sketch: Sketch;
   private pointMap: Map<string, SketchPoint>;
-  private lineMap: Map<string, SketchLine>; // New: map for lines
+  private lineMap: Map<string, SketchLine>;
+  private circleMap: Map<string, SketchCircle>; // New: map for circles
+  private arcMap: Map<string, SketchArc>;       // New: map for arcs
   private variableToIndex: Map<string, number>; // Maps variableId to its index in the variables array
   private indexToVariable: string[]; // Maps index to variableId
   private variables: number[]; // Flat array of all numerical variables
@@ -45,7 +50,17 @@ export class SketchSolver {
       sketch.elements
         .filter((el) => el.type === SketchElementType.LINE)
         .map((el) => [el.id, el as SketchLine])
-    ); // Initialize lineMap
+    );
+    this.circleMap = new Map(
+      sketch.elements
+        .filter((el) => el.type === SketchElementType.CIRCLE)
+        .map((el) => [el.id, el as SketchCircle])
+    );
+    this.arcMap = new Map(
+      sketch.elements
+        .filter((el) => el.type === SketchElementType.ARC)
+        .map((el) => [el.id, el as SketchArc])
+    );
     this.variableToIndex = new Map();
     this.indexToVariable = [];
     this.variables = [];
@@ -75,6 +90,24 @@ export class SketchSolver {
     };
   }
 
+  // Helper to get current circle parameters from variables
+  private getCircleParams(circleId: string, currentVariables: number[]): { centerX: number; centerY: number; radius: number } {
+    const circle = this.circleMap.get(circleId);
+    if (!circle) {
+      throw new Error(`Circle ${circleId} not found.`);
+    }
+
+    const centerXIndex = this.getVariableIndex(`${circle.centerId}_x`);
+    const centerYIndex = this.getVariableIndex(`${circle.centerId}_y`);
+    const radiusIndex = this.getVariableIndex(`${circle.id}_radius`);
+
+    return {
+      centerX: currentVariables[centerXIndex],
+      centerY: currentVariables[centerYIndex],
+      radius: currentVariables[radiusIndex],
+    };
+  }
+
   private initializeVariables(): void {
     let index = 0;
     for (const point of this.sketch.points) {
@@ -86,6 +119,20 @@ export class SketchSolver {
       this.variableToIndex.set(`${point.id}_y`, index);
       this.indexToVariable[index] = `${point.id}_y`;
       this.variables[index] = point.y;
+      index++;
+    }
+
+    for (const circle of this.sketch.elements.filter((el) => el.type === SketchElementType.CIRCLE) as SketchCircle[]) {
+      this.variableToIndex.set(`${circle.id}_radius`, index);
+      this.indexToVariable[index] = `${circle.id}_radius`;
+      this.variables[index] = circle.radius;
+      index++;
+    }
+
+    for (const arc of this.sketch.elements.filter((el) => el.type === SketchElementType.ARC) as SketchArc[]) {
+      this.variableToIndex.set(`${arc.id}_radius`, index);
+      this.indexToVariable[index] = `${arc.id}_radius`;
+      this.variables[index] = arc.radius;
       index++;
     }
     // Expand here for other entity types if they have parameters
@@ -126,6 +173,13 @@ export class SketchSolver {
             type: SketchConstraintType.DISTANCE,
             evaluate: (currentVariables) =>
               this.evaluateDistanceConstraint(constraint as DistanceConstraint, currentVariables),
+          });
+          break;
+        case SketchConstraintType.RADIUS:
+          this.constraints.push({
+            type: SketchConstraintType.RADIUS,
+            evaluate: (currentVariables) =>
+              this.evaluateRadiusConstraint(constraint as RadiusConstraint, currentVariables),
           });
           break;
         // Add other constraint types here
@@ -354,6 +408,59 @@ export class SketchSolver {
     return { error, gradient };
   }
 
+  private evaluateRadiusConstraint(
+    constraint: RadiusConstraint,
+    currentVariables: number[]
+  ): ConstraintEvaluation {
+    const elementId = constraint.elementId;
+    let centerX: number, centerY: number, currentRadius: number;
+    let centerPointId: string;
+    let isCircle = false;
+
+    const circle = this.circleMap.get(elementId);
+    if (circle) {
+      isCircle = true;
+      centerPointId = circle.centerId;
+      const { centerX: cX, centerY: cY, radius: r } = this.getCircleParams(elementId, currentVariables);
+      centerX = cX;
+      centerY = cY;
+      currentRadius = r;
+    } else {
+      const arc = this.arcMap.get(elementId);
+      if (!arc) {
+        return { error: 0, gradient: {} }; // Element not found, constraint has no effect
+      }
+      centerPointId = arc.centerId;
+      // For arcs, radius is a variable in the solver.
+      // Need to get its value directly from the variables array.
+      const radiusIndex = this.getVariableIndex(`${arc.id}_radius`);
+      currentRadius = currentVariables[radiusIndex];
+
+      const cXIndex = this.getVariableIndex(`${arc.centerId}_x`);
+      const cYIndex = this.getVariableIndex(`${arc.centerId}_y`);
+      centerX = currentVariables[cXIndex];
+      centerY = currentVariables[cYIndex];
+    }
+
+    // Error is (currentRadius - targetRadius)^2
+    const error = (currentRadius - constraint.radius) * (currentRadius - constraint.radius);
+
+    const gradient: { [variableId: string]: number } = {};
+    const errorTerm = 2 * (currentRadius - constraint.radius);
+
+    if (isCircle) {
+      gradient[`${elementId}_radius`] = errorTerm;
+    } else { // arc
+      gradient[`${elementId}_radius`] = errorTerm;
+    }
+
+    // The gradient for the center point is 0, as changing the center doesn't change the radius.
+    // However, if the radius is derived from geometry (e.g. fixed point on circumference),
+    // then center position would affect radius. For now, assuming radius is a direct variable.
+
+    return { error, gradient };
+  }
+
   /**
    * Solves the sketch using a simple iterative gradient descent-like approach.
    * This is a placeholder and will be replaced by a more robust solver later.
@@ -389,13 +496,27 @@ export class SketchSolver {
       }
     }
 
-    // Create a new Sketch object with updated point positions
+    // Create a new Sketch object with updated point positions and element radii
     const newPoints: SketchPoint[] = this.sketch.points.map((p) => {
       const xIndex = this.getVariableIndex(`${p.id}_x`);
       const yIndex = this.getVariableIndex(`${p.id}_y`);
       return { ...p, x: currentVariables[xIndex], y: currentVariables[yIndex] };
     });
 
-    return { ...this.sketch, points: newPoints };
+    const newElements = this.sketch.elements.map((el) => {
+      if (el.type === SketchElementType.CIRCLE) {
+        const circle = el as SketchCircle;
+        const radiusIndex = this.getVariableIndex(`${circle.id}_radius`);
+        return { ...circle, radius: currentVariables[radiusIndex] };
+      }
+      if (el.type === SketchElementType.ARC) {
+        const arc = el as SketchArc;
+        const radiusIndex = this.getVariableIndex(`${arc.id}_radius`);
+        return { ...arc, radius: currentVariables[radiusIndex] };
+      }
+      return el;
+    });
+
+    return { ...this.sketch, points: newPoints, elements: newElements };
   }
 }
