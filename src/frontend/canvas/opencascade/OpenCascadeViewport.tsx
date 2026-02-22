@@ -49,6 +49,8 @@ export interface OpenCascadeViewportProps {
   onCancelSketch?: () => void;
 }
 
+import { SketchRenderer } from '../sketch/SketchRenderer'; // New import
+
 export function OpenCascadeViewport({
   project,
   selectedTreeItem,
@@ -120,6 +122,7 @@ export function OpenCascadeViewport({
             onBackgroundClick={onBackgroundClick}
             onUpdateSketch={onUpdateSketch}
           />
+          {activeSketch && <SketchRenderer sketch={activeSketch as Sketch} />} {/* Render SketchRenderer when activeSketch is present */}
         </Suspense>
       </Canvas>
 
