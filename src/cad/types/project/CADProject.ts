@@ -1,5 +1,5 @@
 import { Feature } from './Feature';
-import { ReferenceGeometry } from './ReferenceGeometry';
+import { ReferenceGeometry } from './ReferenceGeometry/ReferenceGeometry';
 import { Sketch } from '../sketch/Sketch';
 
 export interface CADProject {

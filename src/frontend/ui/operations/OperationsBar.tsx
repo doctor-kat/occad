@@ -1,0 +1,136 @@
+import { Pen } from '@phosphor-icons/react';
+import { Tabs, Box, Group, useMantineTheme } from '@mantine/core';
+import { OperationCategory, Operation } from '@/cad/types';
+import { OperationButton } from './OperationButton';
+import { OperationDivider } from './OperationDivider';
+import { CADTab } from './CADTab';
+import {
+  featureOperations,
+  cutOperations,
+  primitiveOperations,
+  otherOperations,
+  booleanOperations,
+  modifyOperations,
+  sketchOperations,
+  transformOperations,
+  evaluateOperations,
+  ioOperations,
+  disabledOperations
+} from './OperationData';
+
+export interface OperationsBarProps {
+  activeTab: OperationCategory;
+  activeOperation: Operation;
+  selectedTreeItem?: string | null;
+  activeSketchId?: string | null;
+  onTabChange: (tab: OperationCategory) => void;
+  onOperationSelect: (operation: Operation) => void;
+  onSketchButtonClick?: () => void;
+}
+
+export function OperationsBar({ activeTab, activeOperation, selectedTreeItem, activeSketchId, onTabChange, onOperationSelect, onSketchButtonClick }: OperationsBarProps) {
+  const theme = useMantineTheme();
+
+  const renderOperationGroup = (operations: { id: Operation; icon: React.ReactNode; label: string }[]) => (
+    <Group gap={4} align="center" wrap="nowrap">
+      {operations.map((operation) => (
+        <OperationButton
+          key={operation.id}
+          icon={operation.icon}
+          label={operation.label}
+          operationId={operation.id}
+          isActive={activeOperation === operation.id}
+          onClick={() => onOperationSelect(operation.id)}
+          disabled={disabledOperations.includes(operation.id)}
+        />
+      ))}
+    </Group>
+  );
+
+  return (
+    <Box
+      style={{
+        borderBottom: `1px solid ${theme.other.colors.border}`,
+        backgroundColor: theme.other.colors.cadToolbar,
+      }}
+    >
+      <Tabs
+        value={activeTab}
+        onChange={(v) => onTabChange(v as OperationCategory)}
+        styles={{
+          root: { width: '100%' },
+          list: { flexDirection: 'row' },
+          panel: { flex: 1 },
+        }}
+      >
+        <Box style={{ display: 'flex', flexDirection: 'column' }}>
+          <Box style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: 8 }}>
+            <Tabs.Panel value="features" style={{ margin: 0 }}>
+              <Group gap={4} align="center" wrap="nowrap">
+                {renderOperationGroup(featureOperations)}
+                <OperationDivider />
+                {renderOperationGroup(cutOperations)}
+                <OperationDivider />
+                {renderOperationGroup(primitiveOperations)}
+                <OperationDivider />
+                {renderOperationGroup(otherOperations)}
+                <OperationDivider />
+                {renderOperationGroup(booleanOperations)}
+                <OperationDivider />
+                {renderOperationGroup(modifyOperations)}
+              </Group>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="sketch" style={{ margin: 0 }}>
+              <Group gap={4} align="center" wrap="nowrap">
+                <OperationButton
+                  icon={<Pen size={16} weight="regular" />}
+                  label="Sketch"
+                  operationId={null}
+                  isActive={!!activeSketchId}
+                  onClick={() => onSketchButtonClick?.()}
+                />
+                <OperationDivider />
+                {renderOperationGroup(sketchOperations)}
+              </Group>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="transform" style={{ margin: 0 }}>
+              {renderOperationGroup(transformOperations)}
+            </Tabs.Panel>
+
+            <Tabs.Panel value="evaluate" style={{ margin: 0 }}>
+              {renderOperationGroup(evaluateOperations)}
+            </Tabs.Panel>
+
+            <Tabs.Panel value="io" style={{ margin: 0 }}>
+              {renderOperationGroup(ioOperations)}
+            </Tabs.Panel>
+          </Box>
+
+          {/* Tab triggers at the bottom */}
+          <Tabs.List
+            style={{
+              height: 'auto',
+              width: '100%',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'stretch',
+              justifyContent: 'flex-start',
+              gap: 0,
+              borderRadius: 0,
+              borderTop: `1px solid ${theme.other.colors.border}`,
+              padding: 0,
+            }}
+          >
+            <CADTab value={OperationCategory.FEATURES} label="Features" isActive={activeTab === OperationCategory.FEATURES} theme={theme} />
+            <CADTab value={OperationCategory.SKETCH} label="Sketch" isActive={activeTab === OperationCategory.SKETCH} theme={theme} />
+            <CADTab value={OperationCategory.TRANSFORM} label="Transform" isActive={activeTab === OperationCategory.TRANSFORM} theme={theme} />
+            <CADTab value={OperationCategory.EVALUATE} label="Evaluate" isActive={activeTab === OperationCategory.EVALUATE} theme={theme} />
+            <CADTab value={OperationCategory.IO} label="I/O" isActive={activeTab === OperationCategory.IO} theme={theme} />
+          </Tabs.List>
+        </Box>
+      </Tabs>
+    </Box>
+  );
+}

@@ -1,6 +1,6 @@
 import { ShapeReference } from '../geometry/ShapeReference';
 import { SketchElement } from './SketchElement';
-import { SketchPlane } from './SketchPlane';
+import { SketchPlane } from './SketchPlane/SketchPlane';
 
 export interface Sketch {
   id: string;

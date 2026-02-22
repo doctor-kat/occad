@@ -16,7 +16,8 @@ export * from './sketch/SketchEllipse';
 export * from './sketch/SketchSpline';
 export * from './sketch/SketchBezier';
 export * from './sketch/SketchElement';
-export * from './sketch/SketchPlane';
+export * from './sketch/SketchPlane/PlaneType';
+export * from './sketch/SketchPlane/SketchPlane';
 export * from './sketch/Sketch';
 export * from './sketch/SketchEdgeData';
 
@@ -47,7 +48,8 @@ export * from './operations/Operation';
 
 // Project
 export * from './project/Feature';
-export * from './project/ReferenceGeometry';
+export * from './project/ReferenceGeometry/ReferenceGeometryType';
+export * from './project/ReferenceGeometry/ReferenceGeometry';
 export * from './project/FeatureTreeItem';
 export * from './project/CADProject';
 export * from './project/RebuildState';

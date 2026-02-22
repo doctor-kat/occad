@@ -1,8 +1,8 @@
 import { CADProject } from './CADProject';
-import { DEFAULT_REFERENCE_GEOMETRY } from './ReferenceGeometry';
+import { DEFAULT_REFERENCE_GEOMETRY } from './ReferenceGeometry/ReferenceGeometry';
 import { SketchElementType } from '../sketch/SketchElementType';
 import { FeatureOperation } from '../operations/FeatureOperation';
-import { PlaneType } from '../sketch/SketchPlane';
+import { PlaneType } from '../sketch/SketchPlane/PlaneType';
 
 export const createNewProject = (): CADProject => {
   const now = Date.now();

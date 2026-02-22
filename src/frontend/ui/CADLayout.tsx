@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState } from 'react';
 import { Toolbar } from './Toolbar';
-import { OperationsBar } from './OperationsBar';
-import { FeatureTree } from './FeatureTree';
-import { CADViewport } from '@/frontend/canvas/components/CADViewport';
-import { OperationPanel } from './OperationPanel';
+import { OperationsBar } from './operations/OperationsBar';
+import { FeatureTree } from './FeatureTree/FeatureTree';
+import { CADViewport } from '@/frontend/canvas/CADViewport';
+import { OperationPanel } from './operations/OperationPanel';
 import { EntitiesPanel } from './EntitiesPanel';
 import { useCADState } from '@/frontend/shared/useCADState';
 import { useOpenCascade } from '@/worker/bridge/useOpenCascade';

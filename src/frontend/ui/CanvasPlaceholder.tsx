@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from "react";
-import { OpenCascadeViewport } from "@/frontend/canvas/components/OpenCascadeViewport";
+import { OpenCascadeViewport } from "@/frontend/canvas/opencascade/OpenCascadeViewport";
 import { Stack, Box, Title, Text, Code } from "@mantine/core";
 import type { CADProject } from "@/cad/types";
 

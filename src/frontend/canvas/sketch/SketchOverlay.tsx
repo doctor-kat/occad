@@ -1,11 +1,13 @@
 import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
-import { useThree, ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
+import { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { Sketch, SketchElement, Point2D, SketchPlane } from '@/cad/types';
-import { SketchOperation, PlaneType, SketchElementType } from '@/cad/types';
+import type { Sketch, SketchElement, Point2D } from '@/cad/types';
+import { SketchOperation, SketchElementType } from '@/cad/types';
+import { getPlaneTransform } from './getPlaneTransform';
+import { SketchElementRenderer3D } from './SketchElementRenderer3D';
+import { SketchHotkeys } from './SketchHotkeys';
 
-interface SketchOverlayProps {
+export interface SketchOverlayProps {
   sketch: Sketch;
   activeOperation: SketchOperation | null;
   activeConstraint?: string;
@@ -14,83 +16,11 @@ interface SketchOverlayProps {
 }
 
 /**
- * Get transformation matrix for sketch plane
- */
-function getPlaneTransform(plane: SketchPlane): THREE.Matrix4 {
-  const matrix = new THREE.Matrix4();
-
-  switch (plane.type) {
-    case PlaneType.XY:
-      // Default orientation (XY plane at Z=0 or offset)
-      matrix.identity();
-      if (plane.offset) {
-        matrix.setPosition(0, 0, plane.offset);
-      }
-      break;
-    case PlaneType.XZ:
-      // XZ plane (Top Plane): sketch X→world X, sketch Y→world Z
-      // Matches worker mapping: sketchPointTo3D maps (x,y) → (x, offset, y)
-      // Use -90° rotation so Local Y = World Z (not World -Z)
-      matrix.makeRotationX(-Math.PI / 2);
-      if (plane.offset) {
-        matrix.setPosition(0, plane.offset, 0);
-      }
-      break;
-    case PlaneType.YZ:
-      // YZ plane (Right Plane): sketch X→world Y, sketch Y→world Z
-      // Matches worker mapping: sketchPointTo3D maps (x,y) → (offset, x, y)
-      matrix.makeBasis(
-        new THREE.Vector3(0, 1, 0),  // local X → world Y
-        new THREE.Vector3(0, 0, 1),  // local Y → world Z
-        new THREE.Vector3(1, 0, 0),  // local Z → world X (normal)
-      );
-      if (plane.offset) {
-        matrix.setPosition(plane.offset, 0, 0);
-      }
-      break;
-    case PlaneType.CUSTOM:
-      // Custom plane: create transformation from origin and normal
-      if (plane.origin && plane.normal) {
-        const origin = new THREE.Vector3(plane.origin.x, plane.origin.y, plane.origin.z);
-        const normal = new THREE.Vector3(plane.normal.x, plane.normal.y, plane.normal.z).normalize();
-
-        // Create an arbitrary perpendicular vector for X axis
-        let xAxis: THREE.Vector3;
-        if (Math.abs(normal.x) < 0.9) {
-          xAxis = new THREE.Vector3(1, 0, 0).cross(normal).normalize();
-        } else {
-          xAxis = new THREE.Vector3(0, 1, 0).cross(normal).normalize();
-        }
-
-        // Y axis is perpendicular to both
-        const yAxis = new THREE.Vector3().crossVectors(normal, xAxis).normalize();
-
-        // Create basis matrix
-        matrix.makeBasis(xAxis, yAxis, normal);
-        matrix.setPosition(origin);
-      } else {
-        // Fallback to XY plane if custom plane data is incomplete
-        matrix.identity();
-      }
-      break;
-    case PlaneType.FACE:
-      // TODO: Get face plane from OpenCascade face geometry
-      // For now, default to XY plane
-      matrix.identity();
-      break;
-    default:
-      matrix.identity();
-  }
-
-  return matrix;
-}
-
-/**
  * SketchOverlay - Renders sketch elements in 3D space on a plane
  */
 export function SketchOverlay({
   sketch,
-  activeTool,
+  activeOperation,
   activeConstraint = 'none',
   onElementsChange,
   onBackgroundClick,
@@ -102,7 +32,6 @@ export function SketchOverlay({
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set());
   const [snapToGrid, setSnapToGrid] = useState(true);
-  const { raycaster, camera } = useThree();
   const planeRef = useRef<THREE.Mesh>(null);
 
   const gridSize = 10;
@@ -112,15 +41,15 @@ export function SketchOverlay({
   // Calculate plane transformation
   const planeTransform = useMemo(() => getPlaneTransform(sketch.plane), [sketch.plane]);
 
-  // Clear selection when tool changes or sketch exits
+  // Clear selection when operation changes or sketch exits
   useEffect(() => {
     setSelectedElementIds(new Set());
     setHoveredElementId(null);
-  }, [activeTool]);
+  }, [activeOperation]);
 
-  // Complete polygon (for polygon tool)
+  // Complete polygon (for polygon operation)
   const handleCompletePolygon = useCallback(() => {
-    if (activeTool === SketchTool.POLYGON && currentPoints.length >= 3) {
+    if (activeOperation === SketchOperation.POLYGON && currentPoints.length >= 3) {
       const newPolygon: SketchElement = {
         type: SketchElementType.POLYGON,
         id: crypto.randomUUID(),
@@ -130,7 +59,7 @@ export function SketchOverlay({
       setCurrentPoints([]);
       setPreviewElement(null);
     }
-  }, [activeTool, currentPoints, sketch.elements, sketch.id, onElementsChange]);
+  }, [activeOperation, currentPoints, sketch.elements, sketch.id, onElementsChange]);
 
   // Handle keyboard events
   useEffect(() => {
@@ -478,7 +407,6 @@ export function SketchOverlay({
       const point = event.point;
       const localPoint = point.clone().applyMatrix4(planeTransform.clone().invert());
       const point2D: Point2D = { x: localPoint.x, y: localPoint.y };
-      console.log(`[SketchOverlay] 3D world (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)}) → 2D sketch (${point2D.x.toFixed(2)}, ${point2D.y.toFixed(2)})`);
 
       // If no operation is active, handle selection
       if (!activeOperation) {
@@ -511,7 +439,7 @@ export function SketchOverlay({
           }
           break;
 
-        case SketchTool.RECTANGLE:
+        case SketchOperation.RECTANGLE:
           if (currentPoints.length === 0) {
             setCurrentPoints([snappedPoint]);
           } else if (currentPoints.length === 1) {
@@ -527,7 +455,7 @@ export function SketchOverlay({
           }
           break;
 
-        case SketchTool.CIRCLE:
+        case SketchOperation.CIRCLE:
           if (currentPoints.length === 0) {
             setCurrentPoints([snappedPoint]);
           } else if (currentPoints.length === 1) {
@@ -548,11 +476,11 @@ export function SketchOverlay({
           }
           break;
 
-        case SketchTool.POLYGON:
+        case SketchOperation.POLYGON:
           setCurrentPoints([...currentPoints, snappedPoint]);
           break;
 
-        case SketchTool.ARC:
+        case SketchOperation.ARC:
           if (currentPoints.length < 2) {
             setCurrentPoints([...currentPoints, snappedPoint]);
           } else if (currentPoints.length === 2) {
@@ -568,10 +496,10 @@ export function SketchOverlay({
           break;
 
         default:
-          console.warn(`Tool ${activeTool} not yet implemented`);
+          console.warn(`Operation ${activeOperation} not yet implemented`);
       }
     },
-    [activeTool, currentPoints, sketch, onElementsChange, snapPoint, planeTransform, hoveredElementId]
+    [activeOperation, currentPoints, sketch, onElementsChange, snapPoint, planeTransform, hoveredElementId]
   );
 
   // Handle mouse move for preview
@@ -598,7 +526,7 @@ export function SketchOverlay({
           }
         });
 
-        setHoveredElementId(nearestElement ? nearestElement.id : null);
+        setHoveredElementId(nearestElement ? (nearestElement as SketchElement).id : null);
         return;
       }
 
@@ -624,7 +552,7 @@ export function SketchOverlay({
           }
           break;
 
-        case SketchTool.RECTANGLE:
+        case SketchOperation.RECTANGLE:
           if (currentPoints.length === 1) {
             setPreviewElement({
               type: SketchElementType.RECTANGLE,
@@ -635,7 +563,7 @@ export function SketchOverlay({
           }
           break;
 
-        case SketchTool.CIRCLE:
+        case SketchOperation.CIRCLE:
           if (currentPoints.length === 1) {
             const center = currentPoints[0];
             const radius = Math.sqrt(
@@ -652,83 +580,18 @@ export function SketchOverlay({
           break;
       }
     },
-    [activeTool, currentPoints, snapPoint, planeTransform, hoverThreshold, sketch.elements, getDistanceToElement]
+    [activeOperation, currentPoints, snapPoint, planeTransform, hoverThreshold, sketch.elements, getDistanceToElement]
   );
-
-  const kbdStyle = {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    padding: '2px 8px',
-    borderRadius: 5,
-    border: '1px solid rgba(255, 255, 255, 0.25)',
-    fontSize: '10px',
-    fontWeight: 'bold' as const,
-    boxShadow: '0 1px 0 rgba(255, 255, 255, 0.2)',
-    color: '#fff',
-  };
 
   return (
     <group matrix={planeTransform} matrixAutoUpdate={false}>
       {/* Hotkeys panel */}
-      <Html
-        position={[0, 0, 0]}
-        style={{
-          position: 'fixed',
-          bottom: 20,
-          right: 20,
-          transform: 'none',
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            color: '#ffffff',
-            padding: '12px 16px',
-            borderRadius: 10,
-            fontSize: 12,
-            fontFamily: 'monospace',
-            pointerEvents: 'none',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', pb: 8, mb: 4 }}>
-              <span style={{ opacity: 0.8, fontWeight: 'bold' }}>Sketcher Hotkeys</span>
-            </div>
+      <SketchHotkeys
+        activeOperation={activeOperation}
+        currentPointsCount={currentPoints.length}
+        snapToGrid={snapToGrid}
+      />
 
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
-                <kbd style={kbdStyle}>DEL</kbd>
-              </div>
-              <span style={{ opacity: 0.7 }}>Delete selected</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
-                <kbd style={kbdStyle}>ESC</kbd>
-              </div>
-              <span style={{ opacity: 0.7 }}>Cancel / Clear</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
-                <kbd style={kbdStyle}>G</kbd>
-              </div>
-              <span style={{ color: snapToGrid ? '#22c55e' : '#94a3b8' }}>Grid Snap: {snapToGrid ? 'ON' : 'OFF'}</span>
-            </div>
-
-            {activeOperation === SketchOperation.POLYGON && currentPoints.length >= 3 && (
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
-                  <kbd style={kbdStyle}>ENTER</kbd>
-                </div>
-                <span style={{ opacity: 0.7 }}>Complete Polygon</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </Html>
       {/* Semi-transparent sketch plane */}
       <mesh
         ref={planeRef}
@@ -868,105 +731,5 @@ export function SketchOverlay({
         return null;
       })}
     </group>
-  );
-}
-
-/**
- * Renders a single sketch element in 3D space
- */
-function SketchElementRenderer3D({
-  element,
-  color,
-  opacity = 1,
-  lineWidth = 2,
-  isHovered = false,
-  isSelected = false,
-}: {
-  element: SketchElement;
-  color: string;
-  opacity?: number;
-  lineWidth?: number;
-  isHovered?: boolean;
-  isSelected?: boolean;
-}) {
-  // Determine color and width based on state
-  let finalColor = color;
-  let finalLineWidth = lineWidth;
-
-  if (isSelected) {
-    finalColor = '#fbbf24'; // Yellow/gold for selection
-    finalLineWidth = lineWidth + 1;
-  } else if (isHovered) {
-    finalColor = '#60a5fa'; // Blue for hover
-    finalLineWidth = lineWidth + 1;
-  }
-
-  const points: THREE.Vector3[] = [];
-
-  switch (element.type) {
-    case SketchElementType.LINE:
-      points.push(
-        new THREE.Vector3(element.start.x, element.start.y, 0),
-        new THREE.Vector3(element.end.x, element.end.y, 0)
-      );
-      break;
-
-    case SketchElementType.RECTANGLE: {
-      const { corner1, corner2 } = element;
-      points.push(
-        new THREE.Vector3(corner1.x, corner1.y, 0),
-        new THREE.Vector3(corner2.x, corner1.y, 0),
-        new THREE.Vector3(corner2.x, corner2.y, 0),
-        new THREE.Vector3(corner1.x, corner2.y, 0),
-        new THREE.Vector3(corner1.x, corner1.y, 0)
-      );
-      break;
-    }
-
-    case SketchElementType.CIRCLE: {
-      const segments = 64;
-      for (let i = 0; i <= segments; i++) {
-        const angle = (i / segments) * Math.PI * 2;
-        points.push(
-          new THREE.Vector3(
-            element.center.x + Math.cos(angle) * element.radius,
-            element.center.y + Math.sin(angle) * element.radius,
-            0
-          )
-        );
-      }
-      break;
-    }
-
-    case SketchElementType.POLYGON:
-      element.points.forEach((p) => {
-        points.push(new THREE.Vector3(p.x, p.y, 0));
-      });
-      if (element.points.length > 0) {
-        const first = element.points[0];
-        points.push(new THREE.Vector3(first.x, first.y, 0));
-      }
-      break;
-
-    case SketchElementType.ARC:
-      // TODO: Implement proper arc rendering with 3 points
-      if (element.points && element.points.length === 3) {
-        element.points.forEach((p) => {
-          points.push(new THREE.Vector3(p.x, p.y, 0));
-        });
-      }
-      break;
-
-    // TODO: Implement ellipse, spline, bezier rendering
-  }
-
-  if (points.length === 0) return null;
-
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-
-  return (
-    <line geometry={geometry} position={[0, 0, 0.05]}>
-      <lineBasicMaterial color={finalColor} opacity={opacity} transparent linewidth={finalLineWidth} />
-    </line>
   );
 }

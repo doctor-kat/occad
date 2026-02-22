@@ -1,4 +1,4 @@
-import { CADLayout } from '@/frontend/ui/components/CADLayout';
+import { CADLayout } from '@/frontend/ui/CADLayout';
 
 const Index = () => {
   return <CADLayout />;

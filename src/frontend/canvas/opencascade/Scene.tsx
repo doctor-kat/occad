@@ -1,0 +1,136 @@
+import { useMemo } from "react";
+import { Environment, OrbitControls, GizmoHelper, GizmoViewport } from "@react-three/drei";
+import type { MeshData, CADProject, Sketch, SketchEdgeData, SketchOperation } from "@/cad/types";
+import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
+import { OCCModel } from "./OCCModel";
+import { ReferencePlanes } from "./ReferencePlanes";
+import { OriginPoint } from "./OriginPoint";
+import { SketchWireframes } from "./SketchWireframes";
+import { ExtrudeArrows } from "./ExtrudeArrows";
+import { BackgroundPlane } from "./BackgroundPlane";
+import { SketchOverlay } from "../sketch/SketchOverlay";
+
+export interface SceneProps {
+  mesh: MeshData | null;
+  project?: CADProject;
+  sketchEdges?: Record<string, SketchEdgeData> | null;
+  selectedPlaneId: string | null;
+  selectedFaceId?: number | null;
+  selectedEdgeIndex?: number | null;
+  selectedVertexIndex?: number | null;
+  activeSketch?: Sketch | null;
+  activeOperation?: SketchOperation | null;
+  activeConstraint?: string;
+  onPlaneClick?: (planeId: string) => void;
+  onFaceClick?: (faceId: number) => void;
+  onEdgeClick?: (edgeIndex: number) => void;
+  onVertexClick?: (vertexIndex: number) => void;
+  onBackgroundClick?: () => void;
+  onUpdateSketch?: (sketchId: string, elements: any[]) => void;
+}
+
+export function Scene({
+  mesh,
+  project,
+  sketchEdges,
+  selectedPlaneId,
+  selectedFaceId,
+  selectedEdgeIndex,
+  selectedVertexIndex,
+  activeSketch,
+  activeOperation,
+  activeConstraint,
+  onPlaneClick,
+  onFaceClick,
+  onEdgeClick,
+  onVertexClick,
+  onBackgroundClick,
+  onUpdateSketch
+}: SceneProps) {
+  const hoveredTreeItem = useViewportStore((state) => state.hoveredTreeItem);
+  const hoveredPlaneId = hoveredTreeItem;
+  const inSketchMode = !!activeSketch;
+
+  // Build visibility map from project reference geometry
+  const visibilityMap = useMemo(() => {
+    const map: Record<string, boolean> = {};
+    project?.referenceGeometry.forEach((ref) => {
+      map[ref.id] = (ref as any).visible !== false; // Default to visible if not set
+    });
+    return map;
+  }, [project?.referenceGeometry]);
+
+  // Show origin based on visibility
+  const showOrigin = visibilityMap['origin'] !== false;
+
+  return (
+    <>
+      {/* Lighting */}
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[80, 120, 80]} intensity={1.2} castShadow />
+      <directionalLight position={[-60, 80, -40]} intensity={0.6} />
+      <Environment preset="studio" />
+
+      {/* Background click catcher (invisible plane at low z-index) */}
+      {onBackgroundClick && !inSketchMode && <BackgroundPlane onClick={onBackgroundClick} />}
+
+      {/* Reference Planes - hidden in sketch mode */}
+      {!inSketchMode && (
+        <ReferencePlanes
+          selectedPlaneId={selectedPlaneId}
+          hoveredPlaneId={hoveredPlaneId}
+          visibilityMap={visibilityMap}
+          onPlaneClick={onPlaneClick}
+        />
+      )}
+
+      {/* Origin Point - dimmed in sketch mode */}
+      <OriginPoint visible={showOrigin} selectedPlaneId={selectedPlaneId} dimmed={inSketchMode} />
+
+      {/* Model (only render if mesh data exists and at least one feature is visible) */}
+      {mesh && (!project || project.features.some((f) => f.isVisible)) && (
+        <OCCModel
+          mesh={mesh}
+          selectedFaceId={selectedFaceId}
+          selectedEdgeIndex={selectedEdgeIndex}
+          selectedVertexIndex={selectedVertexIndex}
+          inSketchMode={inSketchMode}
+          onFaceClick={onFaceClick}
+          onEdgeClick={onEdgeClick}
+          onVertexClick={onVertexClick}
+        />
+      )}
+
+      {/* Sketch wireframes (visible sketches, not in sketch mode) */}
+      {!inSketchMode && project && sketchEdges && (
+        <SketchWireframes project={project} sketchEdges={sketchEdges} />
+      )}
+
+      {/* Sketch overlay (when in sketch mode) */}
+      {activeSketch && onUpdateSketch && (
+        <SketchOverlay
+          sketch={activeSketch}
+          activeOperation={activeOperation}
+          activeConstraint={activeConstraint}
+          onElementsChange={onUpdateSketch}
+          onBackgroundClick={onBackgroundClick}
+        />
+      )}
+
+      {/* Extrude Preview Arrows */}
+      {project && <ExtrudeArrows project={project} />}
+
+
+      {/* Camera controls */}
+      <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
+
+      {/* View gizmo (top-right) */}
+      <GizmoHelper alignment="top-right" margin={[72, 72]}>
+        <GizmoViewport
+          axisColors={["#ef4444", "#22c55e", "#3b82f6"]}
+          labelColor="white"
+        />
+      </GizmoHelper>
+    </>
+  );
+}

@@ -1,8 +1,7 @@
+import { useState } from 'react';
 import {
   CaretRight,
   CaretDown,
-  SidebarSimple,
-  Sidebar,
   PencilSimple,
   Trash,
   Eye,
@@ -11,28 +10,13 @@ import {
   VectorThree,
   DotsNine,
   Cube,
-  Pen,
   Warning
 } from '@phosphor-icons/react';
 import { FeatureTreeItem as TreeItemType, FeatureTreeItemType, ReferenceGeometryType } from '@/cad/types';
-import { Button, Stack, Box, ScrollArea, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
-import { useState } from 'react';
+import { Box, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
 
-interface FeatureTreeProps {
-  items: TreeItemType[];
-  selectedItem: string | null;
-  onSelectItem: (id: string | null) => void;
-  onToggleExpand: (id: string) => void;
-  onToggleVisibility?: (id: string) => void;
-  onEdit?: (id: string) => void;
-  onDelete?: (id: string) => void;
-  isCompact?: boolean;
-  onToggleSidebar?: () => void;
-}
-
-
-function getItemIcon(item: TreeItemType, theme: any) {
+export function getItemIcon(item: TreeItemType, theme: any) {
   const iconSize = 16;
 
   if (item.type === FeatureTreeItemType.REFERENCE_GEOMETRY) {
@@ -57,7 +41,7 @@ function getItemIcon(item: TreeItemType, theme: any) {
   return null;
 }
 
-interface TreeItemProps {
+export interface TreeItemProps {
   item: TreeItemType;
   depth: number;
   selectedItem: string | null;
@@ -69,7 +53,7 @@ interface TreeItemProps {
   isCompact?: boolean;
 }
 
-function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact }: TreeItemProps) {
+export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact }: TreeItemProps) {
   const setHoveredTreeItem = useViewportStore((state) => state.setHoveredTreeItem);
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = item.isExpanded !== false;
@@ -293,97 +277,5 @@ function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onT
         </Box>
       )}
     </Box>
-  );
-}
-
-
-export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onToggleSidebar }: FeatureTreeProps) {
-  const theme = useMantineTheme();
-
-  if (isCompact) {
-    // Compact mode: icon-only sidebar showing only top-level items
-    return (
-      <Stack gap={0} style={{ height: '100%', width: 56 }}>
-        <ScrollArea
-          style={{
-            flex: 1,
-          }}
-        >
-          <Stack gap={4} p={8}>
-            {items.map((item) => (
-              <TreeItem
-                key={item.id}
-                item={item}
-                depth={0}
-                selectedItem={selectedItem}
-                onSelectItem={onSelectItem}
-                onToggleExpand={onToggleExpand}
-                onToggleVisibility={onToggleVisibility}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                isCompact={true}
-              />
-            ))}
-          </Stack>
-        </ScrollArea>
-      </Stack>
-    );
-  }
-
-  return (
-    <Stack gap={0} style={{ height: '100%' }}>
-      <ScrollArea
-        style={{
-          flex: 1,
-        }}
-      >
-        <Stack gap={2} p={8}>
-          {items.map((item) => (
-            <TreeItem
-              key={item.id}
-              item={item}
-              depth={0}
-              selectedItem={selectedItem}
-              onSelectItem={onSelectItem}
-              onToggleExpand={onToggleExpand}
-              onToggleVisibility={onToggleVisibility}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              isCompact={false}
-            />
-          ))}
-
-          {items.length <= 1 && (
-            <Box
-              style={{
-                marginTop: 16,
-                borderRadius: theme.radius.lg,
-                border: `1px dashed ${theme.other.colors.sidebarBorder}`,
-                backgroundColor: `${theme.other.colors.secondary}50`,
-                paddingLeft: 16,
-                paddingRight: 16,
-                paddingTop: 24,
-                paddingBottom: 24,
-                textAlign: 'center',
-              }}
-            >
-              <Pen
-                size={24}
-                style={{
-                  marginLeft: 'auto',
-                  marginRight: 'auto',
-                  marginBottom: 8,
-                  display: 'block',
-                  color: `${theme.other.colors.mutedForeground}80`,
-                }}
-              />
-              <Text size="xs" style={{ color: theme.other.colors.mutedForeground }}>
-                Create sketches and features to populate the tree
-              </Text>
-            </Box>
-          )}
-        </Stack>
-      </ScrollArea>
-    </Stack>
   );
 }

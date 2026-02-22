@@ -1,8 +1,8 @@
-import { OpenCascadeViewport } from './OpenCascadeViewport';
+import { OpenCascadeViewport } from './opencascade/OpenCascadeViewport';
 import type { CADProject, SketchEdgeData, SketchOperation, MeshData } from '@/cad/types';
 import type { OCCStatus } from '@/worker/bridge/useOpenCascade';
 
-interface CADViewportProps {
+export interface CADViewportProps {
   project: CADProject;
   activeSketchId: string | null;
   activeOperation: SketchOperation | null;
