@@ -2,7 +2,12 @@ import { Sketch } from '@/cad/types/sketch/Sketch';
 import { SketchPoint } from '@/cad/types/sketch/SketchPoint';
 import { FixedConstraint } from '@/cad/types/sketch/constraints/FixedConstraint';
 import { CoincidentConstraint } from '@/cad/types/sketch/constraints/CoincidentConstraint';
+import { ParallelConstraint } from '@/cad/types/sketch/constraints/ParallelConstraint'; // New import
+import { PerpendicularConstraint } from '@/cad/types/sketch/constraints/PerpendicularConstraint'; // New import
+import { DistanceConstraint } from '@/cad/types/sketch/constraints/DistanceConstraint'; // New import
 import { SketchConstraintType } from '@/cad/types/sketch/SketchConstraintType';
+import { SketchLine } from '@/cad/types/sketch/SketchLine'; // New import
+import { SketchElementType } from '@/cad/types/sketch/SketchElementType'; // New import
 
 /**
  * Maps geometric entities to numerical variables for the solver.
@@ -17,9 +22,17 @@ interface ConstraintEvaluation {
   gradient: { [variableId: string]: number }; // Partial derivatives for each involved variable
 }
 
+interface LinePoints {
+  p1x: number;
+  p1y: number;
+  p2x: number;
+  p2y: number;
+}
+
 export class SketchSolver {
   private sketch: Sketch;
   private pointMap: Map<string, SketchPoint>;
+  private lineMap: Map<string, SketchLine>; // New: map for lines
   private variableToIndex: Map<string, number>; // Maps variableId to its index in the variables array
   private indexToVariable: string[]; // Maps index to variableId
   private variables: number[]; // Flat array of all numerical variables
@@ -28,6 +41,11 @@ export class SketchSolver {
   constructor(sketch: Sketch) {
     this.sketch = sketch;
     this.pointMap = new Map(sketch.points.map((p) => [p.id, p]));
+    this.lineMap = new Map(
+      sketch.elements
+        .filter((el) => el.type === SketchElementType.LINE)
+        .map((el) => [el.id, el as SketchLine])
+    ); // Initialize lineMap
     this.variableToIndex = new Map();
     this.indexToVariable = [];
     this.variables = [];
@@ -35,6 +53,26 @@ export class SketchSolver {
 
     this.initializeVariables();
     this.initializeConstraints();
+  }
+
+  // Helper to get current line points from variables
+  private getLinePoints(lineId: string, currentVariables: number[]): LinePoints {
+    const line = this.lineMap.get(lineId);
+    if (!line) {
+      throw new Error(`Line ${lineId} not found.`);
+    }
+
+    const p1xIndex = this.getVariableIndex(`${line.start.id}_x`);
+    const p1yIndex = this.getVariableIndex(`${line.start.id}_y`);
+    const p2xIndex = this.getVariableIndex(`${line.end.id}_x`);
+    const p2yIndex = this.getVariableIndex(`${line.end.id}_y`);
+
+    return {
+      p1x: currentVariables[p1xIndex],
+      p1y: currentVariables[p1yIndex],
+      p2x: currentVariables[p2xIndex],
+      p2y: currentVariables[p2yIndex],
+    };
   }
 
   private initializeVariables(): void {
@@ -69,11 +107,147 @@ export class SketchSolver {
               this.evaluateCoincidentConstraint(constraint as CoincidentConstraint, currentVariables),
           });
           break;
+        case SketchConstraintType.PARALLEL:
+          this.constraints.push({
+            type: SketchConstraintType.PARALLEL,
+            evaluate: (currentVariables) =>
+              this.evaluateParallelConstraint(constraint as ParallelConstraint, currentVariables),
+          });
+          break;
+        case SketchConstraintType.PERPENDICULAR:
+          this.constraints.push({
+            type: SketchConstraintType.PERPENDICULAR,
+            evaluate: (currentVariables) =>
+              this.evaluatePerpendicularConstraint(constraint as PerpendicularConstraint, currentVariables),
+          });
+          break;
+        case SketchConstraintType.DISTANCE:
+          this.constraints.push({
+            type: SketchConstraintType.DISTANCE,
+            evaluate: (currentVariables) =>
+              this.evaluateDistanceConstraint(constraint as DistanceConstraint, currentVariables),
+          });
+          break;
         // Add other constraint types here
         default:
           console.warn(`Unknown constraint type: ${constraint.type}`);
       }
     }
+  }
+
+// Add new constraint evaluation methods
+  private evaluateParallelConstraint(
+    constraint: ParallelConstraint,
+    currentVariables: number[]
+  ): ConstraintEvaluation {
+    const line1 = this.getLinePoints(constraint.line1Id, currentVariables);
+    const line2 = this.getLinePoints(constraint.line2Id, currentVariables);
+
+    const dx1 = line1.p2x - line1.p1x;
+    const dy1 = line1.p2y - line1.p1y;
+    const dx2 = line2.p2x - line2.p1x;
+    const dy2 = line2.p2y - line2.p1y;
+
+    // Error is the squared 2D cross product: (dx1 * dy2 - dy1 * dx2)^2
+    // If cross product is 0, lines are parallel.
+    const crossProduct = dx1 * dy2 - dy1 * dx2;
+    const error = crossProduct * crossProduct;
+
+    const gradient: { [variableId: string]: number } = {};
+    const errorTerm = 2 * crossProduct;
+
+    // d/dp1x1 = -(dy2 * errorTerm)
+    gradient[`${this.lineMap.get(constraint.line1Id)?.start.id}_x`] = -dy2 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line1Id)?.start.id}_y`] = dx2 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line1Id)?.end.id}_x`] = dy2 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line1Id)?.end.id}_y`] = -dx2 * errorTerm;
+
+    gradient[`${this.lineMap.get(constraint.line2Id)?.start.id}_x`] = dy1 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line2Id)?.start.id}_y`] = -dx1 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line2Id)?.end.id}_x`] = -dy1 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line2Id)?.end.id}_y`] = dx1 * errorTerm;
+
+
+    return { error, gradient };
+  }
+
+  private evaluatePerpendicularConstraint(
+    constraint: PerpendicularConstraint,
+    currentVariables: number[]
+  ): ConstraintEvaluation {
+    const line1 = this.getLinePoints(constraint.line1Id, currentVariables);
+    const line2 = this.getLinePoints(constraint.line2Id, currentVariables);
+
+    const dx1 = line1.p2x - line1.p1x;
+    const dy1 = line1.p2y - line1.p1y;
+    const dx2 = line2.p2x - line2.p1x;
+    const dy2 = line2.p2y - line2.p1y;
+
+    // Error is the squared dot product: (dx1 * dx2 + dy1 * dy2)^2
+    // If dot product is 0, lines are perpendicular.
+    const dotProduct = dx1 * dx2 + dy1 * dy2;
+    const error = dotProduct * dotProduct;
+
+    const gradient: { [variableId: string]: number } = {};
+    const errorTerm = 2 * dotProduct;
+
+    // d/dp1x1 = -(dx2 * errorTerm)
+    gradient[`${this.lineMap.get(constraint.line1Id)?.start.id}_x`] = -dx2 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line1Id)?.start.id}_y`] = -dy2 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line1Id)?.end.id}_x`] = dx2 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line1Id)?.end.id}_y`] = dy2 * errorTerm;
+
+    gradient[`${this.lineMap.get(constraint.line2Id)?.start.id}_x`] = -dx1 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line2Id)?.start.id}_y`] = -dy1 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line2Id)?.end.id}_x`] = dx1 * errorTerm;
+    gradient[`${this.lineMap.get(constraint.line2Id)?.end.id}_y`] = dy1 * errorTerm;
+
+    return { error, gradient };
+  }
+
+  private evaluateDistanceConstraint(
+    constraint: DistanceConstraint,
+    currentVariables: number[]
+  ): ConstraintEvaluation {
+    const p1xIndex = this.getVariableIndex(`${constraint.point1Id}_x`);
+    const p1yIndex = this.getVariableIndex(`${constraint.point1Id}_y`);
+    const p2xIndex = this.getVariableIndex(`${constraint.point2Id}_x`);
+    const p2yIndex = this.getVariableIndex(`${constraint.point2Id}_y`);
+
+    const p1x = currentVariables[p1xIndex];
+    const p1y = currentVariables[p1yIndex];
+    const p2x = currentVariables[p2xIndex];
+    const p2y = currentVariables[p2yIndex];
+
+    const dx = p1x - p2x;
+    const dy = p1y - p2y;
+
+    const currentDistanceSq = dx * dx + dy * dy;
+    const currentDistance = Math.sqrt(currentDistanceSq);
+
+    // Error is (currentDistance - targetDistance)^2
+    const error = (currentDistance - constraint.distance) * (currentDistance - constraint.distance);
+
+    const gradient: { [variableId: string]: number } = {};
+    // Chain rule: d(error)/dx = 2 * (currentDistance - targetDistance) * d(currentDistance)/dx
+    // d(currentDistance)/dx = d(sqrt(dx^2 + dy^2))/dx
+    // d(currentDistance)/dx = (1/2) * (dx^2 + dy^2)^(-1/2) * 2 * dx = dx / currentDistance
+    if (currentDistance > 1e-9) { // Avoid division by zero if points are coincident
+        const commonFactor = 2 * (currentDistance - constraint.distance) / currentDistance;
+
+        gradient[`${constraint.point1Id}_x`] = commonFactor * dx;
+        gradient[`${constraint.point1Id}_y`] = commonFactor * dy;
+        gradient[`${constraint.point2Id}_x`] = commonFactor * (-dx);
+        gradient[`${constraint.point2Id}_y`] = commonFactor * (-dy);
+    } else { // If points are very close, gradient is essentially zero for distance
+      gradient[`${constraint.point1Id}_x`] = 0;
+      gradient[`${constraint.point1Id}_y`] = 0;
+      gradient[`${constraint.point2Id}_x`] = 0;
+      gradient[`${constraint.point2Id}_y`] = 0;
+    }
+
+
+    return { error, gradient };
   }
 
   private getVariableIndex(variableId: string): number {
