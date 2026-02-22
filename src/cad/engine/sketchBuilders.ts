@@ -40,17 +40,35 @@ function decodeWireError(ctx: WorkerContext, errorCode: any): string {
  * @param plane Sketch plane definition
  * @returns 3D point on the plane
  */
-export function sketchPointTo3D(ctx: WorkerContext, point2D: Point2D, plane: SketchPlane): gp_Pnt {
+export function sketchPointTo3D(
+  ctx: WorkerContext,
+  point2D: Point2D,
+  plane: SketchPlane,
+  solvedPointsMap?: Map<string, SketchPoint> // New parameter
+): gp_Pnt {
   const { oc } = ctx;
   const offset = plane.offset || 0;
 
+  let currentX = point2D.x;
+  let currentY = point2D.y;
+
+  // If a map of solved points is provided and this point2D has an ID,
+  // try to use the solved coordinates for it.
+  if (point2D.id && solvedPointsMap) {
+    const solvedPoint = solvedPointsMap.get(point2D.id);
+    if (solvedPoint) {
+      currentX = solvedPoint.x;
+      currentY = solvedPoint.y;
+    }
+  }
+
   switch (plane.type) {
     case PlaneType.XY:
-      return new oc.gp_Pnt_3(point2D.x, point2D.y, offset);
+      return new oc.gp_Pnt_3(currentX, currentY, offset);
     case 'xz':
-      return new oc.gp_Pnt_3(point2D.x, offset, point2D.y);
+      return new oc.gp_Pnt_3(currentX, offset, currentY);
     case 'yz':
-      return new oc.gp_Pnt_3(offset, point2D.x, point2D.y);
+      return new oc.gp_Pnt_3(offset, currentX, currentY);
     case 'custom':
       if (plane.origin && plane.normal) {
         // Create a local coordinate system on the custom plane
@@ -476,7 +494,8 @@ export function buildSplineEdge(
 export function buildSketchWire(
   ctx: WorkerContext,
   elements: SketchElement[],
-  plane: SketchPlane
+  plane: SketchPlane,
+  solvedPoints?: SketchPoint[], // New parameter
 ): TopoDS_Wire {
   const { oc } = ctx;
 

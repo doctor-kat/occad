@@ -18,7 +18,16 @@ import {
   handleRevolveSketch,
   handleRebuild,
   handleGetFaceGeometry,
+  formatError, // Import formatError from operations
 } from '@/cad/engine/operations';
+import { SketchSolver } from '@/cad/engine/SketchSolver'; // New import
+import { buildSketchWire } from '@/cad/engine/sketchBuilders'; // New import
+import { tessellate } from '@/cad/engine/tessellation'; // New import
+import { getTransferables } from '@/cad/engine/helpers'; // New import
+import type { SketchUpdateRequest } from '@/worker/types/requests/SketchUpdateRequest'; // New import
+import type { SketchSolvedResponse } from '@/worker/types/responses/SketchSolvedResponse'; // New import
+import type { SketchPoint } from '@/cad/types/sketch/SketchPoint'; // New import
+import type { Sketch } from '@/cad/types/sketch/Sketch'; // New import
 
 // ---------------------------------------------------------------------------
 // Worker State
@@ -114,5 +123,66 @@ self.onmessage = async (e: MessageEvent) => {
   }
 };
 
-// Auto-init on worker creation
-init();
+// Add handleSketchUpdateRequest function
+async function handleSketchUpdateRequest(ctx: WorkerContext, message: SketchUpdateRequest): Promise<void> {
+  const { oc } = ctx;
+  const { sketch } = message;
+
+  post({ type: 'progress', message: `Solving and updating sketch ${sketch.id}...` });
+
+  try {
+    // 1. Solve the sketch using the SketchSolver
+    const solver = new SketchSolver(sketch);
+    const solvedSketch = solver.solve();
+
+    // Create a map of solved points for efficient lookup in buildSketchWire
+    const solvedPointsMap = new Map<string, SketchPoint>(
+      solvedSketch.points.map((p) => [p.id, p])
+    );
+
+    // 2. Build OpenCascade wire from solved sketch elements and points
+    const wire = buildSketchWire(ctx, solvedSketch.elements, solvedSketch.plane, solvedPointsMap);
+
+    // 3. Create face from wire (if closed)
+    let shape: TopoDS_Shape = wire;
+    try {
+      if (solvedSketch.isClosed) { // Only try to make a face if the sketch is marked as closed
+        const wireWire = oc.TopoDS.Wire_1(wire);
+        const faceMaker = new oc.BRepBuilderAPI_MakeFace_15(wireWire, false);
+
+        if (faceMaker.IsDone()) {
+          shape = faceMaker.Face();
+        } else {
+          console.warn('Could not create face from wire in SketchUpdateRequest, using wire only');
+        }
+        faceMaker.delete();
+      }
+    } catch (err) {
+      console.warn('Failed to create face from wire in SketchUpdateRequest:', err);
+    }
+
+    // 4. Store shape and tessellate for visualization
+    const shapeId = `sketch_solved_${solvedSketch.id}_${Date.now()}`; // Unique ID for the solved shape
+    ctx.shapeStorage.set(shapeId, shape);
+
+    const meshData = tessellate(ctx, shape, 0.05, 0.3); // Use appropriate tessellation params
+
+    // 5. Send response back to main thread
+    const response: SketchSolvedResponse = {
+      type: 'sketchSolved',
+      solvedSketch: solvedSketch,
+      meshData: meshData,
+    };
+
+    post(response, getTransferables(meshData));
+  } catch (err: unknown) {
+    const message = formatError(err); // Assuming formatError is accessible
+    post({
+      type: 'error',
+      message: `Failed to solve and update sketch: ${message}`,
+      featureId: sketch.id,
+    });
+  }
+}
+
+
