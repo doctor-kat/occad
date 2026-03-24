@@ -6,7 +6,6 @@ import type { RebuildProgressResponse } from './RebuildProgressResponse';
 import type { FaceGeometryResponse } from './FaceGeometryResponse';
 import type { ErrorResponse } from './ErrorResponse';
 import type { ProgressResponse } from './ProgressResponse';
-import type { SketchSolvedResponse } from './SketchSolvedResponse'; // New import
 
 export type {
   ReadyResponse,
@@ -17,7 +16,6 @@ export type {
   FaceGeometryResponse,
   ErrorResponse,
   ProgressResponse,
-  SketchSolvedResponse, // New export
 };
 
 // ============================================================================
@@ -33,6 +31,5 @@ export type WorkerResponse =
   | RebuildProgressResponse
   | FaceGeometryResponse
   | ErrorResponse
-  | ProgressResponse
-  | SketchSolvedResponse; // New type in union
+  | ProgressResponse;
 

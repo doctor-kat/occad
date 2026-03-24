@@ -47,6 +47,7 @@ export interface OpenCascadeViewportProps {
   onFinishSketch?: () => void;
   /** Callback when sketch editing is cancelled */
   onCancelSketch?: () => void;
+  onUpdateConstraintValue?: (constraintId: string, value: number) => void;
 }
 
 import { SketchRenderer } from '../sketch/SketchRenderer'; // New import
@@ -69,7 +70,8 @@ export function OpenCascadeViewport({
   onBackgroundClick,
   onUpdateSketch,
   onFinishSketch,
-  onCancelSketch
+  onCancelSketch,
+  onUpdateConstraintValue
 }: OpenCascadeViewportProps) {
   // Get viewport interaction state from store
   const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
@@ -122,7 +124,12 @@ export function OpenCascadeViewport({
             onBackgroundClick={onBackgroundClick}
             onUpdateSketch={onUpdateSketch}
           />
-          {activeSketch && <SketchRenderer sketch={activeSketch as Sketch} />} {/* Render SketchRenderer when activeSketch is present */}
+          {activeSketch && (
+            <SketchRenderer 
+              sketch={activeSketch as Sketch} 
+              onUpdateConstraintValue={onUpdateConstraintValue}
+            />
+          )} {/* Render SketchRenderer when activeSketch is present */}
         </Suspense>
       </Canvas>
 

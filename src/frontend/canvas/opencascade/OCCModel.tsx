@@ -282,7 +282,7 @@ export function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVert
         // Render each topological edge as a single lineSegments
         return Array.from(edgeGroups.entries()).map(([edgeId, segments]) => {
           const isSelected = selectedEdgeIndex === edgeId;
-          const isHovered = effectiveHoveredEdgeIndex === edgeId;
+          const isHovered = !inSketchMode && effectiveHoveredEdgeIndex === edgeId;
 
           // Collect all vertices for this topological edge
           const vertices: number[] = [];

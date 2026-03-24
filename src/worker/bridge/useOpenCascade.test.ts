@@ -54,6 +54,7 @@ describe("useOpenCascade", () => {
         faceId: 7,
         origin: { x: 0, y: 0, z: 10 },
         normal: { x: 0, y: 0, z: 1 },
+        boundaryEdges: []
       });
     });
 
@@ -62,6 +63,7 @@ describe("useOpenCascade", () => {
       7,
       { x: 0, y: 0, z: 10 },
       { x: 0, y: 0, z: 1 },
+      []
     );
   });
 

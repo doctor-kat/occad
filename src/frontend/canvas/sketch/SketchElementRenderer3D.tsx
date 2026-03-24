@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Line } from '@react-three/drei';
 import { SketchElement, SketchElementType } from '@/cad/types';
 
 /**
@@ -15,20 +16,20 @@ export function SketchElementRenderer3D({
   element: SketchElement;
   color: string;
   opacity?: number;
-  lineWidth?: number;
+  lineWidth?: number; // Base line width
   isHovered?: boolean;
   isSelected?: boolean;
 }) {
   // Determine color and width based on state
   let finalColor = color;
-  let finalLineWidth = lineWidth;
+  let finalLineWidth = lineWidth || 4; // Default to 4 for better visibility
 
   if (isSelected) {
     finalColor = '#fbbf24'; // Yellow/gold for selection
-    finalLineWidth = lineWidth + 1;
+    finalLineWidth = finalLineWidth + 2; // Increase more significantly for selected
   } else if (isHovered) {
     finalColor = '#60a5fa'; // Blue for hover
-    finalLineWidth = lineWidth + 1;
+    finalLineWidth = finalLineWidth + 1;
   }
 
   const points: THREE.Vector3[] = [];
@@ -87,16 +88,34 @@ export function SketchElementRenderer3D({
       }
       break;
 
-    // TODO: Implement ellipse, spline, bezier rendering
+    case SketchElementType.ELLIPSE: {
+      const segments = 64;
+      const rotation = (element.rotation || 0) * (Math.PI / 180);
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        const x = Math.cos(angle) * element.majorRadius;
+        const y = Math.sin(angle) * element.minorRadius;
+        // Apply rotation
+        const rx = x * Math.cos(rotation) - y * Math.sin(rotation);
+        const ry = x * Math.sin(rotation) + y * Math.cos(rotation);
+        points.push(new THREE.Vector3(element.center.x + rx, element.center.y + ry, 0));
+      }
+      break;
+    }
+
+    // TODO: Implement spline, bezier rendering
   }
 
   if (points.length === 0) return null;
 
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-
   return (
-    <line geometry={geometry} position={[0, 0, 0.05]}>
-      <lineBasicMaterial color={finalColor} opacity={opacity} transparent linewidth={finalLineWidth} />
-    </line>
+    <Line
+      points={points}
+      color={finalColor}
+      lineWidth={finalLineWidth}
+      opacity={opacity}
+      transparent
+      position={[0, 0, 0.05]}
+    />
   );
 }

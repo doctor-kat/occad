@@ -15,21 +15,80 @@ import {
   OperationParams,
   ShapeReference,
   RebuildState,
-  createNewProject
+  createNewProject,
+  Workplane,
+  Point3D,
+  Vector3D,
+  PlaneType
 } from '@/cad/types';
+
+/** Create a Workplane (gp_Ax3) from plane definition */
+function createWorkplane(type: PlaneType, origin?: Point3D, normal?: Vector3D, offset: number = 0): Workplane {
+  let finalOrigin: Point3D = origin || { x: 0, y: 0, z: 0 };
+  let finalNormal: Vector3D = normal || { x: 0, y: 0, z: 1 };
+  let xAxis: Vector3D = { x: 1, y: 0, z: 0 };
+  let yAxis: Vector3D = { x: 0, y: 1, z: 0 };
+
+  if (type === PlaneType.XY) {
+    finalNormal = { x: 0, y: 0, z: 1 };
+    xAxis = { x: 1, y: 0, z: 0 };
+    yAxis = { x: 0, y: 1, z: 0 };
+    finalOrigin = { x: 0, y: 0, z: offset };
+  } else if (type === PlaneType.XZ) {
+    finalNormal = { x: 0, y: 1, z: 0 };
+    xAxis = { x: 1, y: 0, z: 0 };
+    yAxis = { x: 0, y: 0, z: 1 };
+    finalOrigin = { x: 0, y: offset, z: 0 };
+  } else if (type === PlaneType.YZ) {
+    finalNormal = { x: 1, y: 0, z: 0 };
+    xAxis = { x: 0, y: 1, z: 0 };
+    yAxis = { x: 0, y: 0, z: 1 };
+    finalOrigin = { x: offset, y: 0, z: 0 };
+  } else if (type === PlaneType.CUSTOM && normal) {
+    // For custom planes, we need to derive xAxis and yAxis
+    // Logic similar to OCC's gp_Ax2: choose an arbitrary X direction perpendicular to normal
+    if (Math.abs(normal.x) < 0.9) {
+      // Use (1,0,0) as reference
+      const vx = 1, vy = 0, vz = 0;
+      // Cross product: xAxis = reference X normal
+      xAxis = {
+        x: vy * normal.z - vz * normal.y,
+        y: vz * normal.x - vx * normal.z,
+        z: vx * normal.y - vy * normal.x
+      };
+    } else {
+      // Use (0,1,0) as reference
+      const vx = 0, vy = 1, vz = 0;
+      xAxis = {
+        x: vy * normal.z - vz * normal.y,
+        y: vz * normal.x - vx * normal.z,
+        z: vx * normal.y - vy * normal.x
+      };
+    }
+    // Normalize xAxis
+    const len = Math.sqrt(xAxis.x ** 2 + xAxis.y ** 2 + xAxis.z ** 2);
+    xAxis = { x: xAxis.x / len, y: xAxis.y / len, z: xAxis.z / len };
+    
+    // yAxis = normal X xAxis
+    yAxis = {
+      x: normal.y * xAxis.z - normal.z * xAxis.y,
+      y: normal.z * xAxis.x - normal.x * xAxis.z,
+      z: normal.x * xAxis.y - normal.y * xAxis.x
+    };
+  }
+
+  return { origin: finalOrigin, normal: finalNormal, xAxis, yAxis };
+}
 
 const STORAGE_KEY = 'occad-project';
 
 /** Migrate old persisted projects that lack isVisible on sketches and reference geometry */
 function migrateProject(raw: CADProject): CADProject {
-  const needsSketchMigration = raw.sketches.some(
-    (s) => (s as any).isVisible === undefined
-  );
-  const needsRefGeomMigration = raw.referenceGeometry.some(
-    (r) => (r as any).isVisible === undefined
+  const needsMigration = raw.sketches.some(
+    (s) => (s as any).isVisible === undefined || s.points === undefined || s.constraints === undefined
   );
 
-  if (!needsSketchMigration && !needsRefGeomMigration) return raw;
+  if (!needsMigration) return raw;
 
   const sketchIdsUsedByFeatures = new Set(
     raw.features.map((f) => f.sketchId).filter(Boolean)
@@ -38,14 +97,24 @@ function migrateProject(raw: CADProject): CADProject {
   return {
     ...raw,
     sketches: raw.sketches.map((sketch) => {
-      if ((sketch as any).isVisible !== undefined) return sketch;
-      // Respect legacy `visible` property if it exists
-      if ((sketch as any).visible !== undefined) {
-        return { ...sketch, isVisible: !!(sketch as any).visible };
+      const newSketch = { ...sketch };
+      if (newSketch.points === undefined) {
+        newSketch.points = [];
       }
-      // Default: consumed sketches hidden, standalone visible
-      const isConsumed = sketchIdsUsedByFeatures.has(sketch.id);
-      return { ...sketch, isVisible: !isConsumed };
+      if (newSketch.constraints === undefined) {
+        newSketch.constraints = [];
+      }
+      if ((newSketch as any).isVisible === undefined) {
+        // Respect legacy `visible` property if it exists
+        if ((newSketch as any).visible !== undefined) {
+          (newSketch as any).isVisible = !!(newSketch as any).visible;
+        } else {
+          // Default: consumed sketches hidden, standalone visible
+          const isConsumed = sketchIdsUsedByFeatures.has(sketch.id);
+          (newSketch as any).isVisible = !isConsumed;
+        }
+      }
+      return newSketch;
     }),
     referenceGeometry: raw.referenceGeometry.map((ref) => {
       if ((ref as any).isVisible !== undefined) return ref;
@@ -181,11 +250,15 @@ export function useCADState() {
 
   // Add a new sketch
   const addSketch = useCallback((name: string, plane: SketchPlane) => {
+    const workplane = createWorkplane(plane.type, plane.origin, plane.normal, plane.offset || 0);
+
     const newSketch: Sketch = {
       id: crypto.randomUUID(),
       name,
-      plane,
-      elements: [],
+      workplane,
+      primitives: [],
+      constraints: [],
+      visualMetadata: {},
       isClosed: false,
       isVisible: true,
       createdAt: Date.now(),
@@ -204,22 +277,37 @@ export function useCADState() {
 
   // Update sketch elements
   const updateSketchElements = useCallback((sketchId: string, elements: SketchElement[]) => {
-    const isClosed = checkIfSketchClosed(elements);
+    setProject((prev) => {
+      const sketch = prev.sketches.find((s) => s.id === sketchId);
+      if (!sketch) return prev;
 
+      const isClosed = checkIfSketchClosed(elements);
+
+      return {
+        ...prev,
+        version: prev.version + 1,
+        updatedAt: Date.now(),
+        sketches: prev.sketches.map((s) =>
+          s.id === sketchId
+            ? {
+                ...s,
+                elements,
+                isClosed,
+                updatedAt: Date.now(),
+              }
+            : s
+        ),
+      };
+    });
+  }, [setProject]);
+
+  // Update full sketch state (including solved primitives/constraints)
+  const updateSketchState = useCallback((sketchId: string, updatedSketch: Sketch) => {
     setProject((prev) => ({
       ...prev,
-      version: prev.version + 1,
       updatedAt: Date.now(),
-      sketches: prev.sketches.map((sketch) =>
-        sketch.id === sketchId
-          ? {
-              ...sketch,
-              elements,
-              updatedAt: Date.now(),
-              // Check if sketch forms closed wire (simple check - first/last points match)
-              isClosed
-            }
-          : sketch
+      sketches: prev.sketches.map((s) =>
+        s.id === sketchId ? { ...updatedSketch, updatedAt: Date.now() } : s
       ),
     }));
   }, [setProject]);
@@ -248,7 +336,7 @@ export function useCADState() {
       if (currentSketchId) {
         setProject((prev) => {
           const sketch = prev.sketches.find((s) => s.id === currentSketchId);
-          if (sketch && sketch.elements.length === 0) {
+          if (sketch && (!sketch.elements || sketch.elements.length === 0) && (!sketch.primitives || sketch.primitives.length === 0)) {
             return {
               ...prev,
               version: prev.version + 1,

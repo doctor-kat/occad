@@ -10,6 +10,7 @@ import type {
   CADProject,
   Point3D,
   Vector3D,
+  Sketch,
 } from "@/cad/types";
 
 export type { CADMeshData as MeshData };
@@ -20,7 +21,7 @@ interface UseOpenCascadeOptions {
   /** If provided, automatically builds this model once the kernel is ready. */
   initialParams?: { width: number; height: number; thickness: number };
   /** Callback when a sketch is built */
-  onSketchBuilt?: (sketchId: string, meshData: CADMeshData) => void;
+  onSketchBuilt?: (sketchId: string, meshData: CADMeshData, solvedSketch?: Sketch) => void;
   /** Callback when a feature is built */
   onFeatureBuilt?: (featureId: string, meshData: CADMeshData) => void;
   /** Callback when rebuild is complete */
@@ -28,7 +29,7 @@ interface UseOpenCascadeOptions {
   /** Callback for rebuild progress */
   onRebuildProgress?: (progress: number, currentFeatureId: string) => void;
   /** Callback when face geometry is received */
-  onFaceGeometry?: (faceId: number, origin: Point3D, normal: Vector3D) => void;
+  onFaceGeometry?: (faceId: number, origin: Point3D, normal: Vector3D, boundaryEdges?: string[]) => void;
   /** Callback when an error occurs */
   onError?: (message: string, featureId?: string) => void;
 }
@@ -83,7 +84,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           setMesh(msg.meshData);
           setCurrentShapeId(msg.geometry.shapeId);
           setStatus("ready");
-          optsRef.current.onSketchBuilt?.(msg.sketchId, msg.meshData);
+          optsRef.current.onSketchBuilt?.(msg.sketchId, msg.meshData, msg.solvedSketch);
           break;
 
         case "featureBuilt":
@@ -111,7 +112,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           break;
 
         case "faceGeometry":
-          optsRef.current.onFaceGeometry?.(msg.faceId, msg.origin, msg.normal);
+          optsRef.current.onFaceGeometry?.(msg.faceId, msg.origin, msg.normal, msg.boundaryEdges);
           break;
 
         case "error":
@@ -130,6 +131,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     };
 
     workerRef.current = worker;
+    worker.postMessage({ type: 'init' });
 
     return () => {
       worker.terminate();
@@ -138,22 +140,21 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Build sketch from elements
+  // Build/Solve sketch from full state
   const buildSketch = useCallback(
-    (sketchId: string, plane: SketchPlane, elements: SketchElement[]) => {
+    (sketch: Sketch) => {
       const w = workerRef.current;
       if (!w || status === "loading") return;
       setStatus("building");
       setError(null);
       const message: WorkerRequest = {
         type: "buildSketch",
-        sketchId,
-        plane,
-        elements,
+        sketch,
+        bodyId: currentFeatureShapeId || undefined,
       };
       w.postMessage(message);
     },
-    [status],
+    [status, currentFeatureShapeId],
   );
 
   // Extrude sketch
@@ -252,6 +253,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     currentFeatureShapeId,
     sketchEdges,
     buildSketch,
+    solveSketch: buildSketch,
     extrudeSketch,
     revolveSketch,
     rebuild,

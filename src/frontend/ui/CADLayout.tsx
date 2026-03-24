@@ -15,6 +15,92 @@ import { Cube, Polygon } from '@phosphor-icons/react';
 import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
 
+/** Map legacy SketchElements to new SketchPrimitives for the solver */
+function mapElementsToPrimitives(elements: SketchElement[]): any[] {
+  const primitives: any[] = [];
+  
+  elements.forEach(el => {
+    switch (el.type) {
+      case 'line': {
+        const p1Id = `${el.id}_p1`;
+        const p2Id = `${el.id}_p2`;
+        primitives.push({ id: p1Id, type: 'point', fixed: false, data: { x: el.start.x, y: el.start.y } });
+        primitives.push({ id: p2Id, type: 'point', fixed: false, data: { x: el.end.x, y: el.end.y } });
+        primitives.push({ id: el.id, type: 'line', fixed: false, data: { p1_id: p1Id, p2_id: p2Id } });
+        break;
+      }
+      case 'circle': {
+        const centerId = `${el.id}_center`;
+        primitives.push({ id: centerId, type: 'point', fixed: false, data: { x: el.center.x, y: el.center.y } });
+        primitives.push({ id: el.id, type: 'circle', fixed: false, data: { center_id: centerId, radius: el.radius } });
+        break;
+      }
+      case 'arc': {
+        const centerId = `${el.id}_center`;
+        // planegcs arcs need start/end angles
+        // If they come from 3-point arc, we might need more complex mapping
+        // For now assume center-radius-angle or similar
+        const center = el.center || { x: 0, y: 0 };
+        primitives.push({ id: centerId, type: 'point', fixed: false, data: { x: center.x, y: center.y } });
+        primitives.push({ 
+          id: el.id, 
+          type: 'arc', 
+          fixed: false, 
+          data: { 
+            center_id: centerId, 
+            radius: el.radius || 10, 
+            start_angle: el.startAngle || 0, 
+            end_angle: el.endAngle || Math.PI / 2 
+          } 
+        });
+        break;
+      }
+      case 'rectangle': {
+        const p1Id = `${el.id}_p1`, p2Id = `${el.id}_p2`, p3Id = `${el.id}_p3`, p4Id = `${el.id}_p4`;
+        primitives.push({ id: p1Id, type: 'point', fixed: false, data: { x: el.corner1.x, y: el.corner1.y } });
+        primitives.push({ id: p2Id, type: 'point', fixed: false, data: { x: el.corner2.x, y: el.corner1.y } });
+        primitives.push({ id: p3Id, type: 'point', fixed: false, data: { x: el.corner2.x, y: el.corner2.y } });
+        primitives.push({ id: p4Id, type: 'point', fixed: false, data: { x: el.corner1.x, y: el.corner2.y } });
+        primitives.push({ id: `${el.id}_l1`, type: 'line', fixed: false, data: { p1_id: p1Id, p2_id: p2Id } });
+        primitives.push({ id: `${el.id}_l2`, type: 'line', fixed: false, data: { p1_id: p2Id, p2_id: p3Id } });
+        primitives.push({ id: `${el.id}_l3`, type: 'line', fixed: false, data: { p1_id: p3_id, p2_id: p4Id } });
+        primitives.push({ id: `${el.id}_l4`, type: 'line', fixed: false, data: { p1_id: p4_id, p2_id: p1Id } });
+        break;
+      }
+      case 'polygon': {
+        const pointIds = el.points.map((p, i) => {
+          const pid = `${el.id}_p${i}`;
+          primitives.push({ id: pid, type: 'point', fixed: false, data: { x: p.x, y: p.y } });
+          return pid;
+        });
+        pointIds.forEach((pid, i) => {
+          const nextPid = pointIds[(i + 1) % pointIds.length];
+          primitives.push({ id: `${el.id}_l${i}`, type: 'line', fixed: false, data: { p1_id: pid, p2_id: nextPid } });
+        });
+        break;
+      }
+      case 'ellipse': {
+        const centerId = `${el.id}_center`;
+        primitives.push({ id: centerId, type: 'point', fixed: false, data: { x: el.center.x, y: el.center.y } });
+        primitives.push({ 
+          id: el.id, 
+          type: 'ellipse', 
+          fixed: false, 
+          data: { 
+            center_id: centerId, 
+            major_radius: el.majorRadius, 
+            minor_radius: el.minorRadius, 
+            major_dir: { x: Math.cos((el.rotation || 0) * Math.PI / 180), y: Math.sin((el.rotation || 0) * Math.PI / 180), z: 0 } 
+          } 
+        });
+        break;
+      }
+    }
+  });
+  
+  return primitives;
+}
+
 export function CADLayout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
@@ -53,6 +139,7 @@ export function CADLayout() {
     addSketch,
     addFeature,
     updateSketchElements,
+    updateSketchState,
     startSketchEdit,
     stopSketchEdit,
     updateFeatureParameters,
@@ -90,13 +177,18 @@ export function CADLayout() {
     buildSketch,
     sketchEdges: occSketchEdges,
   } = useOpenCascade({
+    onSketchBuilt: (sketchId, meshData, solvedSketch) => {
+      if (solvedSketch) {
+        updateSketchState(sketchId, solvedSketch);
+      }
+    },
     onFeatureBuilt: (featureId, meshData) => {
       notifications.show({ color: 'green', message: 'Feature built successfully' });
     },
     onRebuildComplete: (meshData) => {
       notifications.show({ color: 'green', message: 'Rebuild complete' });
     },
-    onFaceGeometry: (faceId, origin, normal) => {
+    onFaceGeometry: (faceId, origin, normal, boundaryEdges) => {
       // Create sketch with the actual face geometry
       if (pendingSketchOnFace === faceId) {
         const plane: SketchPlane = {
@@ -108,9 +200,28 @@ export function CADLayout() {
         };
 
         const newSketch = addSketch(`Sketch ${project.sketches.length + 1}`, plane);
+        
+        // Import boundary edges as external fixed primitives
+        if (boundaryEdges && boundaryEdges.length > 0) {
+          const externalPrims = boundaryEdges.map(edgeTag => ({
+            id: crypto.randomUUID(),
+            type: 'line' as const, // Placeholder, worker will refine
+            data: {},
+            fixed: true,
+            isExternal: true,
+            sourceId: edgeTag
+          }));
+          const updatedSketch = {
+            ...newSketch,
+            primitives: externalPrims
+          };
+          updateSketchState(newSketch.id, updatedSketch);
+          buildSketch(updatedSketch);
+        }
+
         startSketchEdit(newSketch.id);
         selectTreeItem(newSketch.id);
-        notifications.show({ color: 'blue', message: `Sketch created on Face ${faceId + 1}` });
+        notifications.show({ color: 'blue', message: `Sketch created on Face ${faceId + 1} with ${boundaryEdges?.length || 0} imported edges` });
         setPendingSketchOnFace(null);
       }
     },
@@ -261,7 +372,22 @@ export function CADLayout() {
 
   // Handle sketch update
   const handleUpdateSketch = (sketchId: string, elements: SketchElement[]) => {
+    // First update local elements so UI reflects changes immediately if needed
     updateSketchElements(sketchId, elements);
+    
+    // Then trigger worker build/solve
+    const sketch = project.sketches.find((s) => s.id === sketchId);
+    if (sketch) {
+      // Merge mapped primitives with existing ones (to keep external geometry)
+      const newPrimitives = mapElementsToPrimitives(elements);
+      const externalPrims = sketch.primitives.filter(p => p.isExternal);
+      
+      buildSketch({ 
+        ...sketch, 
+        elements, 
+        primitives: [...newPrimitives, ...externalPrims] 
+      });
+    }
   };
 
   // Handle finish sketch
@@ -291,6 +417,32 @@ export function CADLayout() {
 
   // Handle edge click from viewport
   const handleEdgeClick = (edgeIndex: number) => {
+    if (activeSketchId) {
+      // If in sketch mode, import the edge as external geometry
+      const sketch = project.sketches.find(s => s.id === activeSketchId);
+      if (sketch) {
+        const sourceId = `edge-${edgeIndex}`;
+        if (!sketch.primitives.some(p => p.sourceId === sourceId)) {
+          const newPrimitive = {
+            id: crypto.randomUUID(),
+            type: 'line' as const, // The worker will refine the type if needed
+            data: {},
+            fixed: true,
+            isExternal: true,
+            sourceId
+          };
+          const updatedSketch = {
+            ...sketch,
+            primitives: [...sketch.primitives, newPrimitive]
+          };
+          updateSketchState(activeSketchId, updatedSketch);
+          buildSketch(updatedSketch);
+          notifications.show({ color: 'blue', message: `Imported edge ${edgeIndex + 1} into sketch` });
+        }
+      }
+      return;
+    }
+
     // Clear all other selections and set edge selection
     selectTreeItem(null);
     setSelectedFaceId(null);
@@ -302,6 +454,32 @@ export function CADLayout() {
 
   // Handle vertex click from viewport
   const handleVertexClick = (vertexIndex: number) => {
+    if (activeSketchId) {
+      // If in sketch mode, import the vertex as external geometry
+      const sketch = project.sketches.find(s => s.id === activeSketchId);
+      if (sketch) {
+        const sourceId = `vertex-${vertexIndex}`;
+        if (!sketch.primitives.some(p => p.sourceId === sourceId)) {
+          const newPrimitive = {
+            id: crypto.randomUUID(),
+            type: 'point' as const,
+            data: {},
+            fixed: true,
+            isExternal: true,
+            sourceId
+          };
+          const updatedSketch = {
+            ...sketch,
+            primitives: [...sketch.primitives, newPrimitive]
+          };
+          updateSketchState(activeSketchId, updatedSketch);
+          buildSketch(updatedSketch);
+          notifications.show({ color: 'blue', message: `Imported vertex ${vertexIndex + 1} into sketch` });
+        }
+      }
+      return;
+    }
+
     // Clear all other selections and set vertex selection
     selectTreeItem(null);
     setSelectedFaceId(null);
@@ -446,6 +624,27 @@ export function CADLayout() {
   const handleExport = () => {
     exportProject();
     notifications.show({ color: 'green', message: 'Project exported' });
+  };
+
+  // Handle constraint value update
+  const handleUpdateConstraintValue = (constraintId: string, value: number) => {
+    if (activeSketchId) {
+      const sketch = project.sketches.find((s) => s.id === activeSketchId);
+      if (sketch) {
+        const updatedConstraints = sketch.constraints.map((c) => {
+          if (c.id === constraintId) {
+            // Update the value based on constraint type
+            if ('distance' in c) return { ...c, distance: value };
+            if ('radius' in c) return { ...c, radius: value };
+            if ('angle' in c) return { ...c, angle: value };
+          }
+          return c;
+        });
+        const updatedSketch = { ...sketch, constraints: updatedConstraints };
+        updateSketchState(activeSketchId, updatedSketch);
+        buildSketch(updatedSketch);
+      }
+    }
   };
 
   return (
@@ -699,6 +898,7 @@ export function CADLayout() {
             onEdgeClick={handleEdgeClick}
             onVertexClick={handleVertexClick}
             onBackgroundClick={handleBackgroundClick}
+            onUpdateConstraintValue={handleUpdateConstraintValue}
           />
         </Box>
       </AppShell.Main>

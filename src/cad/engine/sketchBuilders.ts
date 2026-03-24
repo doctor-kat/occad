@@ -1,567 +1,184 @@
-/**
- * Sketch Geometry Builders
- *
- * Pure functions for converting 2D sketch elements to 3D OpenCascade geometry.
- */
-
-type gp_Pnt = any;
-type gp_Dir = any;
-type TopoDS_Edge = any;
-type TopoDS_Wire = any;
-import type { SketchElement, SketchPlane, Point2D } from '@/cad/types';
-import { SketchElementType, PlaneType } from '@/cad/types';
-import type { WorkerContext } from './workerContext';
+import type { OpenCascadeInstance, TopoDS_Shape, TopoDS_Edge, TopoDS_Wire } from 'opencascade.js';
+import { Sketch, SketchPrimitive, Workplane, Point2D, Point3D } from '../types';
+import { lift } from './sketch/coordinateSystem';
+import { WorkerContext } from './workerContext';
 
 /**
- * Decode BRepBuilderAPI_WireError enum to human-readable string
- * @param ctx Worker context
- * @param errorCode Wire error enum value
- * @returns Human-readable error description
+ * Translates planegcs primitives into OpenCascade shapes.
+ * This is the "Translation Layer" mentioned in the requirements.
  */
-function decodeWireError(ctx: WorkerContext, errorCode: any): string {
-  const { oc } = ctx;
-  const errorValue = typeof errorCode === 'number' ? errorCode : errorCode?.value ?? -1;
-
-  // BRepBuilderAPI_WireError enum values
-  const errors: Record<number, string> = {
-    0: 'WireDone (no error)',
-    1: 'EmptyWire',
-    2: 'DisconnectedWire (edges not connected)',
-    3: 'NonManifoldWire (more than 2 edges share a vertex)',
-  };
-
-  return errors[errorValue] || `Unknown error code: ${errorValue}`;
-}
-
-/**
- * Convert 2D sketch point to 3D point on sketch plane
- * @param ctx Worker context
- * @param point2D 2D point in sketch space
- * @param plane Sketch plane definition
- * @returns 3D point on the plane
- */
-export function sketchPointTo3D(
+export function translatePrimitivesToOCC(
   ctx: WorkerContext,
-  point2D: Point2D,
-  plane: SketchPlane,
-  solvedPointsMap?: Map<string, SketchPoint> // New parameter
-): gp_Pnt {
+  sketch: Sketch
+): Map<string, TopoDS_Shape> {
   const { oc } = ctx;
-  const offset = plane.offset || 0;
+  const shapes = new Map<string, TopoDS_Shape>();
+  const workplane = sketch.workplane;
 
-  let currentX = point2D.x;
-  let currentY = point2D.y;
+  for (const primitive of sketch.primitives) {
+    try {
+      let shape: TopoDS_Shape | undefined;
 
-  // If a map of solved points is provided and this point2D has an ID,
-  // try to use the solved coordinates for it.
-  if (point2D.id && solvedPointsMap) {
-    const solvedPoint = solvedPointsMap.get(point2D.id);
-    if (solvedPoint) {
-      currentX = solvedPoint.x;
-      currentY = solvedPoint.y;
-    }
-  }
-
-  switch (plane.type) {
-    case PlaneType.XY:
-      return new oc.gp_Pnt_3(currentX, currentY, offset);
-    case 'xz':
-      return new oc.gp_Pnt_3(currentX, offset, currentY);
-    case 'yz':
-      return new oc.gp_Pnt_3(offset, currentX, currentY);
-    case 'custom':
-      if (plane.origin && plane.normal) {
-        // Create a local coordinate system on the custom plane
-        const origin = new oc.gp_Pnt_3(plane.origin.x, plane.origin.y, plane.origin.z);
-        const normal = new oc.gp_Dir_4(plane.normal.x, plane.normal.y, plane.normal.z);
-
-        // Create coordinate system with manual axis alignment to match frontend
-        let xAxisDir: any;
-
-        const vNormal = new oc.gp_Vec_4(normal.X(), normal.Y(), normal.Z());
-        if (Math.abs(normal.X()) < 0.9) {
-          const v1 = new oc.gp_Vec_4(1, 0, 0);
-          const vX = v1.Crossed(vNormal).Normalized();
-          xAxisDir = new oc.gp_Dir_4(vX.X(), vX.Y(), vX.Z());
-          v1.delete();
-          vX.delete();
-        } else {
-          const v1 = new oc.gp_Vec_4(0, 1, 0);
-          const vNormalVec = new oc.gp_Vec_4(normal.X(), normal.Y(), normal.Z());
-          const vX = v1.Crossed(vNormalVec).Normalized();
-          xAxisDir = new oc.gp_Dir_4(vX.X(), vX.Y(), vX.Z());
-          v1.delete();
-          vNormalVec.delete();
-          vX.delete();
+      switch (primitive.type) {
+        case 'point': {
+          const p3d = lift({ x: primitive.data.x, y: primitive.data.y }, workplane);
+          const pnt = new oc.gp_Pnt_3(p3d.x, p3d.y, p3d.z);
+          const vertex = new oc.BRepBuilderAPI_MakeVertex(pnt);
+          shape = vertex.Vertex();
+          pnt.delete();
+          vertex.delete();
+          break;
         }
-        vNormal.delete();
 
-        // Create explicit coordinate system
-        const ax2 = new oc.gp_Ax2_2(origin, normal, xAxisDir);
+        case 'line': {
+          const p1Data = sketch.primitives.find(p => p.id === primitive.data.p1_id)?.data;
+          const p2Data = sketch.primitives.find(p => p.id === primitive.data.p2_id)?.data;
+          if (!p1Data || !p2Data) break;
 
-        // Convert 2D point to 3D point on the plane
-        // Calculate 3D point: origin + u*xDir + v*yDir
-        const xAxis = ax2.XDirection();
-        const yAxis = ax2.YDirection();
-        const pos = ax2.Location();
+          const p1_3d = lift({ x: p1Data.x, y: p1Data.y }, workplane);
+          const p2_3d = lift({ x: p2Data.x, y: p2Data.y }, workplane);
+          const p1 = new oc.gp_Pnt_3(p1_3d.x, p1_3d.y, p1_3d.z);
+          const p2 = new oc.gp_Pnt_3(p2_3d.x, p2_3d.y, p2_3d.z);
 
-        const x = pos.X() + point2D.x * xAxis.X() + point2D.y * yAxis.X();
-        const y = pos.Y() + point2D.x * xAxis.Y() + point2D.y * yAxis.Y();
-        const z = pos.Z() + point2D.x * xAxis.Z() + point2D.y * yAxis.Z();
+          const edge = new oc.BRepBuilderAPI_MakeEdge_3(p1, p2);
+          if (edge.IsDone()) {
+            shape = edge.Edge();
+          }
+          p1.delete();
+          p2.delete();
+          edge.delete();
+          break;
+        }
 
-        const result = new oc.gp_Pnt_3(x, y, z);
+        case 'circle': {
+          const centerData = sketch.primitives.find(p => p.id === primitive.data.center_id)?.data;
+          if (!centerData) break;
 
-        // Clean up
-        origin.delete();
-        normal.delete();
-        xAxisDir.delete();
-        ax2.delete();
-        // xAxis, yAxis, pos are references/copies from ax2, usually don't need delete if they are accessors, 
-        // but in OCC.js they might be new objects. Let's be safe.
-        // Actually, XDirection() returns a copy for gp_Ax2.
-        xAxis.delete();
-        yAxis.delete();
-        pos.delete();
+          const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
+          const center = new oc.gp_Pnt_3(center_3d.x, center_3d.y, center_3d.z);
+          const normal = new oc.gp_Dir_4(workplane.normal.x, workplane.normal.y, workplane.normal.z);
+          
+          const axis = new oc.gp_Ax2_3(center, normal);
+          const circ = new oc.gp_Circ_2(axis, primitive.data.radius);
 
-        return result;
+          const edge = new oc.BRepBuilderAPI_MakeEdge_10(circ);
+          if (edge.IsDone()) {
+            shape = edge.Edge();
+          }
+          center.delete();
+          normal.delete();
+          axis.delete();
+          edge.delete();
+          break;
+        }
+
+        case 'arc': {
+          const centerData = sketch.primitives.find(p => p.id === primitive.data.center_id)?.data;
+          if (!centerData) break;
+
+          const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
+          const center = new oc.gp_Pnt_3(center_3d.x, center_3d.y, center_3d.z);
+          const normal = new oc.gp_Dir_4(workplane.normal.x, workplane.normal.y, workplane.normal.z);
+          
+          const axis = new oc.gp_Ax2_3(center, normal);
+          const circ = new oc.gp_Circ_2(axis, primitive.data.radius);
+
+          // planegcs angles are in local frame from workplane X direction
+          const edge = new oc.BRepBuilderAPI_MakeEdge_11(circ, primitive.data.start_angle, primitive.data.end_angle);
+          if (edge.IsDone()) {
+            shape = edge.Edge();
+          }
+          center.delete();
+          normal.delete();
+          axis.delete();
+          edge.delete();
+          break;
+        }
+
+        case 'ellipse': {
+          const centerData = sketch.primitives.find(p => p.id === primitive.data.center_id)?.data;
+          if (!centerData) break;
+
+          const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
+          const center = new oc.gp_Pnt_3(center_3d.x, center_3d.y, center_3d.z);
+          const normal = new oc.gp_Dir_4(workplane.normal.x, workplane.normal.y, workplane.normal.z);
+          
+          // planegcs ellipse data usually has majorDir or similar
+          // Re-constructing gp_Elips as per user instructions
+          // focalDist = sqrt(radmaj² - radmin²)
+          const radmaj = primitive.data.major_radius;
+          const radmin = primitive.data.minor_radius;
+          
+          // Need a major direction. If not provided, use workplane X
+          const majorDirVec = primitive.data.major_dir 
+            ? new oc.gp_Dir_4(primitive.data.major_dir.x, primitive.data.major_dir.y, primitive.data.major_dir.z)
+            : new oc.gp_Dir_4(workplane.xAxis.x, workplane.xAxis.y, workplane.xAxis.z);
+
+          const axis = new oc.gp_Ax2_3(center, normal, majorDirVec);
+          const elips = new oc.gp_Elips_4(axis, radmaj, radmin);
+
+          const edge = new oc.BRepBuilderAPI_MakeEdge_12(elips);
+          if (edge.IsDone()) {
+            shape = edge.Edge();
+          }
+          center.delete();
+          normal.delete();
+          majorDirVec.delete();
+          axis.delete();
+          edge.delete();
+          break;
+        }
       }
-      return new oc.gp_Pnt_3(point2D.x, point2D.y, offset);
-    default:
-      return new oc.gp_Pnt_3(point2D.x, point2D.y, offset);
-  }
-}
 
-/**
- * Get sketch plane normal vector
- * @param ctx Worker context
- * @param plane Sketch plane definition
- * @returns Normal direction vector
- */
-export function getSketchPlaneNormal(ctx: WorkerContext, plane: SketchPlane): gp_Dir {
-  const { oc } = ctx;
-
-  switch (plane.type) {
-    case PlaneType.XY:
-      return new oc.gp_Dir_4(0, 0, 1); // Z-up
-    case 'xz':
-      return new oc.gp_Dir_4(0, 1, 0); // Y-up
-    case 'yz':
-      return new oc.gp_Dir_4(1, 0, 0); // X-up
-    case 'custom':
-      if (plane.normal) {
-        return new oc.gp_Dir_4(plane.normal.x, plane.normal.y, plane.normal.z);
+      if (shape) {
+        shapes.set(primitive.id, shape);
       }
-    // fallthrough
-    default:
-      return new oc.gp_Dir_4(0, 0, 1);
-  }
-}
-
-/**
- * Build a line edge from sketch line
- * @param ctx Worker context
- * @param line Line element
- * @param plane Sketch plane
- * @returns Line edge
- */
-export function buildLineEdge(
-  ctx: WorkerContext,
-  line: SketchElement & { type: SketchElementType.LINE },
-  plane: SketchPlane
-): TopoDS_Edge {
-  const { oc } = ctx;
-  const p1 = sketchPointTo3D(ctx, line.start, plane);
-  const p2 = sketchPointTo3D(ctx, line.end, plane);
-
-  // Directly create edge from two points
-  const edgeBuilder = new oc.BRepBuilderAPI_MakeEdge_3(p1, p2);
-  if (!edgeBuilder.IsDone()) {
-    p1.delete();
-    p2.delete();
-    throw new Error(`BRepBuilderAPI_MakeEdge failed: ${edgeBuilder.Error()}`);
-  }
-
-  const edge = edgeBuilder.Edge();
-
-  // Clean up
-  p1.delete();
-  p2.delete();
-  edgeBuilder.delete();
-
-  return edge;
-}
-
-/**
- * Build a circle edge from sketch circle
- * @param ctx Worker context
- * @param circle Circle element
- * @param plane Sketch plane
- * @returns Circle edge
- */
-export function buildCircleEdge(
-  ctx: WorkerContext,
-  circle: SketchElement & { type: 'circle' },
-  plane: SketchPlane
-): TopoDS_Edge {
-  const { oc } = ctx;
-  const center = sketchPointTo3D(ctx, circle.center, plane);
-  const normal = getSketchPlaneNormal(ctx, plane);
-
-  // Use gp_Ax2 to define coordinate system then create circle
-  const axis = new oc.gp_Ax2_2(center, normal);
-  const circ = new oc.gp_Circ_2(axis, circle.radius);
-
-  const edgeBuilder = new oc.BRepBuilderAPI_MakeEdge_10(circ);
-  if (!edgeBuilder.IsDone()) {
-    center.delete();
-    normal.delete();
-    axis.delete();
-    throw new Error(`BRepBuilderAPI_MakeEdge failed for circle: ${edgeBuilder.Error()}`);
-  }
-
-  const edge = edgeBuilder.Edge();
-
-  // Clean up
-  center.delete();
-  normal.delete();
-  axis.delete();
-  edgeBuilder.delete();
-
-  return edge;
-}
-
-/**
- * Build an arc edge from sketch arc
- * @param ctx Worker context
- * @param arc Arc element
- * @param plane Sketch plane
- * @returns Arc edge
- */
-export function buildArcEdge(
-  ctx: WorkerContext,
-  arc: SketchElement & { type: 'arc' },
-  plane: SketchPlane
-): TopoDS_Edge {
-  const { oc } = ctx;
-
-  if (arc.points) {
-    // Three-point arc
-    const p1 = sketchPointTo3D(ctx, arc.points[0], plane);
-    const p2 = sketchPointTo3D(ctx, arc.points[1], plane);
-    const p3 = sketchPointTo3D(ctx, arc.points[2], plane);
-
-    const edge = new oc.BRepBuilderAPI_MakeEdge_31(p1, p2, p3);
-    if (!edge.IsDone()) {
-      p1.delete();
-      p2.delete();
-      p3.delete();
-      throw new Error(`BRepBuilderAPI_MakeEdge failed for 3-point arc: ${edge.Error()}`);
+    } catch (err) {
+      console.warn(`[TranslationLayer] Failed to translate primitive ${primitive.id}:`, err);
     }
-
-    const res = edge.Edge();
-    p1.delete();
-    p2.delete();
-    p3.delete();
-    edge.delete();
-    return res;
-  } else if (
-    arc.center &&
-    arc.radius !== undefined &&
-    arc.startAngle !== undefined &&
-    arc.endAngle !== undefined
-  ) {
-    // Center-radius-angle arc
-    const center = sketchPointTo3D(ctx, arc.center, plane);
-    const normal = getSketchPlaneNormal(ctx, plane);
-
-    const axis = new oc.gp_Ax2_2(center, normal);
-    const circ = new oc.gp_Circ_2(axis, arc.radius);
-
-    const edge = new oc.BRepBuilderAPI_MakeEdge_11(circ, arc.startAngle, arc.endAngle);
-    if (!edge.IsDone()) {
-      center.delete();
-      normal.delete();
-      axis.delete();
-      throw new Error(`BRepBuilderAPI_MakeEdge failed for angular arc: ${edge.Error()}`);
-    }
-
-    const res = edge.Edge();
-    center.delete();
-    normal.delete();
-    axis.delete();
-    edge.delete();
-    return res;
   }
 
-  throw new Error('Invalid arc definition');
+  return shapes;
 }
 
 /**
- * Build wire from rectangle (using MakePolygon for guaranteed connectivity)
- * @param ctx Worker context
- * @param rect Rectangle element
- * @param plane Sketch plane
- * @returns Wire containing the rectangle
- */
-export function buildRectangleWire(
-  ctx: WorkerContext,
-  rect: SketchElement & { type: 'rectangle' },
-  plane: SketchPlane
-): TopoDS_Wire {
-  const { oc } = ctx;
-  const p1 = sketchPointTo3D(ctx, rect.corner1, plane);
-  const p2 = sketchPointTo3D(ctx, { x: rect.corner2.x, y: rect.corner1.y }, plane);
-  const p3 = sketchPointTo3D(ctx, rect.corner2, plane);
-  const p4 = sketchPointTo3D(ctx, { x: rect.corner1.x, y: rect.corner2.y }, plane);
-
-  // Use BRepBuilderAPI_MakePolygon for connected line segments
-  // This ensures proper vertex sharing and connectivity
-  const polygonBuilder = new oc.BRepBuilderAPI_MakePolygon_1();
-  polygonBuilder.Add_1(p1);
-  polygonBuilder.Add_1(p2);
-  polygonBuilder.Add_1(p3);
-  polygonBuilder.Add_1(p4);
-  polygonBuilder.Close(); // Close the polygon back to p1
-
-  if (!polygonBuilder.IsDone()) {
-    p1.delete();
-    p2.delete();
-    p3.delete();
-    p4.delete();
-    polygonBuilder.delete();
-    throw new Error('BRepBuilderAPI_MakePolygon failed for rectangle');
-  }
-
-  const wire = polygonBuilder.Wire();
-
-  // Clean up
-  p1.delete();
-  p2.delete();
-  p3.delete();
-  p4.delete();
-  polygonBuilder.delete();
-
-  return wire;
-}
-
-/**
- * Build wire from polygon (using MakePolygon for guaranteed connectivity)
- * @param ctx Worker context
- * @param polygon Polygon element
- * @param plane Sketch plane
- * @returns Wire containing the polygon
- */
-export function buildPolygonWire(
-  ctx: WorkerContext,
-  polygon: SketchElement & { type: 'polygon' },
-  plane: SketchPlane
-): TopoDS_Wire {
-  const { oc } = ctx;
-  const points = polygon.points.map(p => sketchPointTo3D(ctx, p, plane));
-
-  // Use BRepBuilderAPI_MakePolygon for connected line segments
-  const polygonBuilder = new oc.BRepBuilderAPI_MakePolygon_1();
-
-  for (const point of points) {
-    polygonBuilder.Add_1(point);
-  }
-
-  // Close the polygon
-  polygonBuilder.Close();
-
-  if (!polygonBuilder.IsDone()) {
-    throw new Error('BRepBuilderAPI_MakePolygon failed for polygon');
-  }
-
-  return polygonBuilder.Wire();
-}
-
-/**
- * Extract edges from a wire (for multi-element sketch combination)
- * @param ctx Worker context
- * @param wire Wire to extract edges from
- * @returns Array of edges
- */
-function extractEdgesFromWire(ctx: WorkerContext, wire: TopoDS_Wire): TopoDS_Edge[] {
-  const { oc } = ctx;
-  const edges: TopoDS_Edge[] = [];
-
-  const edgeExplorer = new oc.TopExp_Explorer_2(
-    wire,
-    oc.TopAbs_ShapeEnum.TopAbs_EDGE,
-    oc.TopAbs_ShapeEnum.TopAbs_SHAPE
-  );
-
-  for (; edgeExplorer.More(); edgeExplorer.Next()) {
-    const edge = oc.TopoDS.Edge_1(edgeExplorer.Current());
-    edges.push(edge);
-  }
-
-  return edges;
-}
-
-/**
- * Build an ellipse edge from sketch ellipse
- * @param ctx Worker context
- * @param ellipse Ellipse element
- * @param plane Sketch plane
- * @returns Ellipse edge
- */
-export function buildEllipseEdge(
-  ctx: WorkerContext,
-  ellipse: SketchElement & { type: 'ellipse' },
-  plane: SketchPlane
-): TopoDS_Edge {
-  const { oc } = ctx;
-  const center = sketchPointTo3D(ctx, ellipse.center, plane);
-  const normal = getSketchPlaneNormal(ctx, plane);
-
-  const axis = new oc.gp_Ax2_2(center, normal);
-
-  // Apply rotation if present
-  if (ellipse.rotation) {
-    const rotationRad = (ellipse.rotation * Math.PI) / 180;
-    axis.Rotate(new oc.gp_Ax1_2(center, normal), rotationRad);
-  }
-
-  const gpEllipse = new oc.gp_Elips_4(axis, ellipse.majorRadius, ellipse.minorRadius);
-  const edgeBuilder = new oc.BRepBuilderAPI_MakeEdge_12(gpEllipse);
-
-  if (!edgeBuilder.IsDone()) {
-    center.delete();
-    normal.delete();
-    axis.delete();
-    throw new Error(`BRepBuilderAPI_MakeEdge failed for ellipse: ${edgeBuilder.Error()}`);
-  }
-
-  const edge = edgeBuilder.Edge();
-
-  // Clean up
-  center.delete();
-  normal.delete();
-  axis.delete();
-  edgeBuilder.delete();
-
-  return edge;
-}
-
-/**
- * Build a spline edge from sketch spline
- * @param ctx Worker context
- * @param spline Spline element
- * @param plane Sketch plane
- * @returns Spline edge
- */
-export function buildSplineEdge(
-  ctx: WorkerContext,
-  spline: SketchElement & { type: 'spline' },
-  plane: SketchPlane
-): TopoDS_Edge {
-  const { oc } = ctx;
-  const points = spline.points.map(p => sketchPointTo3D(ctx, p, plane));
-  const pointArray = new oc.TColgp_Array1OfPnt_2(1, points.length);
-
-  for (let i = 0; i < points.length; i++) {
-    pointArray.SetValue(i + 1, points[i]);
-  }
-
-  const splineGeom = new oc.GeomAPI_PointsToBSpline_2(
-    pointArray,
-    3, // min degree
-    8, // max degree
-    oc.GeomAbs_Shape.GeomAbs_C2,
-    1.0e-3
-  );
-  if (!splineGeom.IsDone()) {
-    throw new Error('GeomAPI_PointsToBSpline failed');
-  }
-
-  const edge = new oc.BRepBuilderAPI_MakeEdge_23(new oc.Handle_Geom_Curve_2(splineGeom.Curve().get()));
-  if (!edge.IsDone()) {
-    throw new Error(`BRepBuilderAPI_MakeEdge failed: ${edge.Error()}`);
-  }
-
-  return edge.Edge();
-}
-
-/**
- * Build a wire from sketch elements
- * @param ctx Worker context
- * @param elements Array of sketch elements
- * @param plane Sketch plane
- * @returns Wire combining all elements
+ * Builds a final wire/face from sketch primitives.
+ * Only non-external primitives forming closed wires are used.
  */
 export function buildSketchWire(
   ctx: WorkerContext,
-  elements: SketchElement[],
-  plane: SketchPlane,
-  solvedPoints?: SketchPoint[], // New parameter
-): TopoDS_Wire {
+  sketch: Sketch
+): TopoDS_Shape {
   const { oc } = ctx;
-
-  // Special case: single rectangle or polygon - use MakePolygon for guaranteed connectivity
-  if (elements.length === 1) {
-    if (elements[0].type === 'rectangle') {
-      return buildRectangleWire(ctx, elements[0] as SketchElement & { type: 'rectangle' }, plane);
-    }
-    if (elements[0].type === 'polygon') {
-      return buildPolygonWire(ctx, elements[0] as SketchElement & { type: 'polygon' }, plane);
-    }
-  }
-
-  // General case: build edges and combine into wire
-  const edges: TopoDS_Edge[] = [];
-
-  for (const element of elements) {
-    switch (element.type) {
-      case SketchElementType.LINE:
-        edges.push(buildLineEdge(ctx, element as SketchElement & { type: SketchElementType.LINE }, plane));
-        break;
-      case 'circle':
-        edges.push(buildCircleEdge(ctx, element as SketchElement & { type: 'circle' }, plane));
-        break;
-      case 'arc':
-        edges.push(buildArcEdge(ctx, element as SketchElement & { type: 'arc' }, plane));
-        break;
-      case 'rectangle':
-        // For multi-element sketches, extract wire from rectangle and get its edges
-        const rectWire = buildRectangleWire(ctx, element as SketchElement & { type: 'rectangle' }, plane);
-        const rectEdges = extractEdgesFromWire(ctx, rectWire);
-        edges.push(...rectEdges);
-        break;
-      case 'polygon':
-        // For multi-element sketches, extract wire from polygon and get its edges
-        const polyWire = buildPolygonWire(ctx, element as SketchElement & { type: 'polygon' }, plane);
-        const polyEdges = extractEdgesFromWire(ctx, polyWire);
-        edges.push(...polyEdges);
-        break;
-      case 'ellipse':
-        edges.push(buildEllipseEdge(ctx, element as SketchElement & { type: 'ellipse' }, plane));
-        break;
-      case 'spline':
-        edges.push(buildSplineEdge(ctx, element as SketchElement & { type: 'spline' }, plane));
-        break;
-      case 'bezier':
-        // TODO: Implement Bezier curves
-        console.warn('Bezier curves not yet implemented');
-        break;
-    }
-  }
-
-  // Build wire from edges
+  const shapes = translatePrimitivesToOCC(ctx, sketch);
+  
   const wireBuilder = new oc.BRepBuilderAPI_MakeWire_1();
+  let edgesAdded = 0;
 
-  for (let i = 0; i < edges.length; i++) {
-    wireBuilder.Add_1(edges[i]);
+  // Filter for non-external edges that can form a wire
+  for (const primitive of sketch.primitives) {
+    if (primitive.isExternal) continue;
+    if (primitive.type === 'point') continue;
 
-    // Check after each edge addition for better error diagnostics
-    if (!wireBuilder.IsDone()) {
-      const errorMsg = decodeWireError(ctx, wireBuilder.Error());
-      throw new Error(
-        `BRepBuilderAPI_MakeWire failed after adding edge ${i + 1}/${edges.length}: ${errorMsg}`
-      );
+    const shape = shapes.get(primitive.id);
+    if (shape && shape.ShapeType() === oc.TopAbs_ShapeEnum.TopAbs_EDGE) {
+      wireBuilder.Add_1(oc.TopoDS.Edge_1(shape));
+      edgesAdded++;
     }
   }
 
-  return wireBuilder.Wire();
+  if (edgesAdded === 0) {
+    throw new Error('No edges found in sketch to build wire');
+  }
+
+  if (!wireBuilder.IsDone()) {
+    const error = wireBuilder.Error();
+    wireBuilder.delete();
+    throw new Error(`BRepBuilderAPI_MakeWire failed with error code: ${error}`);
+  }
+
+  const wire = wireBuilder.Wire();
+  wireBuilder.delete();
+  
+  return wire;
 }

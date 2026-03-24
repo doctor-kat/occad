@@ -21,6 +21,7 @@ export interface CADViewportProps {
   onEdgeClick?: (edgeIndex: number) => void;
   onVertexClick?: (vertexIndex: number) => void;
   onBackgroundClick?: () => void;
+  onUpdateConstraintValue?: (constraintId: string, value: number) => void;
 }
 
 /**
@@ -47,6 +48,7 @@ export function CADViewport({
   onEdgeClick,
   onVertexClick,
   onBackgroundClick,
+  onUpdateConstraintValue,
 }: CADViewportProps) {
   // Find the active sketch
   const activeSketch = activeSketchId
@@ -74,6 +76,7 @@ export function CADViewport({
       onUpdateSketch={onUpdateSketch}
       onFinishSketch={onFinishSketch}
       onCancelSketch={onCancelSketch}
+      onUpdateConstraintValue={onUpdateConstraintValue}
     />
   );
 }

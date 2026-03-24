@@ -7,4 +7,5 @@ export interface FaceGeometryResponse {
     origin: Point3D;
     normal: Vector3D;
     isPlanar: boolean;
+    boundaryEdges?: string[]; // Array of edge tags like "edge-1", "edge-2"
 }

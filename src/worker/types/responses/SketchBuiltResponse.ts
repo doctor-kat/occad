@@ -1,5 +1,5 @@
 
-import type { ShapeReference, MeshData } from '@/cad/types';
+import type { ShapeReference, MeshData, Sketch } from '@/cad/types';
 
 /** Sketch built successfully */
 export interface SketchBuiltResponse {
@@ -7,4 +7,5 @@ export interface SketchBuiltResponse {
     sketchId: string;
     geometry: ShapeReference;
     meshData: MeshData;
+    solvedSketch?: Sketch;
 }

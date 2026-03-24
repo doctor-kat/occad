@@ -114,6 +114,8 @@ export function Scene({
           activeConstraint={activeConstraint}
           onElementsChange={onUpdateSketch}
           onBackgroundClick={onBackgroundClick}
+          occMesh={mesh}
+          occSketchEdges={sketchEdges}
         />
       )}
 

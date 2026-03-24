@@ -25,6 +25,7 @@
     "@phosphor-icons/react": "^2.1.10",
     "@react-three/drei": "^9.114.3",
     "@react-three/fiber": "^8.17.10",
+    "@salusoft89/planegcs": "^1.1.7",
     "opencascade.js": "^2.0.0-beta.b5ff984",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

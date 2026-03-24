@@ -1,9 +1,8 @@
-import type { SketchElement, SketchPlane } from '@/cad/types';
+import type { Sketch } from '@/cad/types';
 
-/** Build a sketch from 2D elements into a wire/face */
+/** Build a sketch from its full state into a wire/face */
 export interface BuildSketchRequest {
     type: 'buildSketch';
-    sketchId: string;
-    plane: SketchPlane;
-    elements: SketchElement[];
+    sketch: Sketch;
+    bodyId?: string;
 }
