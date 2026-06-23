@@ -305,11 +305,16 @@ export function useCADState() {
 
   // Update full sketch state (including solved primitives/constraints)
   const updateSketchState = useCallback((sketchId: string, updatedSketch: Sketch) => {
+    // Derive isClosed from the elements rather than trusting the round-tripped
+    // value: the worker's solver spreads back the sketch it received (which may
+    // carry a stale isClosed), and replacing the sketch wholesale would otherwise
+    // clobber the closure flag computed in updateSketchElements.
+    const isClosed = checkIfSketchClosed(updatedSketch.elements);
     setProject((prev) => ({
       ...prev,
       updatedAt: Date.now(),
       sketches: prev.sketches.map((s) =>
-        s.id === sketchId ? { ...updatedSketch, updatedAt: Date.now() } : s
+        s.id === sketchId ? { ...updatedSketch, isClosed, updatedAt: Date.now() } : s
       ),
     }));
   }, [setProject]);

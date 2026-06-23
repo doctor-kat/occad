@@ -112,20 +112,66 @@ test.describe('Primitive Shapes', () => {
         
         // Confirm in Operation Panel
         await expect(page.getByRole('heading', { name: 'Extrude Boss' })).toBeVisible({ timeout: 10000 });
-        
-        // Check if there is a 'No closed sketches' alert
-        const alert = page.getByText('No closed sketches');
-        const isAlertVisible = await alert.isVisible();
-        if (isAlertVisible) {
-            console.log('ALERT: No closed sketches visible');
-        }
+
+        // The rectangle is a closed sketch — the "No closed sketches" warning must NOT show.
+        await expect(page.getByText('No closed sketches')).not.toBeVisible();
 
         const applyButton = page.getByRole('button', { name: 'Apply' });
         await expect(applyButton).toBeVisible({ timeout: 15000 });
         await applyButton.click();
-        
+
         // Verify Extrude appears in Feature Tree
         await expect(page.locator('.tree-item-row').getByText(/Boss-Extrude\s*\d+/)).toBeVisible({ timeout: 15000 });
         await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
+    });
+
+    // Regression for the "flat extrude" + "sketch mode never exits" bugs:
+    // sketch directly on the base Top Plane (XZ, normal +Y), draw a rectangle,
+    // extrude, and assert the result is a real solid with volume (not a flat
+    // prism extruded along world +Z which lies in the sketch plane).
+    test('should extrude a rectangle on the Top Plane into a solid with volume', async ({ page }) => {
+        test.setTimeout(60000);
+
+        // 1. Select the Top Plane and start a sketch on it
+        await page.getByText('Top Plane').click();
+        await page.getByRole('tab', { name: 'Sketch' }).click();
+        await page.getByRole('button', { name: /^Sketch$/ }).first().click();
+
+        await page.getByRole('tab', { name: 'Feature Tree' }).click();
+        await expect(page.locator('.tree-item-row').getByText(/Sketch\s*\d+/)).toBeVisible({ timeout: 20000 });
+
+        // 2. Draw a rectangle
+        const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
+        await rectangleTool.click();
+
+        const canvas = page.locator('canvas').first();
+        const b = await canvas.boundingBox();
+        if (b) {
+            const centerX = b.x + b.width / 2;
+            const centerY = b.y + b.height / 2;
+            await page.mouse.click(centerX - 30, centerY - 30);
+            await page.waitForTimeout(200);
+            await page.mouse.click(centerX + 30, centerY + 30);
+            await page.waitForTimeout(500);
+        }
+        await page.getByRole('button', { name: 'Finish Sketch' }).click();
+        await expect(page.getByText('Sketch completed')).toBeVisible({ timeout: 15000 });
+
+        // 3. Extrude Boss with a distance of 10
+        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.locator('button').filter({ hasText: /^Extrude Boss$/ }).click();
+        await expect(page.getByRole('heading', { name: 'Extrude Boss' })).toBeVisible({ timeout: 10000 });
+        await expect(page.getByText('No closed sketches')).not.toBeVisible();
+        await page.getByRole('button', { name: 'Apply' }).click();
+
+        await expect(page.locator('.tree-item-row').getByText(/Boss-Extrude\s*\d+/)).toBeVisible({ timeout: 15000 });
+        await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
+
+        // 4. Sketch mode must have exited — the "Finish Sketch" button is gone.
+        await expect(page.getByRole('button', { name: 'Finish Sketch' })).not.toBeVisible();
+
+        // Note: that the extrude has real depth (rather than a flat prism along
+        // world +Z) is verified deterministically by the extrude-direction unit
+        // test in src/cad/engine/operations.test.ts.
     });
 });

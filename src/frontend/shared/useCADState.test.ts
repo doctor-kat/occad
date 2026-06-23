@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useCADState } from "./useCADState.ts";
 import { createConstraint } from "@/cad/engine/sketch/constraintFactory";
+import { SketchElementType } from "@/cad/types/sketch/SketchElementType";
+import type { SketchElement } from "@/cad/types/sketch/SketchElement";
+import type { Sketch } from "@/cad/types/sketch/Sketch";
 
 describe("useCADState", () => {
   describe("initial state", () => {
@@ -475,6 +478,106 @@ describe("useCADState", () => {
       const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
       expect(sketch.constraints.map((c: any) => c.id)).toEqual(["c2"]);
       expect(result.current.project.version).toBe(versionBefore + 1);
+    });
+  });
+
+  describe("sketch closure (isClosed)", () => {
+    const rectElement: SketchElement = {
+      type: SketchElementType.RECTANGLE,
+      id: "rect-1",
+      corner1: { x: 0, y: 0 },
+      corner2: { x: 10, y: 10 },
+    } as SketchElement;
+
+    function makeRectSketch(result: { current: ReturnType<typeof useCADState> }): string {
+      let id = "";
+      act(() => {
+        const s = result.current.addSketch("Rect Sketch", { type: "xy" as any, planeRef: "top-plane", offset: 0 });
+        id = s.id;
+      });
+      act(() => {
+        result.current.updateSketchElements(id, [rectElement]);
+      });
+      return id;
+    }
+
+    it("marks a rectangle sketch as closed via updateSketchElements", () => {
+      const { result } = renderHook(() => useCADState());
+      const sketchId = makeRectSketch(result);
+
+      const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
+      expect(sketch.isClosed).toBe(true);
+    });
+
+    it("keeps isClosed=true after a solver round-trip via updateSketchState", () => {
+      const { result } = renderHook(() => useCADState());
+      const sketchId = makeRectSketch(result);
+
+      // Simulate the worker returning a solved sketch that carries a stale
+      // isClosed=false (SketchSolver spreads back the input sketch verbatim).
+      const solved: Sketch = {
+        ...result.current.project.sketches.find((s) => s.id === sketchId)!,
+        isClosed: false,
+      };
+
+      act(() => {
+        result.current.updateSketchState(sketchId, solved);
+      });
+
+      const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
+      expect(sketch.isClosed).toBe(true);
+    });
+
+    it("keeps an empty sketch open after updateSketchState", () => {
+      const { result } = renderHook(() => useCADState());
+      let sketchId = "";
+      act(() => {
+        const s = result.current.addSketch("Empty", { type: "xy" as any, planeRef: "top-plane", offset: 0 });
+        sketchId = s.id;
+      });
+
+      const solved: Sketch = {
+        ...result.current.project.sketches.find((s) => s.id === sketchId)!,
+        isClosed: true, // even if a stale truthy value comes back
+      };
+
+      act(() => {
+        result.current.updateSketchState(sketchId, solved);
+      });
+
+      const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
+      expect(sketch.isClosed).toBe(false);
+    });
+  });
+
+  describe("sketch workplane normals", () => {
+    // The extrude direction defaults to the sketch's plane normal. If these
+    // normals are wrong, a rectangle on the Top/Right plane extrudes flat.
+    it("gives an XY (Front Plane) sketch a +Z normal", () => {
+      const { result } = renderHook(() => useCADState());
+      let s: any;
+      act(() => {
+        s = result.current.addSketch("Front", { type: "xy" as any, planeRef: "front-plane", offset: 0 });
+      });
+      expect(s.workplane.normal).toEqual({ x: 0, y: 0, z: 1 });
+    });
+
+    it("gives an XZ (Top Plane) sketch a +Y normal", () => {
+      const { result } = renderHook(() => useCADState());
+      let s: any;
+      act(() => {
+        s = result.current.addSketch("Top", { type: "xz" as any, planeRef: "top-plane", offset: 0 });
+      });
+      expect(s.workplane.normal).toEqual({ x: 0, y: 1, z: 0 });
+    });
+
+    it("gives a YZ (Right Plane) sketch a +X normal", () => {
+      const { result } = renderHook(() => useCADState());
+      let s: any;
+      act(() => {
+        s = result.current.addSketch("Right", { type: "yz" as any, planeRef: "right-plane", offset: 0 });
+      });
+      expect(s.workplane.normal).toEqual({ x: 1, y: 0, z: 0 });
     });
   });
 

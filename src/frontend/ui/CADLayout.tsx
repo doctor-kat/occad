@@ -254,6 +254,12 @@ export function CADLayout() {
       notifications.show({ color: 'green', message: `${featureName} created` });
     }
 
+    // A sketch-based feature consumes the active sketch, so leave sketch-edit
+    // mode — otherwise the overlay stays open on top of the new solid.
+    if (activeSketchId) {
+      stopSketchEdit();
+    }
+
     selectOperation(null);
     setOperationPanelOpen(false);
     setEditingFeatureId(null);

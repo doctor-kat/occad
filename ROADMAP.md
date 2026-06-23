@@ -116,6 +116,22 @@ the **remaining primitives**, and the **modify/transform/IO** families (UI butto
 | Revolve Boss |   ✅    |    ✅    |      union      | ✅  | ✅      |
 | Revolve Cut  |   ✅    |    ✅    |    subtract     | ✅  | ✅      |
 
+> **Fixed (2026-06-23):** "No closed sketches" when extruding a freshly drawn rectangle. `updateSketchElements`
+> correctly set `isClosed`, but the subsequent solver round-trip returned a `solvedSketch` carrying a stale
+> `isClosed`, and `updateSketchState` replaced the sketch wholesale — clobbering the flag. `updateSketchState` now
+> re-derives `isClosed` from the elements (single source of truth). Regression tests in `useCADState.test.ts`.
+>
+> **Fixed (2026-06-23):** Flat / zero-depth extrude on the Top or Right plane. The worker hardcoded the extrude
+> direction to world **+Z**; a sketch on the Top Plane (XZ, normal +Y) or Right Plane (YZ, normal +X) was therefore
+> extruded *within its own plane* → degenerate solid. Extrude now defaults to the face's own normal via
+> `resolveExtrudeDirection` / `getPlanarFaceNormal` (`operations.ts`), falling back to +Z only when no normal can be
+> derived. Also fixed: creating a sketch-based feature left the app in sketch-edit mode — `handleOperationConfirm`
+> now calls `stopSketchEdit()`. **Why this escaped:** `operations.ts` had no unit tests and the worker is mocked in
+> unit tests; the only e2e extrude ran on a box's *top face* (world normal +Z, where the hardcoded value coincided),
+> and asserted only that the feature node appeared — a flat prism passed. Added: extrude-direction unit tests
+> (`operations.test.ts`), workplane-normal tests (`useCADState.test.ts`), and a Top-Plane extrude e2e
+> (`primitives.spec.ts`) that asserts sketch-mode exit and that the "No closed sketches" warning never shows.
+
 ### 2.2 Primitives
 
 | Primitive | Params type |       Engine / Rebuild       | UI | Status |
@@ -227,4 +243,4 @@ the **remaining primitives**, and the **modify/transform/IO** families (UI butto
 
 ---
 
-_Last updated: 2026-06-23. Keep statuses honest — only mark ✅ when types + engine + rebuild + UI are all wired._
+_Last updated: 2026-06-23 — fixed rectangle "no closed sketches" + flat-extrude (Top/Right plane) + sketch-mode-exit bugs. Keep statuses honest — only mark ✅ when types + engine + rebuild + UI are all wired._
