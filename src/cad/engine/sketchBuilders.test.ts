@@ -25,6 +25,11 @@ const mockCtx: any = {
     BRepBuilderAPI_MakeEdge_3: vi.fn(() => ({ IsDone: () => true, Edge: () => ({ ShapeType: () => 1 }), delete: vi.fn() })),
     BRepBuilderAPI_MakeVertex: vi.fn(() => ({ IsDone: () => true, Vertex: () => ({ ShapeType: () => 0 }), delete: vi.fn() })),
     BRepBuilderAPI_MakeWire_1: vi.fn(() => ({ Add_1: vi.fn(), IsDone: () => true, Wire: () => ({}), delete: vi.fn() })),
+    // circle construction
+    gp_Dir_4: vi.fn(() => ({ delete: vi.fn() })),
+    gp_Ax2_3: vi.fn(() => ({ delete: vi.fn() })),
+    gp_Circ_2: vi.fn(() => ({ delete: vi.fn() })),
+    BRepBuilderAPI_MakeEdge_8: vi.fn(() => ({ IsDone: () => true, Edge: () => ({ ShapeType: () => 1 }), delete: vi.fn() })),
     TopoDS: { Edge_1: vi.fn(s => s) },
     TopAbs_ShapeEnum: { TopAbs_EDGE: 1, TopAbs_VERTEX: 0 }
   }
@@ -46,6 +51,35 @@ describe('sketchBuilders', () => {
     expect(shapes.size).toBe(3);
     expect(mockCtx.oc.BRepBuilderAPI_MakeVertex).toHaveBeenCalledTimes(2);
     expect(mockCtx.oc.BRepBuilderAPI_MakeEdge_3).toHaveBeenCalledTimes(1);
+  });
+
+  it('translates a circle that references its center via planegcs `c_id`', () => {
+    const sketch: Sketch = {
+      id: 's1', name: 'test', workplane: mockWorkplane,
+      primitives: [
+        { id: 'c0', type: 'point', fixed: false, data: { x: 0, y: 0 } },
+        { id: 'C', type: 'circle', fixed: false, data: { c_id: 'c0', radius: 5 } },
+      ],
+      constraints: [], visualMetadata: {}, isClosed: false, isVisible: true, createdAt: 0, updatedAt: 0, elements: []
+    };
+
+    const shapes = translatePrimitivesToOCC(mockCtx, sketch);
+    expect(shapes.has('C')).toBe(true);
+    expect(mockCtx.oc.gp_Circ_2).toHaveBeenCalled();
+  });
+
+  it('still translates a circle that uses the legacy `center_id` key', () => {
+    const sketch: Sketch = {
+      id: 's1', name: 'test', workplane: mockWorkplane,
+      primitives: [
+        { id: 'c0', type: 'point', fixed: false, data: { x: 0, y: 0 } },
+        { id: 'C', type: 'circle', fixed: false, data: { center_id: 'c0', radius: 5 } },
+      ],
+      constraints: [], visualMetadata: {}, isClosed: false, isVisible: true, createdAt: 0, updatedAt: 0, elements: []
+    };
+
+    const shapes = translatePrimitivesToOCC(mockCtx, sketch);
+    expect(shapes.has('C')).toBe(true);
   });
 
   it('buildSketchWire should build a wire from primitives', () => {

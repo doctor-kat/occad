@@ -1,0 +1,97 @@
+/**
+ * Constraint factory: converts a semantic constraint request (referencing primitive ids)
+ * into a planegcs constraint object that {@link SketchSolver} can consume directly via
+ * `push_primitives_and_params`.
+ *
+ * planegcs is the canonical constraint model in this project (`sketch.constraints: any[]`).
+ * The verified planegcs type strings live in `@salusoft89/planegcs/planegcs_dist/constraints.ts`.
+ */
+
+export type ConstraintKind =
+  | 'horizontal'
+  | 'vertical'
+  | 'coincident'
+  | 'parallel'
+  | 'perpendicular'
+  | 'distance'
+  | 'radius'
+  | 'equal'
+  | 'tangent'
+  | 'angle';
+
+/** Discriminated input describing which entities a constraint applies to. */
+export type ConstraintInput =
+  | { kind: 'horizontal'; lineId: string }
+  | { kind: 'vertical'; lineId: string }
+  | { kind: 'coincident'; p1Id: string; p2Id: string }
+  | { kind: 'parallel'; l1Id: string; l2Id: string }
+  | { kind: 'perpendicular'; l1Id: string; l2Id: string }
+  | { kind: 'distance'; p1Id: string; p2Id: string; distance: number }
+  | { kind: 'radius'; targetId: string; radius: number; isArc?: boolean }
+  | { kind: 'equal'; l1Id: string; l2Id: string }
+  | { kind: 'tangent'; lineId: string; circleId: string }
+  | { kind: 'angle'; l1Id: string; l2Id: string; angle: number };
+
+/** A planegcs constraint object (loose — planegcs uses a structural union). */
+export type PlanegcsConstraint = Record<string, any> & { id: string; type: string };
+
+/**
+ * Build a planegcs constraint object from a semantic request.
+ * @param id   Unique id for the constraint (caller-supplied for determinism).
+ * @param input The constraint request.
+ */
+export function createConstraint(id: string, input: ConstraintInput): PlanegcsConstraint {
+  switch (input.kind) {
+    case 'horizontal':
+      return { id, type: 'horizontal_l', l_id: input.lineId };
+
+    case 'vertical':
+      return { id, type: 'vertical_l', l_id: input.lineId };
+
+    case 'coincident':
+      return { id, type: 'p2p_coincident', p1_id: input.p1Id, p2_id: input.p2Id };
+
+    case 'parallel':
+      return { id, type: 'parallel', l1_id: input.l1Id, l2_id: input.l2Id };
+
+    case 'perpendicular':
+      return { id, type: 'perpendicular_ll', l1_id: input.l1Id, l2_id: input.l2Id };
+
+    case 'distance':
+      return { id, type: 'p2p_distance', p1_id: input.p1Id, p2_id: input.p2Id, distance: input.distance, driving: true };
+
+    case 'radius':
+      return input.isArc
+        ? { id, type: 'arc_radius', a_id: input.targetId, radius: input.radius, driving: true }
+        : { id, type: 'circle_radius', c_id: input.targetId, radius: input.radius, driving: true };
+
+    case 'equal':
+      return { id, type: 'equal_length', l1_id: input.l1Id, l2_id: input.l2Id };
+
+    case 'tangent':
+      return { id, type: 'tangent_lc', l_id: input.lineId, c_id: input.circleId };
+
+    case 'angle':
+      return { id, type: 'l2l_angle_ll', l1_id: input.l1Id, l2_id: input.l2Id, angle: input.angle, driving: true };
+
+    default: {
+      // Exhaustiveness guard
+      const _never: never = input;
+      throw new Error(`Unknown constraint kind: ${JSON.stringify(_never)}`);
+    }
+  }
+}
+
+/** Number of entities a constraint kind expects (for UI selection validation). */
+export const CONSTRAINT_ARITY: Record<ConstraintKind, number> = {
+  horizontal: 1,
+  vertical: 1,
+  coincident: 2,
+  parallel: 2,
+  perpendicular: 2,
+  distance: 2,
+  radius: 1,
+  equal: 2,
+  tangent: 2,
+  angle: 2,
+};

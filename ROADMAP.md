@@ -17,7 +17,7 @@ started
 | Area                       | Status | Done                                                | Partial         | Todo                             |
 |----------------------------|--------|-----------------------------------------------------|-----------------|----------------------------------|
 | **Sketch primitives**      | 🟡     | Line, Rectangle, Circle, Polygon, Arc, Ellipse      | Spline          | Bezier                           |
-| **Sketch constraints**     | 🟡     | Solver (planegcs) wired; 8 typed interfaces defined | Typed↔solver gap | No add/edit UI; solver untested  |
+| **Sketch constraints**     | ✅      | 10 constraints end-to-end (factory+solver tests+UI+e2e); create/list/delete; point-level selection | — | Midpoint, Symmetric (need composition) |
 | **Sketch-based features**  | ✅      | Extrude Boss/Cut, Revolve Boss/Cut                  | —               | —                                |
 | **Primitives**             | 🟡     | Box, Cylinder                                       | —               | Sphere, Cone, Torus, Wedge       |
 | **Boolean ops**            | 🟡     | Union, Subtract, Intersect (engine)                 | —               | UI for standalone booleans       |
@@ -30,9 +30,8 @@ started
 | **Undo / Redo**            | ❌      | —                                                   | —               | History stack (not started)      |
 | **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
 
-**Overall:** Sketch + extrude/revolve + boolean pipeline is solid. The biggest gaps are **undo/redo**, **constraint
-editing UI**, the **remaining primitives**, and the **modify/transform/IO** families (UI buttons exist but do nothing on
-rebuild).
+**Overall:** Sketch + constraints + extrude/revolve + boolean pipeline is solid. The biggest gaps are **undo/redo**,
+the **remaining primitives**, and the **modify/transform/IO** families (UI buttons exist but do nothing on rebuild).
 
 ---
 
@@ -58,37 +57,51 @@ rebuild).
 - ✅ Solver reports DOF, conflicting & redundant constraints (visual metadata).
 - ✅ External-geometry reprojection onto a body (`sketch/externalGeometry.ts`).
 
-Test column: ✅ = shape-only unit test (asserts object literal properties); none exercise the solver.
+- ✅ **Constraint factory** (`engine/sketch/constraintFactory.ts`): `createConstraint(id, input)` builds planegcs
+  objects from semantic requests; replaces the orphaned typed interfaces as the canonical creation path.
+- ✅ **Real-solver tests** (`constraintFactory.test.ts`): planegcs runs in vitest and the suite proves each constraint
+  actually drives geometry (not mocked). See `TODO.md` for the full plan/phases.
 
-| Constraint    | Type defined | Test (shape) | Solver pass-through | Add/edit UI | Status |
-|---------------|:------------:|:------------:|:-------------------:|:-----------:|--------|
-| Fixed         |      ✅       |      ✅       |          ✅          |      ❌      | 🟡     |
-| Coincident    |      ✅       |      ✅       |          ✅          |      ❌      | 🟡     |
-| Horizontal    |      ✅       |      ✅       |          ✅          |      ❌      | 🟡     |
-| Vertical      |      ✅       |      ✅       |          ✅          |      ❌      | 🟡     |
-| Parallel      |      ✅       |      ✅       |          ✅          |      ❌      | 🟡     |
-| Perpendicular |      ✅       |      ✅       |          ✅          |      ❌      | 🟡     |
-| Distance      |      ✅       |      ✅       |          ✅          |      ❌      | 🟡     |
-| Radius        |      ✅       |      ✅       |          ✅          |      ❌      | 🟡     |
-| Tangent       |  ❌ enum only |      ❌       |          ✅          |      ❌      | ❌      |
-| Midpoint      |      ❌       |      ❌       |          ❌          |      ❌      | ❌      |
-| Equal         |      ❌       |      ❌       |          ❌          |      ❌      | ❌      |
-| Symmetric     |      ❌       |      ❌       |          ❌          |      ❌      | ❌      |
-| Angle         |      ❌       |      ❌       |          ❌          |      ❌      | ❌      |
+"Solve test" = real planegcs solve asserting geometry moves. "Factory" = `createConstraint` support.
 
-**Key gaps:**
+| Constraint    | Factory | Solve test (real) | Add/edit UI | e2e | Status |
+|---------------|:-------:|:-----------------:|:-----------:|:---:|--------|
+| Horizontal    |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Vertical      |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Parallel      |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Perpendicular |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Equal         |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Angle         |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Coincident    |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Distance      |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Radius        |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Tangent       |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Fixed         |   n/a¹  |         —          |      —      |  —  | 🟡     |
+| Midpoint      |    ❌    |         ❌          |      ❌      |  ❌  | ❌²     |
+| Symmetric     |    ❌    |         ❌          |      ❌      |  ❌  | ❌²     |
 
-1. **Typed interfaces are orphaned.** The `SketchConstraint` interfaces in `src/cad/types/sketch/constraints/*.ts`
-   (which reference `SketchElement` IDs) are imported **only by their own tests** — no app code uses them. The solver
-   (`SketchSolver.ts`) consumes `sketch.constraints: any[]` in planegcs-native format (`p2p_distance`, `p1_id`, …)
-   instead. There is **no converter** between the two, so "Solver pass-through" means raw planegcs objects pass through,
-   not the typed constraints. Either build the typed→planegcs converter or drop the interface files.
-2. **Solver is untested.** `SketchSolver.test.ts` fully mocks planegcs (returns empty primitives, status 0) and only
-   asserts `updatedAt` changes — no test verifies a constraint actually drives geometry (distance sets distance,
-   coincident merges points, etc.). The 8 constraint unit tests are shape-only.
-3. **Tangent is enum only.** `SketchConstraintType.TANGENT` exists but there is no `TangentConstraint.ts` and no test.
-4. **No add/edit UI** — no `addConstraint` anywhere in the frontend; no select-entities→apply-constraint flow.
-5. Midpoint / equal / symmetric / angle are not modeled at all.
+¹ Fixed is modeled by setting `primitive.fixed = true`, not as a planegcs constraint object.
+² Midpoint & Symmetric have no single planegcs primitive (`symmetric` doesn't exist; `midpoint_on_line_*`
+  is line-midpoint-on-line, not point-at-midpoint). They require *composing* multiple constraints — deferred.
+
+**Status:** (see `TODO.md` for the live plan)
+
+1. ✅ **All 10 standard constraints complete end-to-end.** `constraintFactory` (`createConstraint`) is the canonical
+   typed→planegcs creation path (replaced the orphaned `types/sketch/constraints/*.ts` interfaces, now deleted).
+   `useCADState.addConstraint/removeConstraint` wire it into state. `SketchConstraintToolbar` (compact icon toolbar)
+   creates all 10 kinds; `SketchConstraintList` shows + deletes them; `SketchOverlay` supports whole-element AND
+   point-level (endpoint) selection. e2e: `constraints-line.spec.ts` (5), `constraints-circle.spec.ts` (radius solve
+   10→40), `constraints-advanced.spec.ts` (tangent/angle/coincident/distance + delete) — all green.
+2. ✅ **Circle `c_id` + OCC fixed.** `elementsToPrimitives` emits `c_id`; OCC/overlay readers accept `c_id ?? center_id`;
+   `translatePrimitivesToOCC` uses the correct OCC overloads (`BRepBuilderAPI_MakeEdge_8` for a full circle, `_9` for an
+   arc — the old `_10`/`_11` threw `BindingError`). Circles now build wires + solve end-to-end (radius 10→40 in e2e);
+   this also unblocks circle extrude.
+   - 2a. Arc/ellipse still emit `center_id` (readers fall back); arcs additionally need `start_id`/`end_id` *point*
+     primitives before they can solve — a larger reshape, not yet done.
+3. ✅ **Point-level selection** — `SketchOverlay` renders clickable endpoint/center handles in selection mode;
+   coincident/distance read the selected point-primitive ids. Selection now persists across incidental remounts
+   (only cleared when switching into a drawing tool).
+4. ❌ **Midpoint / Symmetric** — no single planegcs primitive; require composing multiple constraints. Deferred.
 
 ---
 
@@ -204,8 +217,8 @@ Test column: ✅ = shape-only unit test (asserts object literal properties); non
 1. **Undo / Redo** — history stack in `useCADState` (snapshot or command pattern). Broadly useful, no OCC work.
 2. **Remaining primitives** — Sphere, Cone, Torus, Wedge: add cases to `handleRebuild` + `CreatePrimitive` handler.
    Small, self-contained.
-3. **Constraint editing UI + solver wiring** — build the typed→planegcs converter (or adopt planegcs format), add real
-   solver-behavior tests, then surface it: select entities → apply constraint; constraint list panel.
+3. **Constraint editing UI** — ✅ done: all 10 constraints (toolbar + list/delete + point-level selection + e2e).
+   Remaining only: Midpoint & Symmetric (need multi-constraint composition; no single planegcs primitive).
 4. **Transforms** — Move/Rotate/Mirror/Scale via `gp_Trsf`. Engine + rebuild cases.
 5. **Modifications** — Fillet/Chamfer/Shell/Offset (needs edge/face selection plumbing).
 6. **Import/Export** — STEP/STL/glTF first (most requested interchange).

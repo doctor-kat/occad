@@ -4,6 +4,9 @@ import { Vector3 } from 'three';
 import { Sketch, Point2D } from '@/cad/types';
 import { lift } from '@/cad/engine/sketch/coordinateSystem';
 
+/** planegcs uses `c_id` for a circle/arc center; unsolved data may use `center_id`. */
+const centerPointId = (data: any): string | undefined => data.c_id ?? data.center_id;
+
 interface SketchRendererProps {
   sketch: Sketch;
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
@@ -45,7 +48,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
         );
       }
       case 'circle': {
-        const centerData = primitives.find(p => p.id === primitive.data.center_id)?.data;
+        const centerData = primitives.find(p => p.id === centerPointId(primitive.data))?.data;
         if (!centerData) return null;
         
         const segments = 64;
@@ -69,7 +72,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
         );
       }
       case 'arc': {
-        const centerData = primitives.find(p => p.id === primitive.data.center_id)?.data;
+        const centerData = primitives.find(p => p.id === centerPointId(primitive.data))?.data;
         if (!centerData) return null;
         
         const segments = 32;
@@ -160,7 +163,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
         const p2 = primitives.find(p => p.id === prim.data.p2_id)?.data;
         if (p1 && p2) midpoint2d = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
       } else if (prim.type === 'circle' || prim.type === 'arc') {
-        const center = primitives.find(p => p.id === prim.data.center_id)?.data;
+        const center = primitives.find(p => p.id === centerPointId(prim.data))?.data;
         if (center) midpoint2d = { x: center.x, y: center.y + prim.data.radius };
       }
 

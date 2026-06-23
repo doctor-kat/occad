@@ -6,6 +6,7 @@ import { SketchOperation, SketchElementType } from '@/cad/types';
 import { getWorkplaneTransform } from './getPlaneTransform';
 import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
+import { useViewportStore } from '@/frontend/shared/viewportStore';
 
 export interface SketchOverlayProps {
   sketch: Sketch;
@@ -30,7 +31,12 @@ export function SketchOverlay({
   const [hoverPoint, setHoverPoint] = useState<Point2D | null>(null);
   const [snapPoint2D, setSnapPoint2D] = useState<Point2D | null>(null);
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
-  const [selectedElementIds, setSelectedElementIds] = useState<Set<string>>(new Set());
+  // Sketch element selection lives in the shared viewport store so the constraint
+  // toolbar (rendered outside the R3F canvas) can read it.
+  const selectedSketchElementIds = useViewportStore((s) => s.selectedSketchElementIds);
+  const toggleSketchElementSelection = useViewportStore((s) => s.toggleSketchElementSelection);
+  const clearSketchSelection = useViewportStore((s) => s.clearSketchSelection);
+  const selectedElementIds = useMemo(() => new Set(selectedSketchElementIds), [selectedSketchElementIds]);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const planeRef = useRef<THREE.Mesh>(null);
 
@@ -41,11 +47,15 @@ export function SketchOverlay({
   // Calculate plane transformation
   const planeTransform = useMemo(() => getWorkplaneTransform(sketch.workplane), [sketch.workplane]);
 
-  // Clear selection when operation changes or sketch exits
+  // Clear selection when switching INTO a drawing tool (selection is only meaningful in
+  // selection mode). Guarding on activeOperation avoids wiping a deliberate selection on
+  // incidental remounts (e.g. a rebuild) while in selection mode.
   useEffect(() => {
-    setSelectedElementIds(new Set());
-    setHoveredElementId(null);
-  }, [activeOperation]);
+    if (activeOperation) {
+      clearSketchSelection();
+      setHoveredElementId(null);
+    }
+  }, [activeOperation, clearSketchSelection]);
 
   // Complete polygon (for polygon operation)
   const handleCompletePolygon = useCallback(() => {
@@ -83,7 +93,7 @@ export function SketchOverlay({
           setPreviewElement(null);
         } else {
           // If no drawing in progress, clear selection
-          setSelectedElementIds(new Set());
+          clearSketchSelection();
         }
         return;
       }
@@ -101,7 +111,7 @@ export function SketchOverlay({
           onElementsChange(sketch.id, newElements);
 
           // Clear selection
-          setSelectedElementIds(new Set());
+          clearSketchSelection();
           setHoveredElementId(null);
         }
       }
@@ -109,7 +119,7 @@ export function SketchOverlay({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, currentPoints, handleCompletePolygon]);
+  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, currentPoints, handleCompletePolygon, clearSketchSelection]);
 
   // Origin crosshair geometries (memoised to avoid per-render allocation)
   const xAxisGeo = useMemo(() => {
@@ -411,11 +421,11 @@ export function SketchOverlay({
       // If no operation is active, handle selection
       if (!activeOperation) {
         if (hoveredElementId) {
-          // Select the hovered element
-          setSelectedElementIds(new Set([hoveredElementId]));
+          // Toggle the hovered element in the selection (multi-select for constraints)
+          toggleSketchElementSelection(hoveredElementId);
         } else {
           // Clear selection on empty click
-          setSelectedElementIds(new Set());
+          clearSketchSelection();
         }
         return;
       }
@@ -499,7 +509,7 @@ export function SketchOverlay({
           console.warn(`Operation ${activeOperation} not yet implemented`);
       }
     },
-    [activeOperation, currentPoints, sketch, onElementsChange, snapPoint, planeTransform, hoveredElementId]
+    [activeOperation, currentPoints, sketch, onElementsChange, snapPoint, planeTransform, hoveredElementId, toggleSketchElementSelection, clearSketchSelection]
   );
 
   // Handle mouse move for preview
@@ -645,6 +655,28 @@ export function SketchOverlay({
           />
         );
       })}
+
+      {/* Endpoint/center handles for point-level selection (coincident/distance).
+          Only in selection mode (no active drawing operation). */}
+      {!activeOperation && sketch.primitives
+        ?.filter((p) => p.type === 'point' && !p.isExternal && p.data && typeof p.data.x === 'number')
+        .map((p) => {
+          const isSel = selectedElementIds.has(p.id);
+          return (
+            <mesh
+              key={`handle-${p.id}`}
+              position={[p.data.x, p.data.y, 0.2]}
+              renderOrder={1002}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleSketchElementSelection(p.id);
+              }}
+            >
+              <circleGeometry args={[isSel ? 1.6 : 1.1, 20]} />
+              <meshBasicMaterial color={isSel ? '#f97316' : '#94a3b8'} transparent opacity={isSel ? 0.95 : 0.6} depthTest={false} />
+            </mesh>
+          );
+        })}
 
       {/* Render preview element */}
       {previewElement && (

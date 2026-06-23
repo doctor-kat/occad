@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useCADState } from "./useCADState.ts";
+import { createConstraint } from "@/cad/engine/sketch/constraintFactory";
 
 describe("useCADState", () => {
   describe("initial state", () => {
@@ -417,6 +418,63 @@ describe("useCADState", () => {
       );
       expect(featureItem!.visible).toBe(true);
       expect(featureItem!.children![0].visible).toBe(false);
+    });
+  });
+
+  describe("addConstraint / removeConstraint", () => {
+    function makeSketch(result: { current: ReturnType<typeof useCADState> }): string {
+      let id = "";
+      act(() => {
+        const s = result.current.addSketch("Sketch", { type: "xy" as any, planeRef: "front-plane", offset: 0 });
+        id = s.id;
+      });
+      return id;
+    }
+
+    it("appends a constraint to the sketch and increments version", () => {
+      const { result } = renderHook(() => useCADState());
+      const sketchId = makeSketch(result);
+      const versionBefore = result.current.project.version;
+
+      act(() => {
+        result.current.addConstraint(sketchId, createConstraint("c1", { kind: "horizontal", lineId: "L" }));
+      });
+
+      const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
+      expect(sketch.constraints).toHaveLength(1);
+      expect(sketch.constraints[0]).toMatchObject({ id: "c1", type: "horizontal_l", l_id: "L" });
+      expect(result.current.project.version).toBe(versionBefore + 1);
+    });
+
+    it("is a no-op for an unknown sketch id", () => {
+      const { result } = renderHook(() => useCADState());
+      makeSketch(result);
+      const versionBefore = result.current.project.version;
+
+      act(() => {
+        result.current.addConstraint("does-not-exist", createConstraint("c1", { kind: "vertical", lineId: "L" }));
+      });
+
+      expect(result.current.project.version).toBe(versionBefore);
+    });
+
+    it("removes a constraint by id and increments version", () => {
+      const { result } = renderHook(() => useCADState());
+      const sketchId = makeSketch(result);
+
+      act(() => {
+        result.current.addConstraint(sketchId, createConstraint("c1", { kind: "horizontal", lineId: "L" }));
+        result.current.addConstraint(sketchId, createConstraint("c2", { kind: "vertical", lineId: "M" }));
+      });
+      const versionBefore = result.current.project.version;
+
+      act(() => {
+        result.current.removeConstraint(sketchId, "c1");
+      });
+
+      const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
+      expect(sketch.constraints.map((c: any) => c.id)).toEqual(["c2"]);
+      expect(result.current.project.version).toBe(versionBefore + 1);
     });
   });
 

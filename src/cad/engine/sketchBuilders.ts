@@ -4,6 +4,14 @@ import { lift } from './sketch/coordinateSystem';
 import { WorkerContext } from './workerContext';
 
 /**
+ * Resolve a circle/arc/ellipse center point id. planegcs uses `c_id`; older/unsolved
+ * data may still carry `center_id`. Accept both so solved and unsolved primitives work.
+ */
+function centerPointId(data: any): string | undefined {
+  return data.c_id ?? data.center_id;
+}
+
+/**
  * Translates planegcs primitives into OpenCascade shapes.
  * This is the "Translation Layer" mentioned in the requirements.
  */
@@ -51,7 +59,7 @@ export function translatePrimitivesToOCC(
         }
 
         case 'circle': {
-          const centerData = sketch.primitives.find(p => p.id === primitive.data.center_id)?.data;
+          const centerData = sketch.primitives.find(p => p.id === centerPointId(primitive.data))?.data;
           if (!centerData) break;
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
@@ -61,7 +69,9 @@ export function translatePrimitivesToOCC(
           const axis = new oc.gp_Ax2_3(center, normal);
           const circ = new oc.gp_Circ_2(axis, primitive.data.radius);
 
-          const edge = new oc.BRepBuilderAPI_MakeEdge_10(circ);
+          // Full circle: BRepBuilderAPI_MakeEdge_8(gp_Circ). (_10 takes gp_Circ + 2
+          // gp_Pnt trim points — calling it with one arg throws a BindingError.)
+          const edge = new oc.BRepBuilderAPI_MakeEdge_8(circ);
           if (edge.IsDone()) {
             shape = edge.Edge();
           }
@@ -73,7 +83,7 @@ export function translatePrimitivesToOCC(
         }
 
         case 'arc': {
-          const centerData = sketch.primitives.find(p => p.id === primitive.data.center_id)?.data;
+          const centerData = sketch.primitives.find(p => p.id === centerPointId(primitive.data))?.data;
           if (!centerData) break;
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
@@ -83,8 +93,10 @@ export function translatePrimitivesToOCC(
           const axis = new oc.gp_Ax2_3(center, normal);
           const circ = new oc.gp_Circ_2(axis, primitive.data.radius);
 
-          // planegcs angles are in local frame from workplane X direction
-          const edge = new oc.BRepBuilderAPI_MakeEdge_11(circ, primitive.data.start_angle, primitive.data.end_angle);
+          // planegcs angles are in local frame from workplane X direction.
+          // Arc by angle parameters: BRepBuilderAPI_MakeEdge_9(gp_Circ, p1, p2).
+          // (_11 takes 2 TopoDS_Vertex — passing numbers throws a BindingError.)
+          const edge = new oc.BRepBuilderAPI_MakeEdge_9(circ, primitive.data.start_angle, primitive.data.end_angle);
           if (edge.IsDone()) {
             shape = edge.Edge();
           }
@@ -96,7 +108,7 @@ export function translatePrimitivesToOCC(
         }
 
         case 'ellipse': {
-          const centerData = sketch.primitives.find(p => p.id === primitive.data.center_id)?.data;
+          const centerData = sketch.primitives.find(p => p.id === centerPointId(primitive.data))?.data;
           if (!centerData) break;
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);

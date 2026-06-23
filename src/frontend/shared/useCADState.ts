@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useLocalStorage } from '@/frontend/shared/useLocalStorage.ts';
+import type { PlanegcsConstraint } from '@/cad/engine/sketch/constraintFactory';
 import {
   CADProject,
   CADState,
@@ -311,6 +312,43 @@ export function useCADState() {
         s.id === sketchId ? { ...updatedSketch, updatedAt: Date.now() } : s
       ),
     }));
+  }, [setProject]);
+
+  // Add a constraint to a sketch (planegcs-format object, e.g. from createConstraint()).
+  // Bumps version so a rebuild re-runs the solver with the new constraint.
+  const addConstraint = useCallback((sketchId: string, constraint: PlanegcsConstraint) => {
+    setProject((prev) => {
+      const sketch = prev.sketches.find((s) => s.id === sketchId);
+      if (!sketch) return prev;
+      return {
+        ...prev,
+        version: prev.version + 1,
+        updatedAt: Date.now(),
+        sketches: prev.sketches.map((s) =>
+          s.id === sketchId
+            ? { ...s, constraints: [...(s.constraints || []), constraint], updatedAt: Date.now() }
+            : s
+        ),
+      };
+    });
+  }, [setProject]);
+
+  // Remove a constraint from a sketch by id. Bumps version to re-solve.
+  const removeConstraint = useCallback((sketchId: string, constraintId: string) => {
+    setProject((prev) => {
+      const sketch = prev.sketches.find((s) => s.id === sketchId);
+      if (!sketch) return prev;
+      return {
+        ...prev,
+        version: prev.version + 1,
+        updatedAt: Date.now(),
+        sketches: prev.sketches.map((s) =>
+          s.id === sketchId
+            ? { ...s, constraints: (s.constraints || []).filter((c: any) => c.id !== constraintId), updatedAt: Date.now() }
+            : s
+        ),
+      };
+    });
   }, [setProject]);
 
   // Update sketch geometry reference (after OpenCascade builds it)
@@ -640,6 +678,8 @@ export function useCADState() {
     addSketch,
     updateSketchElements,
     updateSketchState,
+    addConstraint,
+    removeConstraint,
     updateSketchGeometry,
     startSketchEdit,
     stopSketchEdit,

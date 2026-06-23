@@ -14,92 +14,10 @@ import { modals } from '@mantine/modals';
 import { Cube, Polygon } from '@phosphor-icons/react';
 import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
-
-/** Map legacy SketchElements to new SketchPrimitives for the solver */
-function mapElementsToPrimitives(elements: SketchElement[]): any[] {
-  const primitives: any[] = [];
-  
-  elements.forEach(el => {
-    switch (el.type) {
-      case 'line': {
-        const p1Id = `${el.id}_p1`;
-        const p2Id = `${el.id}_p2`;
-        primitives.push({ id: p1Id, type: 'point', fixed: false, data: { x: el.start.x, y: el.start.y } });
-        primitives.push({ id: p2Id, type: 'point', fixed: false, data: { x: el.end.x, y: el.end.y } });
-        primitives.push({ id: el.id, type: 'line', fixed: false, data: { p1_id: p1Id, p2_id: p2Id } });
-        break;
-      }
-      case 'circle': {
-        const centerId = `${el.id}_center`;
-        primitives.push({ id: centerId, type: 'point', fixed: false, data: { x: el.center.x, y: el.center.y } });
-        primitives.push({ id: el.id, type: 'circle', fixed: false, data: { center_id: centerId, radius: el.radius } });
-        break;
-      }
-      case 'arc': {
-        const centerId = `${el.id}_center`;
-        // planegcs arcs need start/end angles
-        // If they come from 3-point arc, we might need more complex mapping
-        // For now assume center-radius-angle or similar
-        const center = el.center || { x: 0, y: 0 };
-        primitives.push({ id: centerId, type: 'point', fixed: false, data: { x: center.x, y: center.y } });
-        primitives.push({ 
-          id: el.id, 
-          type: 'arc', 
-          fixed: false, 
-          data: { 
-            center_id: centerId, 
-            radius: el.radius || 10, 
-            start_angle: el.startAngle || 0, 
-            end_angle: el.endAngle || Math.PI / 2 
-          } 
-        });
-        break;
-      }
-      case 'rectangle': {
-        const p1Id = `${el.id}_p1`, p2Id = `${el.id}_p2`, p3Id = `${el.id}_p3`, p4Id = `${el.id}_p4`;
-        primitives.push({ id: p1Id, type: 'point', fixed: false, data: { x: el.corner1.x, y: el.corner1.y } });
-        primitives.push({ id: p2Id, type: 'point', fixed: false, data: { x: el.corner2.x, y: el.corner1.y } });
-        primitives.push({ id: p3Id, type: 'point', fixed: false, data: { x: el.corner2.x, y: el.corner2.y } });
-        primitives.push({ id: p4Id, type: 'point', fixed: false, data: { x: el.corner1.x, y: el.corner2.y } });
-        primitives.push({ id: `${el.id}_l1`, type: 'line', fixed: false, data: { p1_id: p1Id, p2_id: p2Id } });
-        primitives.push({ id: `${el.id}_l2`, type: 'line', fixed: false, data: { p1_id: p2Id, p2_id: p3Id } });
-        primitives.push({ id: `${el.id}_l3`, type: 'line', fixed: false, data: { p1_id: p3_id, p2_id: p4Id } });
-        primitives.push({ id: `${el.id}_l4`, type: 'line', fixed: false, data: { p1_id: p4_id, p2_id: p1Id } });
-        break;
-      }
-      case 'polygon': {
-        const pointIds = el.points.map((p, i) => {
-          const pid = `${el.id}_p${i}`;
-          primitives.push({ id: pid, type: 'point', fixed: false, data: { x: p.x, y: p.y } });
-          return pid;
-        });
-        pointIds.forEach((pid, i) => {
-          const nextPid = pointIds[(i + 1) % pointIds.length];
-          primitives.push({ id: `${el.id}_l${i}`, type: 'line', fixed: false, data: { p1_id: pid, p2_id: nextPid } });
-        });
-        break;
-      }
-      case 'ellipse': {
-        const centerId = `${el.id}_center`;
-        primitives.push({ id: centerId, type: 'point', fixed: false, data: { x: el.center.x, y: el.center.y } });
-        primitives.push({ 
-          id: el.id, 
-          type: 'ellipse', 
-          fixed: false, 
-          data: { 
-            center_id: centerId, 
-            major_radius: el.majorRadius, 
-            minor_radius: el.minorRadius, 
-            major_dir: { x: Math.cos((el.rotation || 0) * Math.PI / 180), y: Math.sin((el.rotation || 0) * Math.PI / 180), z: 0 } 
-          } 
-        });
-        break;
-      }
-    }
-  });
-  
-  return primitives;
-}
+import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
+import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
+import { SketchConstraintToolbar } from './operations/SketchConstraintToolbar';
+import { SketchConstraintList } from './operations/SketchConstraintList';
 
 export function CADLayout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -140,6 +58,8 @@ export function CADLayout() {
     addFeature,
     updateSketchElements,
     updateSketchState,
+    addConstraint,
+    removeConstraint,
     startSketchEdit,
     stopSketchEdit,
     updateFeatureParameters,
@@ -626,6 +546,28 @@ export function CADLayout() {
     notifications.show({ color: 'green', message: 'Project exported' });
   };
 
+  // Apply a geometric constraint to the active sketch from the constraint toolbar.
+  const handleApplyConstraint = (input: ConstraintInput) => {
+    if (!activeSketchId) return;
+    const sketch = project.sketches.find((s) => s.id === activeSketchId);
+    if (!sketch) return;
+    const constraint = createConstraint(crypto.randomUUID(), input);
+    const updatedSketch = { ...sketch, constraints: [...(sketch.constraints || []), constraint] };
+    addConstraint(activeSketchId, constraint); // persist + bump version
+    buildSketch(updatedSketch);                // re-solve with the new constraint
+    notifications.show({ color: 'blue', message: `Applied ${input.kind} constraint` });
+  };
+
+  // Remove a constraint from the active sketch and re-solve.
+  const handleRemoveConstraint = (constraintId: string) => {
+    if (!activeSketchId) return;
+    const sketch = project.sketches.find((s) => s.id === activeSketchId);
+    if (!sketch) return;
+    const updatedSketch = { ...sketch, constraints: (sketch.constraints || []).filter((c: any) => c.id !== constraintId) };
+    removeConstraint(activeSketchId, constraintId);
+    buildSketch(updatedSketch);
+  };
+
   // Handle constraint value update
   const handleUpdateConstraintValue = (constraintId: string, value: number) => {
     if (activeSketchId) {
@@ -900,6 +842,15 @@ export function CADLayout() {
             onBackgroundClick={handleBackgroundClick}
             onUpdateConstraintValue={handleUpdateConstraintValue}
           />
+          {activeSketchId && (() => {
+            const activeSketch = project.sketches.find((s) => s.id === activeSketchId);
+            return activeSketch ? (
+              <>
+                <SketchConstraintToolbar sketch={activeSketch} onApply={handleApplyConstraint} />
+                <SketchConstraintList sketch={activeSketch} onRemove={handleRemoveConstraint} />
+              </>
+            ) : null;
+          })()}
         </Box>
       </AppShell.Main>
     </AppShell>
