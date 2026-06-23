@@ -27,6 +27,6 @@ export default defineConfig({
   },
   assetsInclude: ["**/*.wasm"],
   optimizeDeps: {
-    exclude: ["opencascade.js"],
+    exclude: ["opencascade.js", "@salusoft89/planegcs"],
   },
 });

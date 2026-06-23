@@ -15,6 +15,8 @@ test.describe('SketchOverlay', () => {
 
     // Navigate to the app
     await page.goto('/');
+    await page.evaluate(() => window.localStorage.clear());
+    await page.reload();
   });
 
   test('should enter sketch mode without R3F namespace errors', async ({ page }) => {

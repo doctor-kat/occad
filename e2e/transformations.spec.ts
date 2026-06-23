@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Transformation and Evaluation Operations', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/');
+        await page.evaluate(() => window.localStorage.clear());
+        await page.reload();
         // Wait for any button to appear to ensure page load
         await page.waitForSelector('button', { timeout: 15000 });
     });
@@ -151,11 +153,10 @@ test.describe('Transformation and Evaluation Operations', () => {
         if (b) {
             const centerX = b.x + b.width / 2;
             const centerY = b.y + b.height / 2;
-            await page.mouse.move(centerX - 15, centerY - 15);
             await page.mouse.click(centerX - 15, centerY - 15);
             await page.waitForTimeout(200);
-            await page.mouse.move(centerX + 15, centerY + 15);
             await page.mouse.click(centerX + 15, centerY + 15);
+            await page.waitForTimeout(500);
         }
         await page.getByRole('button', { name: 'Finish Sketch' }).click();
         await expect(page.locator('text=Sketch completed')).toBeVisible({ timeout: 15000 });

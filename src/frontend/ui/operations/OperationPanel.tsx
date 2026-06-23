@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { Button, TextInput, Select, Stack, Group, Text, Alert, Box, useMantineTheme, ActionIcon, Title, NumberInput, Checkbox, MultiSelect } from '@mantine/core';
 import { X, Check } from '@phosphor-icons/react';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
-import type { 
-  Sketch, 
-  ExtrudeParams, 
+import type {
+  Sketch,
+  ExtrudeParams,
   RevolveParams,
   PrimitiveBoxParams,
   PrimitiveSphereParams,
@@ -194,6 +194,17 @@ export function OperationPanel({
     let params: OperationParams;
 
     switch (operation) {
+      case FeatureOperation.EXTRUDE_BOSS:
+      case FeatureOperation.EXTRUDED_CUT: {
+        const selectedSketch = project.sketches.find(s => s.id === sketchId);
+        if (!selectedSketch) return;
+        params = {
+          distance: direction === 'reverse' ? -distance : distance,
+          isCut,
+        } as ExtrudeParams;
+        onConfirm(params, sketchId);
+        break;
+      }
       case FeatureOperation.REVOLVED_BOSS:
       case FeatureOperation.REVOLVED_CUT: {
         const selectedSketch = project.sketches.find(s => s.id === sketchId);

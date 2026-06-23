@@ -264,6 +264,11 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
 
         if (item.type === 'sketch') {
           const sketch = item.data;
+          const hasEdges = sketch.primitives.some(p => !p.isExternal && p.type !== 'point');
+          if (!hasEdges) {
+            processedItems++;
+            continue;
+          }
           const sketchToSolve = currentBody ? reprojectExternalGeometry(ctx, sketch, currentBody) : sketch;
           const solvedSketch = await solver.solve(sketchToSolve);
           const wire = buildSketchWire(ctx, solvedSketch);

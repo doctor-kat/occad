@@ -21,6 +21,8 @@ import {
   handleGetFaceGeometry,
 } from '@/cad/engine/operations';
 
+const openCascadeWasm = '/opencascade.full.wasm';
+
 // ---------------------------------------------------------------------------
 // Worker State
 // ---------------------------------------------------------------------------
@@ -44,7 +46,9 @@ async function init(): Promise<void> {
       throw new Error('initOpenCascade is undefined - module.default is missing');
     }
 
-    oc = await initOpenCascade();
+    oc = await initOpenCascade({
+      mainWasm: openCascadeWasm,
+    });
     
     // Initialize the sketch solver (planegcs)
     post({ type: 'progress', message: 'Loading Sketch Solver…' });

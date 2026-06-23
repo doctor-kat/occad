@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Box-Sketch Flow', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/');
+        await page.evaluate(() => window.localStorage.clear());
+        await page.reload();
         // Wait for initial load - Front Plane should always be there
         await page.waitForSelector('text=Front Plane', { timeout: 10000 });
     });
@@ -72,17 +74,12 @@ test.describe('Box-Sketch Flow', () => {
             await page.mouse.move(centerX, centerY);
             await page.waitForTimeout(100);
 
-            // Draw a rectangle
-            await page.mouse.move(centerX + 40, centerY + 40);
-            await page.mouse.down();
-            await page.mouse.up();
+            // Draw a rectangle using two clicks
+            await page.mouse.click(centerX + 40, centerY + 40);
+            await page.waitForTimeout(200);
+            await page.mouse.click(centerX + 80, centerY + 70);
             await page.waitForTimeout(500);
-            
-            await page.mouse.move(centerX + 80, centerY + 70);
-            await page.mouse.down();
-            await page.mouse.up();
-            await page.waitForTimeout(1000);
-            
+
             // Verify element was created
             await expect(page.locator('text=Elements: 1')).toBeVisible({ timeout: 10000 });
         }

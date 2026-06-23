@@ -194,7 +194,7 @@ export function OpenCascadeViewport({
             }}
           >
             <Text size="xs" fw={500} c={theme.other.colors.mutedForeground}>
-              Elements: {activeSketch.elements.length}
+              Elements: {(activeSketch.elements || []).length}
             </Text>
           </Box>
         </Stack>

@@ -1,5 +1,18 @@
 import * as THREE from 'three';
-import { SketchPlane, PlaneType } from '@/cad/types';
+import { SketchPlane, PlaneType, Workplane } from '@/cad/types';
+
+/**
+ * Get transformation matrix from a planegcs Workplane (origin + basis vectors)
+ */
+export function getWorkplaneTransform(workplane: Workplane): THREE.Matrix4 {
+  const matrix = new THREE.Matrix4();
+  const xAxis = new THREE.Vector3(workplane.xAxis.x, workplane.xAxis.y, workplane.xAxis.z);
+  const yAxis = new THREE.Vector3(workplane.yAxis.x, workplane.yAxis.y, workplane.yAxis.z);
+  const normal = new THREE.Vector3(workplane.normal.x, workplane.normal.y, workplane.normal.z);
+  matrix.makeBasis(xAxis, yAxis, normal);
+  matrix.setPosition(workplane.origin.x, workplane.origin.y, workplane.origin.z);
+  return matrix;
+}
 
 /**
  * Get transformation matrix for sketch plane

@@ -320,7 +320,7 @@ export function CADLayout() {
       let featureName = 'Feature';
       if (activeOperation) {
         // Map operation to a friendly name
-        const opName = activeOperation.toString().split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+        const opName = activeOperation.toString().split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).reverse().join('-');
         featureName = `${opName}${project.features.length + 1}`;
       }
 

@@ -69,8 +69,8 @@ export function reprojectExternalGeometry(
         const first = new oc.gp_Pnt_1();
         const last = new oc.gp_Pnt_1();
         // BRep_Tool::Points on edge would be better but we can get vertices
-        const v1 = oc.TopExp.FirstVertex_1(edge, false);
-        const v2 = oc.TopExp.LastVertex_1(edge, false);
+        const v1 = oc.TopExp.FirstVertex(edge, false);
+        const v2 = oc.TopExp.LastVertex(edge, false);
         
         const p1 = oc.BRep_Tool.Pnt(v1);
         const p2 = oc.BRep_Tool.Pnt(v2);

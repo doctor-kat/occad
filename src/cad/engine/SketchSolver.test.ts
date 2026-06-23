@@ -8,15 +8,18 @@ vi.mock('@salusoft89/planegcs', () => {
     init_planegcs_module: vi.fn().mockResolvedValue({
       GcsSystem: class {
         delete = vi.fn();
+        dof = vi.fn().mockReturnValue(0);
       }
     }),
     GcsWrapper: class {
-      add_primitives = vi.fn();
-      solve = vi.fn().mockReturnValue(true);
-      get_primitives = vi.fn().mockReturnValue([]);
-      get_dof = vi.fn().mockReturnValue(0);
-      get_conflicting = vi.fn().mockReturnValue([]);
-      get_redundant = vi.fn().mockReturnValue([]);
+      sketch_index = {
+        get_primitives: vi.fn().mockReturnValue([])
+      };
+      push_primitives_and_params = vi.fn();
+      solve = vi.fn().mockReturnValue(0);
+      apply_solution = vi.fn();
+      get_gcs_conflicting_constraints = vi.fn().mockReturnValue([]);
+      get_gcs_redundant_constraints = vi.fn().mockReturnValue([]);
       destroy_gcs_module = vi.fn();
     }
   };

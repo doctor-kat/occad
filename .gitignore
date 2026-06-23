@@ -29,3 +29,6 @@ dist-ssr
 /playwright-report/
 /test-results/
 /test-results*.json
+
+# Large WASM binaries
+/public/opencascade.full.wasm

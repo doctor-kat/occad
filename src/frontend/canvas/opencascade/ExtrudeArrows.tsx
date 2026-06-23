@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import type { CADProject } from "@/cad/types";
-import { PlaneType } from "@/cad/types";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 
 export function ExtrudeArrows({ project }: { project: CADProject }) {
@@ -8,26 +7,11 @@ export function ExtrudeArrows({ project }: { project: CADProject }) {
   if (!preview || !preview.sketchId) return null;
 
   const sketch = project.sketches.find((s) => s.id === preview.sketchId);
-  if (!sketch) return null;
+  if (!sketch || !sketch.workplane) return null;
 
-  // Calculate plane normal and origin
-  const getSketchNormal = (plane: any): THREE.Vector3 => {
-    if (plane.normal) return new THREE.Vector3(plane.normal.x, plane.normal.y, plane.normal.z);
-    switch (plane.type) {
-      case PlaneType.XY: return new THREE.Vector3(0, 0, 1);
-      case PlaneType.XZ: return new THREE.Vector3(0, 1, 0);
-      case PlaneType.YZ: return new THREE.Vector3(1, 0, 0);
-      default: return new THREE.Vector3(0, 0, 1);
-    }
-  };
-
-  const getSketchOrigin = (plane: any): THREE.Vector3 => {
-    if (plane.origin) return new THREE.Vector3(plane.origin.x, plane.origin.y, plane.origin.z);
-    return new THREE.Vector3(0, 0, 0);
-  };
-
-  const normal = getSketchNormal(sketch.plane);
-  const origin = getSketchOrigin(sketch.plane);
+  const { workplane } = sketch;
+  const normal = new THREE.Vector3(workplane.normal.x, workplane.normal.y, workplane.normal.z);
+  const origin = new THREE.Vector3(workplane.origin.x, workplane.origin.y, workplane.origin.z);
 
   return (
     <group position={origin}>

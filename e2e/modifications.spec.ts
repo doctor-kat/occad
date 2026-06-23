@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Modification Operations', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/');
+        await page.evaluate(() => window.localStorage.clear());
+        await page.reload();
         // Wait for initial load - Front Plane should always be there
         await page.waitForSelector('text=Front Plane', { timeout: 15000 });
     });

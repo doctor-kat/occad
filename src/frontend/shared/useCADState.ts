@@ -257,6 +257,7 @@ export function useCADState() {
       name,
       workplane,
       primitives: [],
+      elements: [],
       constraints: [],
       visualMetadata: {},
       isClosed: false,
@@ -638,6 +639,7 @@ export function useCADState() {
     // Sketch actions
     addSketch,
     updateSketchElements,
+    updateSketchState,
     updateSketchGeometry,
     startSketchEdit,
     stopSketchEdit,

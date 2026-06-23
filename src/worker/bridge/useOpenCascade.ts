@@ -119,6 +119,11 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           if (!msg.featureId) {
             setError(msg.message);
             setStatus("error");
+          } else {
+            // Per-feature errors (e.g. a failed sketch build) don't put the
+            // whole app in an error state, but the worker is no longer busy —
+            // clear "building" so the LoadingOverlay doesn't block the canvas forever.
+            setStatus("ready");
           }
           optsRef.current.onError?.(msg.message, msg.featureId);
           break;

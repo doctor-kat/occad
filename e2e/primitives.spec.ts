@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Primitive Shapes', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/');
+        await page.evaluate(() => window.localStorage.clear());
+        await page.reload();
         // Wait for initial load - Front Plane should always be there
         await page.waitForSelector('text=Front Plane', { timeout: 15000 });
     });
@@ -94,12 +96,11 @@ test.describe('Primitive Shapes', () => {
         if (b) {
             const centerX = b.x + b.width / 2;
             const centerY = b.y + b.height / 2;
-            // Draw a rectangle with multiple clicks to ensure it is registered
-            await page.mouse.move(centerX - 15, centerY - 15);
+            // Draw a rectangle using two clicks
             await page.mouse.click(centerX - 15, centerY - 15);
             await page.waitForTimeout(200);
-            await page.mouse.move(centerX + 15, centerY + 15);
             await page.mouse.click(centerX + 15, centerY + 15);
+            await page.waitForTimeout(500);
         }
         await page.getByRole('button', { name: 'Finish Sketch' }).click();
         await expect(page.locator('text=Sketch completed')).toBeVisible({ timeout: 15000 });
