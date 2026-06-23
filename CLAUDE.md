@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## IMPORTANT: Update ROADMAP.md After Any Work
+
+After completing any work in this repository, update `ROADMAP.md` to reflect the change (mark items done, add new follow-ups, adjust status). Do this before considering the task complete.
+
 ## Project Overview
 
 Parametric 3D CAD modeling application built with React, TypeScript, and OpenCascade.js. Browser-based CAD environment (like SolidWorks/Fusion 360) with sketching, extrusion, and parametric feature history.

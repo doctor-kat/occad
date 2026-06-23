@@ -26,6 +26,7 @@ dist-ssr
 .claude
 
 # Testing
+.playwright-mcp
 /playwright-report/
 /test-results/
 /test-results*.json
