@@ -161,7 +161,7 @@ export function useCADState() {
   // per version change — so derived, no-version-bump updates (fingerprint
   // enrichments) are invisible to undo — then replay whole `CADProject` states.
   // Cheap: the state is fully serializable and each edit already produces a fresh
-  // immutable object, so snapshots are just retained references. See DETERMINISTIC.md.
+  // immutable object, so snapshots are just retained references. See ROADMAP.md (Deterministic topology).
   const MAX_HISTORY = 100;
   const undoStack = useRef<CADProject[]>([]);
   const redoStack = useRef<CADProject[]>([]);
@@ -536,7 +536,7 @@ export function useCADState() {
   // This is DERIVED data from a rebuild, not a user edit, so it must NOT bump
   // `version` — doing so would retrigger the rebuild and loop. The enrichment
   // converges after one rebuild (enrichRefs returns nothing once all refs carry
-  // a fingerprint). See DETERMINISTIC.md step 3b.
+  // a fingerprint). See ROADMAP.md (Deterministic topology).
   const applyRefEnrichments = useCallback((enrichments: FeatureRefEnrichment[]) => {
     if (!enrichments?.length) return;
     setProject((prev) => {
@@ -558,7 +558,7 @@ export function useCADState() {
   // Like applyRefEnrichments this is DERIVED data from a rebuild, so it must NOT
   // bump `version` (that would loop the rebuild). Converges after one rebuild
   // (enrichSketchExternalRefs returns nothing once every external ref carries a
-  // sourceRef). See DETERMINISTIC.md step 3c.
+  // sourceRef). See ROADMAP.md (Deterministic topology).
   const applySketchRefEnrichments = useCallback((enrichments: SketchRefEnrichment[]) => {
     if (!enrichments?.length) return;
     setProject((prev) => {

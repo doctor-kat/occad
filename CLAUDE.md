@@ -303,7 +303,7 @@ The following are available in opencascade.js but not yet implemented in this pr
 
 - Bezier curves defined in types but not implemented in worker
 - Custom sketch planes: XY, XZ, YZ fully work; face-based planes partially implemented
-- Fillet, chamfer, shell operations defined but not implemented
 - No constraint solver (pure explicit geometry)
-- No undo/redo system
 - TypeScript strict mode disabled — many type safety features off for rapid prototyping
+
+Implemented since this list was first written: fillet/chamfer/shell/offset (engine + rebuild + e2e); snapshot undo/redo; selection stability across rebuilds (geometric fingerprints) — see the "Deterministic topology & stable selections" section in `ROADMAP.md`.

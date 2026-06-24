@@ -7,8 +7,8 @@
  * Background: selections were historically stored as bare `edge-N` / `face-N`
  * strings — ordinal indices that renumber on every topology change. A
  * `StableRef` additionally carries a geometric `Fingerprint`, so a selection can
- * be re-found by geometry after an edit shuffles the indices. See
- * `DETERMINISTIC.md`.
+ * be re-found by geometry after an edit shuffles the indices. See the
+ * "Deterministic topology & stable selections" section in `ROADMAP.md`.
  */
 
 export type SubShapeKind = 'edge' | 'face' | 'vertex';
@@ -72,7 +72,7 @@ export function hasFingerprint(ref: GeometryRef): boolean {
  * A worker→main enrichment: the upgraded (fingerprinted) refs for one selection
  * field of one feature, captured lazily during rebuild. The main thread persists
  * `refs` into `feature.parameters[key]` *without bumping version* (it is derived
- * data, not a user edit). See `DETERMINISTIC.md` step 3b.
+ * data, not a user edit). See `ROADMAP.md` (Deterministic topology).
  */
 export interface FeatureRefEnrichment {
   featureId: string;
@@ -89,8 +89,8 @@ export interface FeatureRefEnrichment {
  * The worker re-resolves the tag against the body where it is still valid,
  * captures the matching {@link StableRef} (with fingerprint), and the main thread
  * persists it into `primitive.sourceRef` *without bumping version* — the
- * geometry-anchored ref then survives later renumbers. See `DETERMINISTIC.md`
- * step 3c.
+ * geometry-anchored ref then survives later renumbers. See `ROADMAP.md`
+ * (Deterministic topology).
  */
 export interface SketchRefEnrichment {
   sketchId: string;

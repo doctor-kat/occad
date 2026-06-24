@@ -29,7 +29,7 @@ started
 | **Feature tree**           | ✅      | Tree, reorder (deterministic), suppress, visibility, edit | —         | Wire reorder to a drag handler   |
 | **Undo / Redo**            | ✅      | Snapshot history in `useCADState` (records per version change, ignores derived enrichments); Toolbar buttons + Ctrl/⌘+Z·Y wired; undo rebuilds | — | — |
 | **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
-| **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history scaffold (`history.ts`) + sketch external-geom now fingerprint-stable (`findShapeByRef`, vertex fingerprints, lazy `sourceRef` capture). Step 4: snapshot undo/redo | — | Boolean exact-history resolution deferred (no payoff for current selection model) — see `DETERMINISTIC.md` |
+| **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history scaffold (`history.ts`) + sketch external-geom now fingerprint-stable (`findShapeByRef`, vertex fingerprints, lazy `sourceRef` capture). Step 4: snapshot undo/redo | — | Boolean exact-history resolution deferred (no payoff for current selection model) — see "Deterministic topology" section below |
 
 **Overall:** Sketch + constraints + extrude/revolve + boolean + modification pipeline is solid. The biggest gaps are
 **undo/redo**, the **remaining primitives**, and the **transform/IO** families (UI buttons exist but do nothing on
@@ -299,4 +299,69 @@ rebuild).
 
 ---
 
-_Last updated: 2026-06-23 — implemented the Modifications family (fillet/chamfer/shell/offset) end-to-end: engine `modifications.ts` + `handleRebuild` wiring + TDD unit suite (`modifications.test.ts`); reorganized the operations bar into area-based tabs (Primitives/Modifications/Transform/Advanced). Earlier same day: added sketch hover + viewport selection; fixed rectangle "no closed sketches" + flat-extrude + sketch-mode-exit bugs. Keep statuses honest — only mark ✅ when types + engine + rebuild + UI are all wired._
+## Deterministic topology & stable selections
+
+The classic CAD **topological-naming problem**: every face/edge selection used to be stored as a
+**positional ordinal index** (`face-N` / `edge-N`) into an OpenCascade `TopTools_IndexedMapOfShape`.
+Those indices renumber on any topology-changing edit (booleans, upstream edits, reorder, suppress),
+so a stored `edge-7` could silently bind to a *different* sub-shape. This was driven to ground in a
+multi-step effort (formerly tracked in `DETERMINISTIC.md`, now folded here). **Status: ✅ complete**
+for this app's op set; one refinement deliberately deferred (below).
+
+**What shipped**
+
+1. **Deterministic build order.** `src/cad/types/project/buildOrder.ts` — `orderKey = sequence ??
+   createdAt`, tie-broken by `id` (`compareBuildOrder`), shared by the worker rebuild
+   (`operations.ts handleRebuild`) **and** the feature tree (`useCADState.ts featureTree`) so they
+   never disagree or depend on `Array.sort` stability. `reorderFeature` assigns an explicit
+   `sequence` slotted between neighbours (kept strictly after a consumed sketch).
+2. **Geometric fingerprints.** `src/cad/engine/fingerprint.ts` (pure, `ctx.oc`-injected → unit-tested
+   without WASM) anchors a sub-shape to its *geometry* — surface/curve type + GProp measure +
+   centroid + sorted OBB half-sizes; vertices fingerprint from their `BRep_Tool.Pnt` point.
+   `matchFingerprint` refuses to choose between near-identical candidates (confident/ambiguous).
+3. **Stable refs + lazy capture.** Selections persist as a `GeometryRef = string | StableRef`
+   (`Fingerprint.ts`); a bare `edge-N` string still works (no migration). `resolveSubShapes`
+   (`modifications.ts`) re-finds fingerprinted refs by geometry, falling back to the ordinal index,
+   and reports unresolved refs **loudly** (`unresolved`) instead of silently filleting the wrong
+   edge. Fingerprints are captured lazily in the worker against the body where indices are still
+   valid — for modification selections (`enrichRefs`, fillet/chamfer/shell/offset) and for sketch
+   **external geometry** (`enrichSketchExternalRefs` + `findShapeByRef`, vertex/edge/face). Captures
+   ship in `rebuildComplete.{refEnrichments,sketchRefEnrichments}` and persist **without bumping
+   `version`** (derived data → no rebuild loop), converging after one rebuild.
+4. **Snapshot undo/redo.** `useCADState` records one `CADProject` snapshot per `version` change
+   (so derived enrichments are invisible to undo); `undo`/`redo` replay across two stacks. The
+   `CADLayout` rebuild trigger compares `version !== lastRebuilt` (not `>`) so an undo — which
+   restores a *lower* version — still rebuilds. Toolbar buttons + Ctrl/⌘+Z·Y wired.
+
+**Deferred (not pursued): boolean exact-history resolution.** `src/cad/engine/history.ts` is a pure
+scaffold over OCC `BRepTools_History` / maker `Modified`/`Generated`/`IsDeleted` (with
+`carryThroughHistory`, `Merge_1`), but it is **not wired into resolution**: for the current selection
+model a modification's edges/faces are selected against the *same* body the modification then acts on
+(selection-origin == use-point), so the fingerprint already re-anchors them across renumbers
+(modifications e2e 6/6). Exact history only pays off once selections carry a *creation-time* stable id
+to propagate across intervening booleans — the scaffold is ready for that day. Deferred rather than
+shipped as speculative dead code.
+
+**Gotchas for whoever extends this**
+- `useOpenCascade` is instantiated **once** in `CADLayout` — a second call spawns a separate worker
+  with isolated shape storage.
+- Unit tests mock OCC (`mockCtx`); real geometric validity is **e2e only** — keep fingerprint/history
+  logic pure and `oc`-injected so it stays mockable.
+- The worker's **single interleaved** sketch+feature pass is intentional: external-geometry sketches
+  re-project against the `currentBody` at their point in the order. Do **not** split into "all
+  sketches then all features" — it breaks projection.
+
+**Key files:** `buildOrder.ts` · `fingerprint.ts` · `modifications.ts` (`resolveSubShapes`/`enrichRefs`)
+· `sketch/externalGeometry.ts` (`findShapeByRef`/`enrichSketchExternalRefs`) · `history.ts` (scaffold)
+· `operations.ts` (`handleRebuild`) · `useCADState.ts` (tree, reorder, undo/redo, enrichment appliers).
+Each has a co-located `*.test.ts`.
+
+---
+
+_Last updated: 2026-06-24 — completed the deterministic-topology effort (fingerprint-stable sketch
+external geometry incl. vertex fingerprints + lazy `sourceRef` capture; OCC-history scaffold
+`history.ts`) and snapshot undo/redo (Toolbar + Ctrl/⌘+Z·Y), then folded the former `DETERMINISTIC.md`
+living doc into the "Deterministic topology & stable selections" section above. Boolean exact-history
+resolution deferred (no payoff for the current selection model). Earlier (2026-06-23): implemented the
+Modifications family (fillet/chamfer/shell/offset) end-to-end and reorganized the operations bar into
+area-based tabs. Keep statuses honest — only mark ✅ when types + engine + rebuild + UI are all wired._

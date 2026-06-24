@@ -62,7 +62,7 @@ export function findShapeByRef(ctx: WorkerContext, body: TopoDS_Shape, ref: Geom
  * renumbers. Already-captured primitives and ones whose tag no longer resolves
  * are skipped (the latter is left bare for the tolerant reprojection). Returns the
  * captured enrichments (empty when nothing new) for the main thread to persist
- * without bumping version. See `DETERMINISTIC.md` step 3c.
+ * without bumping version. See `ROADMAP.md` (Deterministic topology).
  */
 export function enrichSketchExternalRefs(
   ctx: WorkerContext,

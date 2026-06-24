@@ -10,13 +10,13 @@ export interface RebuildCompleteResponse {
     /**
      * Lazily-captured fingerprint upgrades for modification selections, applied
      * by the main thread without bumping version. Absent when nothing new was
-     * captured this rebuild. See DETERMINISTIC.md step 3b.
+     * captured this rebuild. See ROADMAP.md (Deterministic topology).
      */
     refEnrichments?: FeatureRefEnrichment[];
     /**
      * Lazily-captured fingerprint upgrades for sketch external-geometry refs,
      * applied by the main thread without bumping version. Absent when nothing new
-     * was captured this rebuild. See DETERMINISTIC.md step 3c.
+     * was captured this rebuild. See ROADMAP.md (Deterministic topology).
      */
     sketchRefEnrichments?: SketchRefEnrichment[];
 }

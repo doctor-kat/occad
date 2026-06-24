@@ -21,7 +21,7 @@ export interface SketchPrimitive {
    * Geometry-anchored upgrade of `sourceId`, captured lazily by the worker during
    * rebuild (fingerprint + index). Preferred over `sourceId` when resolving the
    * external sub-shape, so it survives an upstream edit that renumbers the index
-   * map. See `DETERMINISTIC.md` step 3c.
+   * map. See `ROADMAP.md` (Deterministic topology).
    */
   sourceRef?: StableRef;
 }
