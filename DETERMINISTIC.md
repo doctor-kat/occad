@@ -6,7 +6,7 @@
 > single source of truth for the plan, decisions, and progress — keep it current so
 > anyone can take over mid-stream.
 
-Last updated: 2026-06-23
+Last updated: 2026-06-24
 
 ---
 
@@ -168,11 +168,36 @@ converged→null, empty→null, unresolved-left-untouched, capture+resolve-after
 round trip); `useCADState.test.ts` applyRefEnrichments (params updated, **no** version
 bump, unknown-id no-op).
 
-### 🔜 Step 3c — History propagation (exactness)
+### 🟡 Step 3c — History propagation (exactness)  *(scaffold DONE — wiring pending)*
 
-- `SetToFillHistory(true)` on every boolean; carry stable IDs across `handleRebuild` via
-  `BRepTools_History.Merge` so IDs survive upstream edits exactly (fingerprint becomes the
-  fallback, not the primary). Also covers sketch external-geometry (`findShapeByTag`).
+Goal: `SetToFillHistory(true)` on every boolean; carry stable IDs across `handleRebuild` via
+`BRepTools_History.Merge` so IDs survive upstream edits exactly (fingerprint becomes the
+fallback, not the primary). Also covers sketch external-geometry (`findShapeByTag`).
+
+**Scaffold (DONE):** new pure engine module `src/cad/engine/history.ts` (OCC-injected so it is
+unit-tested without WASM, mirroring `fingerprint.ts` in step 2):
+
+- `ShapeHistory` — uniform view over OCC's two history sources: a boolean's `History()`
+  `BRepTools_History` (`fromBuilderHistory`, unwraps the `Handle` and reports removal via
+  `IsRemoved`) and the `BRepBuilderAPI_MakeShape` family — prism/fillet/chamfer/thick-solid —
+  (`fromMaker`, reports removal via `IsDeleted`).
+- `followShape` — follow one sub-shape forward through an op with OCC precedence
+  `removed → modified → generated → unchanged`; `listToArray` walks `TopTools_ListOfShape`
+  via its list iterator.
+- `carryThroughHistory` — carry a set of id-tagged sub-shapes across one op (drop removed,
+  fan an id out to every modified/split descendant, pass through unchanged). Apply once per
+  op in build order to thread IDs through the whole boolean chain.
+- `enableHistory(builder)` — `SetToFillHistory(true)` (must precede `Build()`); cumulative
+  `newCumulativeHistory` / `mergeInto` wrap `BRepTools_History.Merge_1`.
+
+**Tests:** `src/cad/engine/history.test.ts` (17) — follow precedence (incl. removal-terminal,
+modified-beats-generated), Handle-vs-bare-history adapter, id carry across unchanged/modified/
+split/removed, two-op chain composition, `SetToFillHistory` flag, and `Merge_1` accumulation.
+
+**Wiring (PENDING):** thread a `TrackedRef[]` through `handleRebuild`'s boolean chain
+(`performBooleanOperation` to enable + return history), prefer the exact history result over
+fingerprint in `resolveSubShapes`, demote the fingerprint to fallback, and extend to
+`findShapeByTag` (sketch external geometry). Validatable e2e only (real OCC history).
 
 ### 🔜 Step 4 — Snapshot undo/redo
 
@@ -184,9 +209,9 @@ bump, unknown-id no-op).
 
 ## Validation status
 
-- **Unit (vitest):** 165 passing. Determinism-specific: `buildOrder.test.ts`,
-  `fingerprint.test.ts` (15), `modifications.test.ts` (fingerprint resolution + enrichRefs),
-  `useCADState.test.ts` (reorder + applyRefEnrichments).
+- **Unit (vitest):** 184 passing. Determinism-specific: `buildOrder.test.ts`,
+  `fingerprint.test.ts` (15), `history.test.ts` (17), `modifications.test.ts` (fingerprint
+  resolution + enrichRefs), `useCADState.test.ts` (reorder + applyRefEnrichments).
 - **e2e (Playwright, real OCC kernel):**
   - `e2e/modifications.spec.ts` — **6/6 pass** (fillet/chamfer/shell/offset + extrude-then-
     fillet). This is the suite that directly exercises the changed resolution/capture path.
@@ -211,7 +236,8 @@ bump, unknown-id no-op).
 | Selection resolution (sketch external geom) | `src/cad/engine/sketch/externalGeometry.ts` (`findShapeByTag`) |
 | Index production | `src/cad/engine/tessellation.ts`, `operations.ts` (`handleGetFaceGeometry`) |
 | Tree + reorder | `src/frontend/shared/useCADState.ts` (`featureTree`, `reorderFeature`) |
-| Fingerprints | `src/cad/engine/fingerprint.ts` *(step 2, not yet created)* |
+| Fingerprints | `src/cad/engine/fingerprint.ts` (+ `.test.ts`) |
+| History propagation | `src/cad/engine/history.ts` (+ `.test.ts`) *(step 3c scaffold; not yet wired)* |
 
 ## Gotchas for whoever takes over
 
