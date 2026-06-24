@@ -93,23 +93,46 @@ Full suite green (135 → 150 tests) + `bun run build` clean.
 > binds to the wrong sub-shape silently — only **out-of-range/malformed** refs are caught.
 > Detecting the wrong-edge case needs fingerprints (step 2).
 
-### 🔜 Step 2 — `fingerprint.ts` + stable IDs  *(IN PROGRESS / NEXT)*
+### ✅ Step 2 — `fingerprint.ts` engine + resolution  *(DONE — scaffold)*
 
-- New worker module `src/cad/engine/fingerprint.ts`: compute a stable geometric
-  fingerprint per face/edge — `{ surfaceType, area|length (GProp Mass), obb(center,axes,halfsizes), centroid }`.
-- Stable-ID allocator + `stableId ↔ live sub-shape` resolution by fingerprint (nearest
-  OBB center + matching type + area within tolerance), falling back to ordinal index.
-- Switch selection storage (`FilletParams.edges`, `ChamferParams.edges`,
-  `ShellParams.faces`, sketch `planeRef`, external-geometry `sourceId`) from raw indices
-  to stable IDs. Keep back-compat migration for persisted `edge-N` projects.
-- Thorough tests: fingerprint stability under re-tessellation; resolution survives an
-  upstream edit that renumbers indices; ambiguous-match handling.
+New worker module `src/cad/engine/fingerprint.ts` (pure, `ctx.oc`-injected so it is
+unit-tested without WASM):
 
-### 🔜 Step 3 — History propagation through rebuild
+- `computeFingerprint` / `fingerprintAll` — per face/edge fingerprint
+  `{ kind, index, geomType, measure (GProp Mass), centroid (CentreOfMass), obb (Bnd_OBB
+  half-sizes, sorted) }`. Uses `BRepGProp.SurfaceProperties_1`/`LinearProperties`,
+  `BRepBndLib.AddOBB`, `BRepAdaptor_Surface_2`/`Curve_2.GetType()`.
+- `fingerprintScore` — dimensionless dissimilarity; different kind/geomType ⇒ `Infinity`;
+  centroid distance (normalized by characteristic length) + relative measure diff + OBB
+  signature diff.
+- `matchFingerprint` — best candidate with `confident` / `ambiguous` flags
+  (`ACCEPT_THRESHOLD`, `AMBIGUITY_MARGIN`); refuses to pick between near-identical faces.
+- `resolveStableRef(ctx, shape, { kind, index, fingerprint? })` — returns the live
+  0-based index, preferring a confident fingerprint match and falling back to the stored
+  ordinal index (or -1 = stale).
 
-- `SetToFillHistory(true)` on every boolean; carry stable IDs across `handleRebuild` via
-  `BRepTools_History.Merge`. Makes IDs survive upstream edits exactly (not just by
-  fingerprint guess).
+**Tests:** `src/cad/engine/fingerprint.test.ts` (15) — determinism, OBB axis-order
+invariance, edge length/curve-type path, score type-guard/monotonicity, ambiguity,
+absent-geometry, and the **money test**: `resolveStableRef` re-finds a selection after an
+edit renumbers the index map, where the bare ordinal index silently binds to the wrong
+face.
+
+> This is the **engine scaffold**. It is not yet wired into the live worker — selection
+> storage still uses `edge-N` strings (see step 3). The engine-level proof that the
+> approach resolves the naming bug is in `fingerprint.test.ts`.
+
+### 🔜 Step 3 — Wire stable refs into the live pipeline + history propagation
+
+- **Capture** a fingerprint at selection time. When the user picks `face-N`/`edge-N`
+  (OperationPanel / EntitiesPanel / face-to-sketch), also fingerprint that sub-shape from
+  the current body and store a `StableRef` (not a bare string) in `FilletParams.edges`,
+  `ChamferParams.edges`, `ShellParams.faces`, sketch `planeRef`, external-geometry
+  `sourceId`. Migrate persisted `edge-N` projects (index-only StableRef).
+- **Resolve** via `resolveStableRef` inside `resolveSubShapes` / `findShapeByTag`; -1 ⇒
+  the existing loud "could not resolve" error from step 1.
+- **History propagation:** `SetToFillHistory(true)` on every boolean; carry stable IDs
+  across `handleRebuild` via `BRepTools_History.Merge` so IDs survive upstream edits
+  exactly (fingerprint becomes the fallback, not the primary).
 
 ### 🔜 Step 4 — Snapshot undo/redo
 
