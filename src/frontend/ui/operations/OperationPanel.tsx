@@ -23,7 +23,7 @@ import type {
   Point3D,
   CADProject
 } from '@/cad/types';
-import { PlaneType, FeatureOperation, TransformOperation, SketchOperation } from '@/cad/types';
+import { PlaneType, FeatureOperation, TransformOperation, SketchOperation, refLabel } from '@/cad/types';
 
 /**
  * Helper to get the normal vector for a sketch plane
@@ -136,8 +136,11 @@ export function OperationPanel({
       if ('majorRadius' in initialParams) setMajorRadius(initialParams.majorRadius);
       if ('minorRadius' in initialParams) setMinorRadius(initialParams.minorRadius);
       if ('ltx' in initialParams) setLtx(initialParams.ltx);
-      if ('edges' in initialParams) setSelectedEdges(initialParams.edges);
-      if ('faces' in initialParams) setSelectedFaces(initialParams.faces);
+      // Params may carry fingerprinted StableRefs; show their `edge-N`/`face-N`
+      // label. (The worker re-captures fingerprints on the next rebuild, so
+      // editing a modification this way doesn't permanently lose them.)
+      if ('edges' in initialParams) setSelectedEdges(initialParams.edges.map(refLabel));
+      if ('faces' in initialParams) setSelectedFaces(initialParams.faces.map(refLabel));
       if ('featureIds' in (initialParams as any)) setSelectedFeatures((initialParams as any).featureIds);
       if ('thickness' in initialParams) setThickness(initialParams.thickness);
     } else {

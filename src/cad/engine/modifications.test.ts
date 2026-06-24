@@ -7,7 +7,8 @@ import {
   applyShell,
   applyOffset,
 } from "./modifications";
-import type { FilletParams, ChamferParams, ShellParams, OffsetParams } from "@/cad/types";
+import type { FilletParams, ChamferParams, ShellParams, OffsetParams, StableRef } from "@/cad/types";
+import { computeFingerprint, fingerprintAll } from "./fingerprint";
 
 /**
  * Build a fake OpenCascade context for exercising the modification logic
@@ -306,5 +307,250 @@ describe("applyOffset", () => {
     // args: [shape, offset, tol, mode, intersection, selfInter, join, removeIntEdges, range]
     expect(args[1]).toBe(4);
     expect(result).toEqual({ offset: true });
+  });
+});
+
+/**
+ * Fingerprint-aware resolution: the determinism payoff. A selection stored as a
+ * fingerprinted StableRef must re-find its geometry after an upstream edit
+ * renumbers the OCC index map — where a bare ordinal index would silently bind
+ * to the wrong sub-shape. Uses a richer mock that implements the GProp / OBB /
+ * adaptor calls fingerprint.ts makes, plus the fillet maker for an end-to-end
+ * check. Sub-shapes are identity-mapped so a resolved shape IS the geometry obj.
+ */
+type Geo = { id: string; g: string; m: number; c: { x: number; y: number; z: number }; h: [number, number, number] };
+
+function fpCtx(recorder: any = {}) {
+  const oc: any = {
+    TopAbs_ShapeEnum: { TopAbs_EDGE: "EDGE", TopAbs_FACE: "FACE" },
+    TopExp: {
+      MapShapes_1: (shape: any, kind: any, map: any) => {
+        map._items = kind === "EDGE" ? shape.__edges ?? [] : shape.__faces ?? [];
+      },
+    },
+    TopTools_IndexedMapOfShape_1: class {
+      _items: any[] = [];
+      Extent() {
+        return this._items.length;
+      }
+      FindKey(i: number) {
+        return this._items[i - 1];
+      }
+      delete() {}
+    },
+    TopoDS: { Edge_1: (s: any) => s, Face_1: (s: any) => s },
+    GeomAbs_SurfaceType: {
+      GeomAbs_Plane: "plane",
+      GeomAbs_Cylinder: "cylinder",
+      GeomAbs_Cone: "cone",
+      GeomAbs_Sphere: "sphere",
+      GeomAbs_Torus: "torus",
+      GeomAbs_BSplineSurface: "bspline",
+    },
+    GeomAbs_CurveType: {
+      GeomAbs_Line: "line",
+      GeomAbs_Circle: "circle",
+      GeomAbs_Ellipse: "ellipse",
+      GeomAbs_BSplineCurve: "bspline",
+    },
+    BRepAdaptor_Surface_2: class {
+      _g: string;
+      constructor(f: Geo) {
+        this._g = f.g;
+      }
+      GetType() {
+        return this._g;
+      }
+      delete() {}
+    },
+    BRepAdaptor_Curve_2: class {
+      _g: string;
+      constructor(e: Geo) {
+        this._g = e.g;
+      }
+      GetType() {
+        return this._g;
+      }
+      delete() {}
+    },
+    GProp_GProps_1: class {
+      _m = 0;
+      _c = { x: 0, y: 0, z: 0 };
+      Mass() {
+        return this._m;
+      }
+      CentreOfMass() {
+        const c = this._c;
+        return { X: () => c.x, Y: () => c.y, Z: () => c.z, delete() {} };
+      }
+      delete() {}
+    },
+    BRepGProp: {
+      SurfaceProperties_1: (s: Geo, p: any) => {
+        p._m = s.m;
+        p._c = s.c;
+      },
+      LinearProperties: (s: Geo, p: any) => {
+        p._m = s.m;
+        p._c = s.c;
+      },
+    },
+    Bnd_OBB_1: class {
+      _h: [number, number, number] = [0, 0, 0];
+      XHSize() {
+        return this._h[0];
+      }
+      YHSize() {
+        return this._h[1];
+      }
+      ZHSize() {
+        return this._h[2];
+      }
+      Center() {
+        return { X: () => 0, Y: () => 0, Z: () => 0 };
+      }
+      delete() {}
+    },
+    BRepBndLib: {
+      AddOBB: (s: Geo, obb: any) => {
+        obb._h = s.h;
+      },
+    },
+    ChFi3d_FilletShape: { ChFi3d_Rational: "rational" },
+    Message_ProgressRange_1: class {
+      delete() {}
+    },
+    BRepFilletAPI_MakeFillet: class {
+      constructor(shape: any, fshape: any) {
+        recorder.fillet = { shape, fshape, adds: [] as any[], built: false };
+      }
+      Add_2(radius: number, edge: any) {
+        recorder.fillet.adds.push({ radius, edge });
+      }
+      Build() {
+        recorder.fillet.built = true;
+      }
+      IsDone() {
+        return true;
+      }
+      Shape() {
+        return { filleted: true };
+      }
+      delete() {}
+    },
+  };
+  return { oc } as any;
+}
+
+const geoFace = (
+  id: string,
+  m: number,
+  c: { x: number; y: number; z: number },
+  h: [number, number, number]
+): Geo => ({ id, g: "plane", m, c, h });
+
+const geoEdge = (
+  id: string,
+  m: number,
+  c: { x: number; y: number; z: number },
+  h: [number, number, number]
+): Geo => ({ id, g: "line", m, c, h });
+
+/** Box-like body: 6 distinct planar faces + 4 distinct linear edges. */
+function geoBody() {
+  return {
+    __faces: [
+      geoFace("F-bottom", 100, { x: 5, y: 5, z: 0 }, [0, 5, 5]),
+      geoFace("F-top", 100, { x: 5, y: 5, z: 10 }, [0, 5, 5]),
+      geoFace("F-front", 80, { x: 5, y: 0, z: 5 }, [0, 4, 5]),
+      geoFace("F-back", 80, { x: 5, y: 10, z: 5 }, [0, 4, 5]),
+      geoFace("F-left", 60, { x: 0, y: 5, z: 5 }, [0, 3, 5]),
+      geoFace("F-right", 60, { x: 10, y: 5, z: 5 }, [0, 3, 5]),
+    ],
+    __edges: [
+      geoEdge("E-a", 10, { x: 5, y: 0, z: 0 }, [0, 0, 5]),
+      geoEdge("E-b", 12, { x: 10, y: 5, z: 0 }, [0, 0, 6]),
+      geoEdge("E-c", 14, { x: 5, y: 10, z: 0 }, [0, 0, 7]),
+      geoEdge("E-d", 16, { x: 0, y: 5, z: 0 }, [0, 0, 8]),
+    ],
+  };
+}
+
+/** Reverse a sub-shape array — models an edit that renumbered the index map. */
+function renumbered(body: ReturnType<typeof geoBody>) {
+  return { __faces: [...body.__faces].reverse(), __edges: [...body.__edges].reverse() };
+}
+
+describe("resolveSubShapes — fingerprinted StableRefs", () => {
+  it("re-finds a face after the index map is renumbered", () => {
+    const fps = fingerprintAll(fpCtx(), geoBody(), "face");
+    const topRef: StableRef = { kind: "face", index: 1, fingerprint: fps[1] }; // F-top
+
+    const { shapes, unresolved } = resolveSubShapes(fpCtx(), renumbered(geoBody()), [topRef], "face");
+    expect(unresolved).toEqual([]);
+    expect(shapes).toHaveLength(1);
+    expect((shapes[0] as Geo).id).toBe("F-top"); // geometry, not "whatever is now at index 1"
+  });
+
+  it("trusts the fingerprint over a stale stored index", () => {
+    const fps = fingerprintAll(fpCtx(), geoBody(), "face");
+    // index says 5 (F-right) but the fingerprint is F-top.
+    const ref: StableRef = { kind: "face", index: 5, fingerprint: fps[1] };
+    const { shapes } = resolveSubShapes(fpCtx(), geoBody(), [ref], "face");
+    expect((shapes[0] as Geo).id).toBe("F-top");
+  });
+
+  it("contrasts with a bare index, which binds to the wrong face after renumber", () => {
+    // Demonstrates the bug the fingerprint fixes: same logical selection, two refs.
+    const fps = fingerprintAll(fpCtx(), geoBody(), "face");
+    const edited = renumbered(geoBody());
+
+    const stable = resolveSubShapes(fpCtx(), edited, [{ kind: "face", index: 1, fingerprint: fps[1] }], "face");
+    const bare = resolveSubShapes(fpCtx(), edited, ["face-1"], "face");
+
+    expect((stable.shapes[0] as Geo).id).toBe("F-top"); // correct
+    expect((bare.shapes[0] as Geo).id).not.toBe("F-top"); // silently wrong
+  });
+
+  it("marks a fingerprint with no confident match and an out-of-range index as unresolved", () => {
+    const ctx = fpCtx();
+    const absent = computeFingerprint(ctx, geoFace("ghost", 5, { x: 99, y: 99, z: 99 }, [0, 1, 1]), "face", 0);
+    const ref: StableRef = { kind: "face", index: 50, fingerprint: absent };
+    const { shapes, unresolved } = resolveSubShapes(fpCtx(), geoBody(), [ref], "face");
+    expect(shapes).toHaveLength(0);
+    expect(unresolved).toEqual(["face-50"]); // refLabel(StableRef) = `${kind}-${index}`
+  });
+
+  it("resolves a mix of bare strings and fingerprinted refs", () => {
+    const fps = fingerprintAll(fpCtx(), geoBody(), "face");
+    const edited = renumbered(geoBody());
+    const refs = ["face-0", { kind: "face", index: 1, fingerprint: fps[2] } as StableRef]; // F-front
+    const { shapes, unresolved } = resolveSubShapes(fpCtx(), edited, refs, "face");
+    expect(unresolved).toEqual([]);
+    // "face-0" is positional (now F-right after reverse); the StableRef tracks F-front.
+    expect((shapes[0] as Geo).id).toBe("F-right");
+    expect((shapes[1] as Geo).id).toBe("F-front");
+  });
+
+  it("re-finds an edge after renumber (applyFillet end-to-end)", () => {
+    const fps = fingerprintAll(fpCtx(), geoBody(), "edge");
+    const edgeRef: StableRef = { kind: "edge", index: 2, fingerprint: fps[2] }; // E-c
+    const rec: any = {};
+    const params: FilletParams = { radius: 3, edges: [edgeRef] };
+
+    const result = applyFillet(fpCtx(rec), renumbered(geoBody()), params);
+    expect(result).toEqual({ filleted: true });
+    expect(rec.fillet.adds).toHaveLength(1);
+    expect(rec.fillet.adds[0].radius).toBe(3);
+    expect((rec.fillet.adds[0].edge as Geo).id).toBe("E-c"); // followed the geometry
+  });
+
+  it("is deterministic — repeated resolution yields the same sub-shape", () => {
+    const fps = fingerprintAll(fpCtx(), geoBody(), "face");
+    const ref: StableRef = { kind: "face", index: 3, fingerprint: fps[3] };
+    const a = resolveSubShapes(fpCtx(), renumbered(geoBody()), [ref], "face");
+    const b = resolveSubShapes(fpCtx(), renumbered(geoBody()), [ref], "face");
+    expect((a.shapes[0] as Geo).id).toBe((b.shapes[0] as Geo).id);
+    expect((a.shapes[0] as Geo).id).toBe("F-back");
   });
 });

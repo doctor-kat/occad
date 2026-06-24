@@ -15,7 +15,9 @@
 
 type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
-import type { FilletParams, ChamferParams, ShellParams, OffsetParams } from '@/cad/types';
+import type { FilletParams, ChamferParams, ShellParams, OffsetParams, GeometryRef, Fingerprint } from '@/cad/types';
+import { toStableRef, refLabel } from '@/cad/types';
+import { fingerprintAll, matchFingerprint } from './fingerprint';
 
 /** Tolerance used by the offset/thick-solid join builders. */
 const OFFSET_TOL = 1e-3;
@@ -44,16 +46,24 @@ export interface ResolvedSubShapes {
 }
 
 /**
- * Resolve a list of `edge-N` / `face-N` references to the corresponding OCC
- * sub-shapes of `shape`. The refs are 0-based; OCC indexed maps are 1-based,
- * so ref `N` maps to `FindKey(N + 1)`. Malformed and out-of-range refs are
- * collected into `unresolved` (not silently dropped) so the caller can fail
- * loudly and the stale selection surfaces on the feature instead of vanishing.
+ * Resolve a list of geometry references to the corresponding OCC sub-shapes of
+ * `shape`. A ref is either a legacy `edge-N` / `face-N` string or a fingerprinted
+ * `StableRef`:
+ *
+ *  - A bare index resolves positionally (`FindKey(N + 1)`), exactly as before.
+ *  - A ref carrying a fingerprint is re-found by *geometry* — so it survives an
+ *    upstream edit that renumbered the index map — and only falls back to the
+ *    stored ordinal index if no confident geometric match exists.
+ *
+ * Malformed / out-of-range / unmatched refs are collected into `unresolved`
+ * (never silently dropped) so the caller fails loudly and the stale selection
+ * surfaces on the feature. The body is only fingerprinted when some ref actually
+ * carries a fingerprint, so the common index-only path stays cheap.
  */
 export function resolveSubShapes(
   ctx: WorkerContext,
   shape: TopoDS_Shape,
-  refs: string[],
+  refs: GeometryRef[],
   kind: 'edge' | 'face'
 ): ResolvedSubShapes {
   const { oc } = ctx;
@@ -61,13 +71,34 @@ export function resolveSubShapes(
     kind === 'edge' ? oc.TopAbs_ShapeEnum.TopAbs_EDGE : oc.TopAbs_ShapeEnum.TopAbs_FACE;
   const map = new oc.TopTools_IndexedMapOfShape_1();
   oc.TopExp.MapShapes_1(shape, shapeEnum, map);
+  const extent = map.Extent();
+
+  // Lazily fingerprint the live body — only when a ref needs it (keeps the
+  // index-only path from touching GProp/OBB at all).
+  let live: Fingerprint[] | null = null;
+  const liveFingerprints = (): Fingerprint[] => (live ??= fingerprintAll(ctx, shape, kind));
+
+  const inRange = (idx: number) => Number.isInteger(idx) && idx >= 0 && idx < extent;
 
   const shapes: TopoDS_Shape[] = [];
   const unresolved: string[] = [];
   for (const ref of refs) {
-    const idx = parseGeometryIndex(ref);
-    if (!Number.isInteger(idx) || idx < 0 || idx >= map.Extent()) {
-      unresolved.push(ref);
+    const stable = toStableRef(ref);
+    if (!stable || stable.kind !== kind) {
+      unresolved.push(refLabel(ref));
+      continue;
+    }
+
+    let idx = -1;
+    if (stable.fingerprint) {
+      const m = matchFingerprint(stable.fingerprint, liveFingerprints());
+      idx = m.confident ? m.index : inRange(stable.index) ? stable.index : -1;
+    } else {
+      idx = inRange(stable.index) ? stable.index : -1;
+    }
+
+    if (!inRange(idx)) {
+      unresolved.push(refLabel(ref));
       continue;
     }
     const sub = map.FindKey(idx + 1);

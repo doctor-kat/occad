@@ -19,30 +19,12 @@
 
 type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
+import type { Fingerprint, StableRef, SubShapeKind } from '@/cad/types';
 
-export type SubShapeKind = 'edge' | 'face';
-
-export interface Fingerprint {
-  kind: SubShapeKind;
-  /** Ordinal index in the body's sub-shape map at capture time (fallback only). */
-  index: number;
-  /**
-   * Geometric type tag: faces -> 'plane'|'cylinder'|'cone'|'sphere'|'torus'|
-   * 'bspline'|'other'; edges -> 'line'|'circle'|'ellipse'|'bspline'|'other'.
-   * A mismatch here is an instant non-match — geometry kind never silently changes.
-   */
-  geomType: string;
-  /** Area for faces, length for edges (GProp Mass). */
-  measure: number;
-  /** Center of mass in world coordinates. */
-  centroid: { x: number; y: number; z: number };
-  /**
-   * Oriented-bounding-box half-sizes, sorted ascending. Sorting makes this a
-   * rotation/axis-order-invariant *size signature* (OCC does not guarantee a
-   * stable OBB axis order or sign, so we never compare raw axes).
-   */
-  obb: [number, number, number];
-}
+// Re-export the shared serializable types so existing importers of
+// `./fingerprint` keep working; the canonical definitions live in
+// `src/cad/types/geometry/Fingerprint.ts`.
+export type { Fingerprint, StableRef, SubShapeKind } from '@/cad/types';
 
 /** Combined-score acceptance threshold (dimensionless; ~fraction of size). */
 export const ACCEPT_THRESHOLD = 0.08;
@@ -232,29 +214,27 @@ export function matchFingerprint(target: Fingerprint, candidates: Fingerprint[])
   return { index: best, score: bestScore, confident: within && !ambiguous, ambiguous };
 }
 
-/** A selection reference that can resolve by fingerprint, falling back to index. */
-export interface StableRef {
-  kind: SubShapeKind;
-  /** Ordinal index captured at selection time (fallback). */
-  index: number;
-  /** Geometric fingerprint captured at selection time (primary). */
-  fingerprint?: Fingerprint;
-}
-
 /**
- * Resolve a stable reference against the *current* body, returning the live
- * 0-based sub-shape index it now corresponds to (or -1 if it cannot be found).
- *
- * Strategy: prefer a confident fingerprint match (survives index renumbering);
- * otherwise fall back to the stored ordinal index if still in range. The caller
- * treats -1 as a stale selection and surfaces it (see modifications.ts).
+ * Resolve a stable ref against a precomputed list of live fingerprints, returning
+ * the live 0-based index (or -1). Prefers a confident fingerprint match (survives
+ * index renumbering); falls back to the stored ordinal index if still in range.
+ * Splitting out the precomputed-`live` form lets callers fingerprint the body
+ * once and resolve many refs against it.
  */
-export function resolveStableRef(ctx: WorkerContext, shape: TopoDS_Shape, ref: StableRef): number {
-  const live = fingerprintAll(ctx, shape, ref.kind);
+export function resolveAgainst(live: Fingerprint[], ref: StableRef): number {
   if (ref.fingerprint) {
     const m = matchFingerprint(ref.fingerprint, live);
     if (m.confident) return m.index;
   }
   if (Number.isInteger(ref.index) && ref.index >= 0 && ref.index < live.length) return ref.index;
   return -1;
+}
+
+/**
+ * Resolve a stable reference against the *current* body, returning the live
+ * 0-based sub-shape index it now corresponds to (or -1 if it cannot be found).
+ * The caller treats -1 as a stale selection and surfaces it (see modifications.ts).
+ */
+export function resolveStableRef(ctx: WorkerContext, shape: TopoDS_Shape, ref: StableRef): number {
+  return resolveAgainst(fingerprintAll(ctx, shape, ref.kind), ref);
 }

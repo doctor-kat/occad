@@ -121,18 +121,46 @@ face.
 > storage still uses `edge-N` strings (see step 3). The engine-level proof that the
 > approach resolves the naming bug is in `fingerprint.test.ts`.
 
-### 🔜 Step 3 — Wire stable refs into the live pipeline + history propagation
+### ✅ Step 3a — Resolution side wired (worker), backward compatible  *(DONE)*
 
-- **Capture** a fingerprint at selection time. When the user picks `face-N`/`edge-N`
-  (OperationPanel / EntitiesPanel / face-to-sketch), also fingerprint that sub-shape from
-  the current body and store a `StableRef` (not a bare string) in `FilletParams.edges`,
-  `ChamferParams.edges`, `ShellParams.faces`, sketch `planeRef`, external-geometry
-  `sourceId`. Migrate persisted `edge-N` projects (index-only StableRef).
-- **Resolve** via `resolveStableRef` inside `resolveSubShapes` / `findShapeByTag`; -1 ⇒
-  the existing loud "could not resolve" error from step 1.
-- **History propagation:** `SetToFillHistory(true)` on every boolean; carry stable IDs
-  across `handleRebuild` via `BRepTools_History.Merge` so IDs survive upstream edits
-  exactly (fingerprint becomes the fallback, not the primary).
+- Lifted the serializable ref types into `src/cad/types/geometry/Fingerprint.ts`:
+  `Fingerprint`, `StableRef`, `GeometryRef = string | StableRef`, plus `toStableRef` /
+  `parseRefString` / `refLabel` / `hasFingerprint`. `fingerprint.ts` now imports & re-exports
+  these (canonical definitions live in types).
+- `FilletParams.edges`, `ChamferParams.edges`, `ShellParams.faces`, `OffsetParams.faces`
+  are now `GeometryRef[]` — a bare `edge-N` string OR a fingerprinted `StableRef`. Persisted
+  projects (bare strings) keep working with **no migration**.
+- `resolveSubShapes` is fingerprint-aware: a ref with a fingerprint is re-found by geometry
+  (survives index renumber) and only falls back to its stored ordinal index; a bare index
+  resolves positionally as before. The body is fingerprinted **lazily** — only when some ref
+  carries a fingerprint — so the index-only path stays cheap. Unmatched refs still surface
+  loudly via `unresolved` (step 1).
+- `fingerprint.ts` gained `resolveAgainst(live, ref)` (resolve against precomputed
+  fingerprints) so the body is fingerprinted once per `resolveSubShapes` call.
+- `OperationPanel` coerces `GeometryRef[]` → `edge-N`/`face-N` labels when populating the
+  edit form.
+
+**Tests:** `modifications.test.ts` +7 — re-find after renumber, fingerprint-beats-stale-index,
+bare-index-binds-wrong contrast, unmatched→unresolved, mixed bare+stable, applyFillet
+end-to-end through a renumber, determinism. All existing string-ref tests unchanged & green.
+
+### 🔜 Step 3b — Capture (lazy fingerprint write-back)  *(NEXT)*
+
+The UI still stores bare `edge-N` strings (no OCC on the main thread). Capture lazily in
+the worker instead of via a selection round-trip:
+
+- During `handleRebuild`, after resolving a modification's refs against the body it acts on,
+  fingerprint the resolved sub-shapes and post the upgraded `GeometryRef[]` back.
+- Frontend persists the enriched params **without bumping `version`** (a new no-rebuild
+  updater) so there's no rebuild loop.
+- Net effect: first successful build of a fillet/chamfer/shell (when the index is still
+  valid) captures the fingerprint; every later rebuild resolves by geometry.
+
+### 🔜 Step 3c — History propagation (exactness)
+
+- `SetToFillHistory(true)` on every boolean; carry stable IDs across `handleRebuild` via
+  `BRepTools_History.Merge` so IDs survive upstream edits exactly (fingerprint becomes the
+  fallback, not the primary). Also covers sketch external-geometry (`findShapeByTag`).
 
 ### 🔜 Step 4 — Snapshot undo/redo
 

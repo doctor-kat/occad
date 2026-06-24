@@ -4,6 +4,7 @@ export * from './geometry/Point2D';
 export * from './geometry/Vector3D';
 export * from './geometry/Axis';
 export * from './geometry/ShapeReference';
+export * from './geometry/Fingerprint';
 
 // Sketch
 export * from './sketch/SketchElementType';
