@@ -144,17 +144,29 @@ face.
 bare-index-binds-wrong contrast, unmatched→unresolved, mixed bare+stable, applyFillet
 end-to-end through a renumber, determinism. All existing string-ref tests unchanged & green.
 
-### 🔜 Step 3b — Capture (lazy fingerprint write-back)  *(NEXT)*
+### ✅ Step 3b — Capture (lazy fingerprint write-back)  *(DONE)*
 
-The UI still stores bare `edge-N` strings (no OCC on the main thread). Capture lazily in
-the worker instead of via a selection round-trip:
+The UI still stores bare `edge-N` strings (no OCC on the main thread), so capture happens
+lazily in the worker instead of via a selection round-trip:
 
-- During `handleRebuild`, after resolving a modification's refs against the body it acts on,
-  fingerprint the resolved sub-shapes and post the upgraded `GeometryRef[]` back.
-- Frontend persists the enriched params **without bumping `version`** (a new no-rebuild
-  updater) so there's no rebuild loop.
-- Net effect: first successful build of a fillet/chamfer/shell (when the index is still
-  valid) captures the fingerprint; every later rebuild resolves by geometry.
+- `modifications.enrichRefs(ctx, body, refs, kind)` — upgrades bare-index refs to
+  fingerprinted `StableRef`s against the body a modification is about to act on (where the
+  indices are still valid). Keeps already-fingerprinted refs; leaves malformed/unresolved
+  refs for the loud apply-time error; returns `null` when nothing changed (so capture
+  converges after one rebuild).
+- `handleRebuild` captures per modification (fillet/chamfer/shell/offset) against the
+  pre-modification body, pushes only after the apply succeeds, and ships the upgrades in
+  `rebuildComplete.refEnrichments` (type `FeatureRefEnrichment` in `cad/types`).
+- `useOpenCascade` fires `onRefsEnriched`; `useCADState.applyRefEnrichments` persists the
+  upgraded refs **without bumping `version`** (derived data, not a user edit) → no rebuild
+  loop.
+- Net effect: the first successful build of a fillet/chamfer/shell (index still valid)
+  captures the fingerprint; every later rebuild resolves by geometry and survives renumber.
+
+**Tests:** `modifications.test.ts` enrichRefs unit tests (capture edges/faces,
+converged→null, empty→null, unresolved-left-untouched, capture+resolve-after-renumber
+round trip); `useCADState.test.ts` applyRefEnrichments (params updated, **no** version
+bump, unknown-id no-op).
 
 ### 🔜 Step 3c — History propagation (exactness)
 
@@ -169,6 +181,25 @@ the worker instead of via a selection round-trip:
   resolve correctly.
 
 ---
+
+## Validation status
+
+- **Unit (vitest):** 165 passing. Determinism-specific: `buildOrder.test.ts`,
+  `fingerprint.test.ts` (15), `modifications.test.ts` (fingerprint resolution + enrichRefs),
+  `useCADState.test.ts` (reorder + applyRefEnrichments).
+- **e2e (Playwright, real OCC kernel):**
+  - `e2e/modifications.spec.ts` — **6/6 pass** (fillet/chamfer/shell/offset + extrude-then-
+    fillet). This is the suite that directly exercises the changed resolution/capture path.
+  - `e2e/transformations.spec.ts` — pass. `e2e/primitives.spec.ts` — face-based sketching
+    passes.
+  - ⚠️ **Known pre-existing failure (NOT caused by this work):**
+    `primitives.spec.ts › "extrude a rectangle on the Top Plane …"` fails with *"No closed
+    sketches"*. It's reference-**plane** sketching (no body), which needs the
+    `BackgroundPlane` raycast target. The identical sketch→extrude pipeline on a **face**
+    passes, and the determinism changes touch neither raycasting nor sketch closure.
+    Reproduces on clean committed code with the (unrelated, uncommitted) viewport refactor
+    reverted. That in-progress refactor in the working tree deletes `BackgroundPlane.tsx`
+    and reworks plane/edge rendering — fix belongs there, not here.
 
 ## Key files
 
