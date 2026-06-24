@@ -39,6 +39,8 @@ export interface OpenCascadeViewportProps {
   onEdgeClick?: (edgeIndex: number) => void;
   /** Callback when a vertex is clicked */
   onVertexClick?: (vertexIndex: number) => void;
+  /** Callback when a sketch wireframe is clicked */
+  onSketchClick?: (sketchId: string) => void;
   /** Callback when background is clicked (clear selection) */
   onBackgroundClick?: () => void;
   /** Callback when sketch is updated */
@@ -67,6 +69,7 @@ export function OpenCascadeViewport({
   onFaceClick,
   onEdgeClick,
   onVertexClick,
+  onSketchClick,
   onBackgroundClick,
   onUpdateSketch,
   onFinishSketch,
@@ -103,6 +106,11 @@ export function OpenCascadeViewport({
         camera={{ position: [100, 80, 100], fov: 45, near: 0.1, far: 10000 }}
         gl={{ antialias: true, alpha: false }}
         style={{ background: "transparent", width: '100%', height: '100%' }}
+        onPointerMissed={() => {
+          // Clicking empty space clears selection (replaces the old catcher plane).
+          // Skip in sketch mode — the SketchOverlay manages its own clicks there.
+          if (!activeSketch) onBackgroundClick?.();
+        }}
       >
         <Suspense fallback={null}>
           {/* Always render the scene with planes, optionally with mesh */}
@@ -121,6 +129,7 @@ export function OpenCascadeViewport({
             onFaceClick={onFaceClick}
             onEdgeClick={onEdgeClick}
             onVertexClick={onVertexClick}
+            onSketchClick={onSketchClick}
             onBackgroundClick={onBackgroundClick}
             onUpdateSketch={onUpdateSketch}
           />

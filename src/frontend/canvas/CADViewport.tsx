@@ -20,6 +20,7 @@ export interface CADViewportProps {
   onFaceClick?: (faceId: number) => void;
   onEdgeClick?: (edgeIndex: number) => void;
   onVertexClick?: (vertexIndex: number) => void;
+  onSketchClick?: (sketchId: string) => void;
   onBackgroundClick?: () => void;
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
 }
@@ -47,6 +48,7 @@ export function CADViewport({
   onFaceClick,
   onEdgeClick,
   onVertexClick,
+  onSketchClick,
   onBackgroundClick,
   onUpdateConstraintValue,
 }: CADViewportProps) {
@@ -72,6 +74,7 @@ export function CADViewport({
       onFaceClick={onFaceClick}
       onEdgeClick={onEdgeClick}
       onVertexClick={onVertexClick}
+      onSketchClick={onSketchClick}
       onBackgroundClick={onBackgroundClick}
       onUpdateSketch={onUpdateSketch}
       onFinishSketch={onFinishSketch}

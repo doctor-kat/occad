@@ -7,7 +7,6 @@ import { ReferencePlanes } from "./ReferencePlanes";
 import { OriginPoint } from "./OriginPoint";
 import { SketchWireframes } from "./SketchWireframes";
 import { ExtrudeArrows } from "./ExtrudeArrows";
-import { BackgroundPlane } from "./BackgroundPlane";
 import { SketchOverlay } from "../sketch/SketchOverlay";
 
 export interface SceneProps {
@@ -25,6 +24,7 @@ export interface SceneProps {
   onFaceClick?: (faceId: number) => void;
   onEdgeClick?: (edgeIndex: number) => void;
   onVertexClick?: (vertexIndex: number) => void;
+  onSketchClick?: (sketchId: string) => void;
   onBackgroundClick?: () => void;
   onUpdateSketch?: (sketchId: string, elements: any[]) => void;
 }
@@ -44,6 +44,7 @@ export function Scene({
   onFaceClick,
   onEdgeClick,
   onVertexClick,
+  onSketchClick,
   onBackgroundClick,
   onUpdateSketch
 }: SceneProps) {
@@ -71,8 +72,9 @@ export function Scene({
       <directionalLight position={[-60, 80, -40]} intensity={0.6} />
       <Environment preset="studio" />
 
-      {/* Background click catcher (invisible plane at low z-index) */}
-      {onBackgroundClick && !inSketchMode && <BackgroundPlane onClick={onBackgroundClick} />}
+      {/* Empty-space clicks (clearing selection) are handled by the Canvas-level
+          onPointerMissed in OpenCascadeViewport — a physical catcher plane would
+          sit in front of sketch wireframes along some rays and steal their clicks. */}
 
       {/* Reference Planes - hidden in sketch mode */}
       {!inSketchMode && (
@@ -103,7 +105,12 @@ export function Scene({
 
       {/* Sketch wireframes (visible sketches, not in sketch mode) */}
       {!inSketchMode && project && sketchEdges && (
-        <SketchWireframes project={project} sketchEdges={sketchEdges} />
+        <SketchWireframes
+          project={project}
+          sketchEdges={sketchEdges}
+          selectedSketchId={selectedPlaneId}
+          onSketchClick={onSketchClick}
+        />
       )}
 
       {/* Sketch overlay (when in sketch mode) */}
