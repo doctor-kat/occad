@@ -25,9 +25,9 @@ are produced by `tessellation.ts` / `handleGetFaceGeometry` and resolved by
   out-of-range one. OCC guarantees nothing about ordinal ordering across booleans, and
   `handleRebuild` rebuilds the whole body through `Fuse`/`Cut`/`Common` every time. ❌
 
-There is **no undo/redo** system (the Toolbar buttons are non-functional stubs), but all
-authoritative state lives in the serializable `CADProject`, so snapshot undo/redo is
-cheap to add *once selections are stable*.
+Snapshot **undo/redo** now exists (step 4): all authoritative state lives in the
+serializable `CADProject`, so the history layer just retains previous snapshots and
+replays them — correct precisely because selections are now stable (steps 2–3).
 
 ---
 
@@ -227,22 +227,45 @@ selection model carries a *creation-time* stable id to propagate across interven
 the `history.ts` scaffold is ready for that day. Deferred deliberately rather than shipped as
 speculative dead code.
 
-### 🔜 Step 4 — Snapshot undo/redo
+### ✅ Step 4 — Snapshot undo/redo  *(DONE)*
 
-- Push `CADProject` snapshots on each mutation; wire the stub Toolbar buttons. Cheap
-  given the fully-serializable state — do it after steps 2–3 so restored selections
-  resolve correctly.
+Snapshot history in `useCADState`, restoring whole serializable `CADProject` states —
+cheap because every edit already produces a fresh immutable object and all selections
+now resolve stably (steps 2–3), so a restored snapshot rebuilds correctly.
+
+- **One recording seam.** Every model edit funnels through the single immutable
+  `setProject` and bumps `version`. A `useEffect` watches committed `rawProject`
+  transitions and pushes the *previous* snapshot onto an undo stack **only when
+  `version` changed** — so derived, no-version-bump updates (the 3b/3c fingerprint
+  enrichments) are invisible to undo and never create no-op history steps. Capped at
+  `MAX_HISTORY = 100`.
+- **`undo` / `redo`** pop across undo/redo stacks (current state crosses to the other
+  stack), set a `skipRecordRef` so the replay isn't re-recorded, and `setProject` the
+  snapshot. A new edit after an undo clears the redo stack. `canUndo` / `canRedo` are
+  exposed as state for button enablement.
+- **Rebuild on restore.** `CADLayout`'s rebuild trigger now compares
+  `project.version !== lastRebuiltVersion` (was `>`), so an undo — which restores a
+  *lower* version — still rebuilds. Versions are unique per recorded edit, so any
+  transition between distinct states rebuilds exactly once.
+- **UI.** The stub Toolbar Undo/Redo buttons are wired (`onUndo`/`onRedo`, disabled via
+  `canUndo`/`canRedo`, `aria-label`s) plus global Ctrl/⌘+Z and Ctrl/⌘+Shift+Z / Ctrl+Y
+  shortcuts, suppressed while sketching (SketchOverlay owns the keyboard) and while
+  typing in a field.
+
+**Tests:** `useCADState.test.ts` undo/redo suite (8) — start-empty, undo↔redo round trip,
+multi-step LIFO, new-edit-clears-redo, no-runaway-stack, **derived-enrichment-ignored**,
+empty-stack no-ops. e2e `undo-redo.spec.ts` (2, real kernel) — box undo removes it from the
+tree, redo restores + rebuilds; buttons disabled with no history.
 
 ---
 
 ## Validation status
 
-- **Unit (vitest):** 200 passing. Determinism-specific: `buildOrder.test.ts`,
+- **Unit (vitest):** 207 passing. Determinism-specific: `buildOrder.test.ts`,
   `fingerprint.test.ts` (15), `history.test.ts` (17), `modifications.test.ts` (fingerprint
   resolution + enrichRefs), `externalGeometry.test.ts` (14, incl. vertex fingerprint + capture),
-  `useCADState.test.ts` (reorder + applyRefEnrichments + applySketchRefEnrichments).
-- **e2e (Playwright, real OCC kernel):** full suite **32 green** (1 pre-existing UI-timing flake
-  in `box-sketch-flow`, 3/3 on isolated re-run).
+  `useCADState.test.ts` (reorder + applyRefEnrichments + applySketchRefEnrichments + undo/redo).
+- **e2e (Playwright, real OCC kernel):** full suite **34 green** (`undo-redo.spec.ts` added).
   - `e2e/modifications.spec.ts` — **6/6 pass** (fillet/chamfer/shell/offset + extrude-then-
     fillet). This is the suite that directly exercises the changed resolution/capture path.
   - `e2e/box-sketch-flow.spec.ts` + `e2e/primitives.spec.ts` face tests — exercise the
@@ -267,6 +290,7 @@ speculative dead code.
 | Selection resolution (sketch external geom) | `src/cad/engine/sketch/externalGeometry.ts` (`findShapeByRef` / `enrichSketchExternalRefs`, + `.test.ts`) |
 | Index production | `src/cad/engine/tessellation.ts`, `operations.ts` (`handleGetFaceGeometry`) |
 | Tree + reorder | `src/frontend/shared/useCADState.ts` (`featureTree`, `reorderFeature`) |
+| Undo/redo (snapshot history) | `src/frontend/shared/useCADState.ts` (`undo`/`redo`, recorder effect); rebuild trigger in `CADLayout.tsx`; buttons in `Toolbar.tsx` |
 | Fingerprints | `src/cad/engine/fingerprint.ts` (+ `.test.ts`) |
 | History propagation | `src/cad/engine/history.ts` (+ `.test.ts`) *(step 3c scaffold; not yet wired)* |
 

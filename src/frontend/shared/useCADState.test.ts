@@ -853,6 +853,127 @@ describe("useCADState — deterministic build order", () => {
     expect(result.current.project).toBe(projectBefore);
   });
 
+  // Snapshot undo/redo (step 4). All model edits funnel through one immutable
+  // setProject and bump `version`; the history layer records a snapshot per
+  // version change and replays it, while derived/no-version-bump updates
+  // (enrichments) are intentionally invisible to undo.
+  describe("undo/redo", () => {
+    const boxParams = { width: 1, height: 1, depth: 1 } as any;
+
+    it("starts with nothing to undo or redo", () => {
+      const { result } = renderHook(() => useCADState());
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it("undo restores the state before the last model edit; redo re-applies it", () => {
+      const { result } = renderHook(() => useCADState());
+      act(() => {
+        result.current.addFeature("Box", "box" as any, boxParams);
+      });
+      expect(result.current.project.features).toHaveLength(1);
+      expect(result.current.canUndo).toBe(true);
+      const builtVersion = result.current.project.version;
+
+      act(() => result.current.undo());
+      expect(result.current.project.features).toHaveLength(0);
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(true);
+
+      act(() => result.current.redo());
+      expect(result.current.project.features).toHaveLength(1);
+      expect(result.current.project.version).toBe(builtVersion);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it("steps back through multiple edits in LIFO order", () => {
+      const { result } = renderHook(() => useCADState());
+      act(() => {
+        result.current.addFeature("Box", "box" as any, boxParams);
+      });
+      act(() => {
+        result.current.addFeature("Cyl", "cylinder" as any, { radius: 1, height: 1 } as any);
+      });
+      expect(result.current.project.features.map((f) => f.name)).toEqual(["Box", "Cyl"]);
+
+      act(() => result.current.undo());
+      expect(result.current.project.features.map((f) => f.name)).toEqual(["Box"]);
+      act(() => result.current.undo());
+      expect(result.current.project.features).toHaveLength(0);
+    });
+
+    it("a new model edit after an undo clears the redo stack", () => {
+      const { result } = renderHook(() => useCADState());
+      act(() => {
+        result.current.addFeature("Box", "box" as any, boxParams);
+      });
+      act(() => result.current.undo());
+      expect(result.current.canRedo).toBe(true);
+
+      act(() => {
+        result.current.addFeature("Cyl", "cylinder" as any, { radius: 1, height: 1 } as any);
+      });
+      expect(result.current.canRedo).toBe(false);
+      expect(result.current.project.features.map((f) => f.name)).toEqual(["Cyl"]);
+    });
+
+    it("does not record a redo entry for the undo itself (no runaway stack)", () => {
+      const { result } = renderHook(() => useCADState());
+      act(() => {
+        result.current.addFeature("Box", "box" as any, boxParams);
+      });
+      act(() => result.current.undo());
+      // exactly one redo available, exactly nothing more to undo
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(true);
+      act(() => result.current.redo());
+      expect(result.current.canUndo).toBe(true);
+      expect(result.current.canRedo).toBe(false);
+    });
+
+    it("ignores derived enrichments (no version bump) — undo skips straight past them", () => {
+      const { result } = renderHook(() => useCADState());
+      let filletId = "";
+      act(() => {
+        filletId = result.current.addFeature("Fillet", "fillet" as any, {
+          radius: 2,
+          edges: ["edge-0"],
+        } as any).id;
+      });
+      const enrichedRef = {
+        kind: "edge" as const,
+        index: 0,
+        fingerprint: {
+          kind: "edge" as const,
+          index: 0,
+          geomType: "line",
+          measure: 10,
+          centroid: { x: 0, y: 0, z: 0 },
+          obb: [0, 0, 5] as [number, number, number],
+        },
+      };
+      act(() =>
+        result.current.applyRefEnrichments([{ featureId: filletId, key: "edges", refs: [enrichedRef] }])
+      );
+      // The enrichment was not a user edit, so a single undo removes the fillet.
+      act(() => result.current.undo());
+      expect(result.current.project.features).toHaveLength(0);
+      expect(result.current.canUndo).toBe(false);
+    });
+
+    it("undo and redo are safe no-ops when their stacks are empty", () => {
+      const { result } = renderHook(() => useCADState());
+      const before = result.current.project;
+      act(() => {
+        result.current.undo();
+        result.current.redo();
+      });
+      expect(result.current.project).toBe(before);
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(false);
+    });
+  });
+
   it("never reorders a feature before its own consumed sketch", () => {
     const { result } = renderHook(() => useCADState());
     let extrudeId = "";

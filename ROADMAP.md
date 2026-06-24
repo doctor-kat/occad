@@ -27,9 +27,9 @@ started
 | **Import / Export**        | ❌      | —                                                   | UI (disabled)   | STEP, IGES, STL, glTF, OBJ       |
 | **Measurement / Analysis** | ❌      | —                                                   | Type only       | Measure, volume, area, CoM, bbox |
 | **Feature tree**           | ✅      | Tree, reorder (deterministic), suppress, visibility, edit | —         | Wire reorder to a drag handler   |
-| **Undo / Redo**            | ❌      | —                                                   | —               | History stack (not started)      |
+| **Undo / Redo**            | ✅      | Snapshot history in `useCADState` (records per version change, ignores derived enrichments); Toolbar buttons + Ctrl/⌘+Z·Y wired; undo rebuilds | — | — |
 | **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
-| **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history scaffold (`history.ts`) + sketch external-geom now fingerprint-stable (`findShapeByRef`, vertex fingerprints, lazy `sourceRef` capture) | — | Undo/redo (step 4); boolean exact-history resolution deferred (no payoff for current selection model) — see `DETERMINISTIC.md` |
+| **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history scaffold (`history.ts`) + sketch external-geom now fingerprint-stable (`findShapeByRef`, vertex fingerprints, lazy `sourceRef` capture). Step 4: snapshot undo/redo | — | Boolean exact-history resolution deferred (no payoff for current selection model) — see `DETERMINISTIC.md` |
 
 **Overall:** Sketch + constraints + extrude/revolve + boolean + modification pipeline is solid. The biggest gaps are
 **undo/redo**, the **remaining primitives**, and the **transform/IO** families (UI buttons exist but do nothing on
@@ -276,7 +276,7 @@ rebuild).
 | localStorage persistence         | ✅      | key `occad-project`                                       |
 | Face → sketch workflow           | ✅      | `getFaceGeometry`                                         |
 | Sketch hover + select (viewport) | ✅      | `SketchWireframes` cylinder hit-areas; tree↔viewport sync |
-| **Undo / Redo**                  | ❌      | **No history stack** — highest-impact gap                 |
+| **Undo / Redo**                  | ✅      | Snapshot history in `useCADState`; buttons + Ctrl/⌘+Z·Y   |
 | Multi-body / part management     | ❌      | single implicit `currentBody`                             |
 | Reference geometry (planes/axes) | 🟡     | types + reference planes render; no custom-plane creation |
 | Measurement readout panel        | ❌      | —                                                         |
@@ -285,7 +285,8 @@ rebuild).
 
 ## Priority Roadmap (suggested order)
 
-1. **Undo / Redo** — history stack in `useCADState` (snapshot or command pattern). Broadly useful, no OCC work.
+1. **Undo / Redo** — ✅ done: snapshot history in `useCADState` (records per `version` change,
+   ignores derived enrichments); Toolbar buttons + Ctrl/⌘+Z·Y; undo rebuilds.
 2. **Remaining primitives** — Sphere, Cone, Torus, Wedge: add cases to `handleRebuild` + `CreatePrimitive` handler.
    Small, self-contained.
 3. **Constraint editing UI** — ✅ done: all 10 constraints (toolbar + list/delete + point-level selection + e2e).

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '@/frontend/shared/useLocalStorage.ts';
 import type { PlanegcsConstraint } from '@/cad/engine/sketch/constraintFactory';
 import {
@@ -154,6 +154,62 @@ export function useCADState() {
     progress: 0,
   });
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
+
+  // --- Snapshot undo/redo (step 4) -----------------------------------------
+  // Every model edit funnels through the single immutable `setProject` and bumps
+  // `version`. We observe committed project transitions and record one snapshot
+  // per version change — so derived, no-version-bump updates (fingerprint
+  // enrichments) are invisible to undo — then replay whole `CADProject` states.
+  // Cheap: the state is fully serializable and each edit already produces a fresh
+  // immutable object, so snapshots are just retained references. See DETERMINISTIC.md.
+  const MAX_HISTORY = 100;
+  const undoStack = useRef<CADProject[]>([]);
+  const redoStack = useRef<CADProject[]>([]);
+  const lastProjectRef = useRef<CADProject>(rawProject);
+  const skipRecordRef = useRef(false);
+  const [historyAvail, setHistoryAvail] = useState({ canUndo: false, canRedo: false });
+
+  const syncHistoryAvail = useCallback(() => {
+    setHistoryAvail({ canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0 });
+  }, []);
+
+  useEffect(() => {
+    const prev = lastProjectRef.current;
+    if (rawProject === prev) return;
+    lastProjectRef.current = rawProject;
+    if (skipRecordRef.current) {
+      skipRecordRef.current = false; // this transition was an undo/redo replay — don't re-record
+      return;
+    }
+    // Record only model edits; derived updates (enrichments) keep `version`.
+    if (rawProject.version !== prev.version) {
+      undoStack.current.push(prev);
+      if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift();
+      redoStack.current = [];
+      syncHistoryAvail();
+    }
+  }, [rawProject, syncHistoryAvail]);
+
+  // Restore the previous snapshot (current state moves to the redo stack). The
+  // replay flag stops the recorder from logging the restore as a new edit.
+  const undo = useCallback(() => {
+    if (undoStack.current.length === 0) return;
+    const previous = undoStack.current.pop()!;
+    redoStack.current.push(lastProjectRef.current);
+    skipRecordRef.current = true;
+    setProject(previous);
+    syncHistoryAvail();
+  }, [setProject, syncHistoryAvail]);
+
+  // Re-apply the most recently undone snapshot (current state moves back to undo).
+  const redo = useCallback(() => {
+    if (redoStack.current.length === 0) return;
+    const next = redoStack.current.pop()!;
+    undoStack.current.push(lastProjectRef.current);
+    skipRecordRef.current = true;
+    setProject(next);
+    syncHistoryAvail();
+  }, [setProject, syncHistoryAvail]);
 
   // Build the feature tree structure (chronological order)
   const featureTree = useMemo((): FeatureTreeItem[] => {
@@ -804,6 +860,12 @@ export function useCADState() {
     // Rebuild actions
     updateRebuildState,
     triggerRebuild,
+
+    // Undo / redo (snapshot history)
+    undo,
+    redo,
+    canUndo: historyAvail.canUndo,
+    canRedo: historyAvail.canRedo,
 
     // Item error tracking
     setItemError,

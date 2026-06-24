@@ -20,6 +20,10 @@ interface ToolbarProps {
   onOpen: () => void;
   onSave: () => void;
   onExport: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const iconButtonStyle = {
@@ -36,7 +40,7 @@ const fileButtonStyle = {
 
 const headerLabelStyle = { label: { fontSize: 12 } };
 
-export function Toolbar({ projectName, onNew, onOpen, onSave, onExport }: ToolbarProps) {
+export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, onRedo, canUndo, canRedo }: ToolbarProps) {
   const theme = useMantineTheme();
 
   return (
@@ -197,6 +201,9 @@ export function Toolbar({ projectName, onNew, onOpen, onSave, onExport }: Toolba
             <Button
               variant="subtle"
               size="xs"
+              onClick={onUndo}
+              disabled={!canUndo}
+              aria-label="Undo"
               style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
             >
               <ArrowCounterClockwise size={16} weight="regular" />
@@ -207,6 +214,9 @@ export function Toolbar({ projectName, onNew, onOpen, onSave, onExport }: Toolba
             <Button
               variant="subtle"
               size="xs"
+              onClick={onRedo}
+              disabled={!canRedo}
+              aria-label="Redo"
               style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
             >
               <ArrowClockwise size={16} weight="regular" />

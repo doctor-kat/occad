@@ -65,6 +65,10 @@ export function CADLayout() {
     updateFeatureParameters,
     applyRefEnrichments,
     applySketchRefEnrichments,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
     saveProject,
     newProject,
     exportProject,
@@ -182,17 +186,41 @@ export function CADLayout() {
     lastProjectId.current = project.id;
   }, [project.id, clearMesh]);
 
-  // Trigger rebuild when project version changes OR on initial load with features
+  // Trigger rebuild when project version changes OR on initial load with features.
+  // Compare with `!==` (not `>`) so an undo — which restores a snapshot with a
+  // LOWER version — still rebuilds. Versions are unique per recorded edit, so any
+  // change between distinct states (forward edit, undo, or redo) means rebuild.
   useEffect(() => {
     if (occStatus !== 'ready') return;
 
-    // Trigger rebuild if version has increased since last rebuild
-    if (project.version > lastRebuiltVersion.current) {
+    if (project.version !== lastRebuiltVersion.current) {
       lastRebuiltVersion.current = project.version;
       clearAllItemErrors();
       rebuild(project);
     }
   }, [project.id, project.version, occStatus, rebuild, project, clearAllItemErrors]);
+
+  // Global undo/redo shortcuts: Ctrl/Cmd+Z, and Ctrl/Cmd+Shift+Z or Ctrl+Y for
+  // redo. Suppressed while sketching (the SketchOverlay owns the keyboard) and
+  // while typing into a field, so model history can't fire from a text edit.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key !== 'z' && key !== 'y') return;
+      if (activeSketchId) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+
+      const isRedo = key === 'y' || (key === 'z' && e.shiftKey);
+      e.preventDefault();
+      if (isRedo) redo();
+      else undo();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undo, redo, activeSketchId]);
 
   // Operation panel state
   const [operationPanelOpen, setOperationPanelOpen] = useState(false);
@@ -642,6 +670,10 @@ export function CADLayout() {
             onOpen={handleOpen}
             onSave={handleSave}
             onExport={handleExport}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
           />
           <OperationsBar
             activeTab={activeTab}
