@@ -256,8 +256,14 @@ rebuild).
 > `stopPropagation`. `onPointerMissed` clears selection only when a click truly hits nothing (skipped in sketch
 > mode). `BackgroundPlane.tsx` deleted.
 >
-> (Rectangle draw-preview was a separate report; it already works since commit `1410072` — that symptom was a stale
-> dev server.)
+> The rectangle draw-*preview* (yellow rubber-band) works since commit `1410072`. A *separate*, real bug —
+> the second rectangle click being silently dropped, surfacing as "No closed sketches" on Extrude — was fixed
+> later (`fix(sketch): second click dropped …`): the `SketchOverlay` pointer handlers depended on `currentPoints`,
+> so placing the first point re-bound the plane's R3F handlers and the plane stopped receiving pointer events.
+> Handlers are now referentially stable (points read from a ref) and decorations are non-raycastable.
+>
+> This `Sketch hover + select (viewport)` feature was committed in `feat(viewport): sketch wireframe hover +
+> selection from the canvas` (the doc previously described it before the code landed).
 
 | Feature                          | Status | Notes                                                     |
 |----------------------------------|--------|-----------------------------------------------------------|
