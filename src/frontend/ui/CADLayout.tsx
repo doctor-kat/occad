@@ -63,6 +63,7 @@ export function CADLayout() {
     startSketchEdit,
     stopSketchEdit,
     updateFeatureParameters,
+    applyRefEnrichments,
     saveProject,
     newProject,
     exportProject,
@@ -144,6 +145,10 @@ export function CADLayout() {
         notifications.show({ color: 'blue', message: `Sketch created on Face ${faceId + 1} with ${boundaryEdges?.length || 0} imported edges` });
         setPendingSketchOnFace(null);
       }
+    },
+    onRefsEnriched: (enrichments) => {
+      // Persist lazily-captured fingerprints (no version bump -> no rebuild loop).
+      applyRefEnrichments(enrichments);
     },
     onError: (message, featureId) => {
       if (featureId) {
@@ -838,6 +843,12 @@ export function CADLayout() {
             onCancelSketch={handleCancelSketch}
             onPlaneClick={(planeId) => {
               selectTreeItem(planeId);
+              setSelectedFaceId(null);
+              setSelectedEdgeIndex(null);
+              setSelectedVertexIndex(null);
+            }}
+            onSketchClick={(sketchId) => {
+              selectTreeItem(sketchId);
               setSelectedFaceId(null);
               setSelectedEdgeIndex(null);
               setSelectedVertexIndex(null);

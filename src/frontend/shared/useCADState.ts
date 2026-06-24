@@ -16,6 +16,7 @@ import {
   OperationParams,
   ShapeReference,
   RebuildState,
+  FeatureRefEnrichment,
   createNewProject,
   Workplane,
   Point3D,
@@ -474,6 +475,28 @@ export function useCADState() {
     }));
   }, [setProject]);
 
+  // Apply lazily-captured fingerprint upgrades for modification selections.
+  // This is DERIVED data from a rebuild, not a user edit, so it must NOT bump
+  // `version` — doing so would retrigger the rebuild and loop. The enrichment
+  // converges after one rebuild (enrichRefs returns nothing once all refs carry
+  // a fingerprint). See DETERMINISTIC.md step 3b.
+  const applyRefEnrichments = useCallback((enrichments: FeatureRefEnrichment[]) => {
+    if (!enrichments?.length) return;
+    setProject((prev) => {
+      let changed = false;
+      const features = prev.features.map((feature) => {
+        const ours = enrichments.filter((e) => e.featureId === feature.id);
+        if (!ours.length || !feature.parameters) return feature;
+        const parameters: any = { ...feature.parameters };
+        for (const e of ours) parameters[e.key] = e.refs;
+        changed = true;
+        return { ...feature, parameters };
+      });
+      if (!changed) return prev;
+      return { ...prev, features }; // intentionally no version / updatedAt bump
+    });
+  }, [setProject]);
+
   // Update feature geometry reference (after OpenCascade builds it)
   const updateFeatureGeometry = useCallback((featureId: string, geometry: ShapeReference) => {
     setProject((prev) => ({
@@ -732,6 +755,7 @@ export function useCADState() {
     addFeature,
     updateFeatureParameters,
     updateFeatureGeometry,
+    applyRefEnrichments,
     toggleFeatureSuppression,
     toggleFeatureVisibility,
     deleteFeature,

@@ -27,13 +27,14 @@ import type {
   SketchEdgeData,
   Point3D,
   Vector3D,
+  FeatureRefEnrichment,
 } from '@/cad/types';
 import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuildOrder } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
 import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
 import { buildSketchWire } from './sketchBuilders';
-import { applyFillet, applyChamfer, applyShell, applyOffset } from './modifications';
+import { applyFillet, applyChamfer, applyShell, applyOffset, enrichRefs } from './modifications';
 import { tessellate, extractEdgeVertices } from './tessellation';
 import { SketchSolver } from './SketchSolver';
 import { reprojectExternalGeometry } from './sketch/externalGeometry';
@@ -282,6 +283,8 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
 
     let currentBody: TopoDS_Shape | null = null;
     const sketchEdgesMap: Record<string, SketchEdgeData> = {};
+    // Lazily-captured fingerprint upgrades for modification selections (step 3b).
+    const refEnrichments: FeatureRefEnrichment[] = [];
 
     // Deterministic, total build order shared with the feature tree: order by
     // `sequence ?? createdAt`, tie-broken by id. See compareBuildOrder.
@@ -371,19 +374,39 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
             // producing a separate solid to boolean-combine. A modification
             // with no body to act on (none built yet) is a no-op.
             if (currentBody) {
+              const body = currentBody;
+              // Capture fingerprints against the pre-modification body (where the
+              // stored indices are valid), then apply. Push only after the apply
+              // succeeds, so a failed modification doesn't enrich. See step 3b.
               switch (feature.type) {
-                case FeatureOperation.FILLET:
-                  currentBody = applyFillet(ctx, currentBody, feature.parameters as FilletParams);
+                case FeatureOperation.FILLET: {
+                  const p = feature.parameters as FilletParams;
+                  const enriched = enrichRefs(ctx, body, p.edges, 'edge');
+                  currentBody = applyFillet(ctx, body, p);
+                  if (enriched) refEnrichments.push({ featureId: feature.id, key: 'edges', refs: enriched });
                   break;
-                case FeatureOperation.CHAMFER:
-                  currentBody = applyChamfer(ctx, currentBody, feature.parameters as ChamferParams);
+                }
+                case FeatureOperation.CHAMFER: {
+                  const p = feature.parameters as ChamferParams;
+                  const enriched = enrichRefs(ctx, body, p.edges, 'edge');
+                  currentBody = applyChamfer(ctx, body, p);
+                  if (enriched) refEnrichments.push({ featureId: feature.id, key: 'edges', refs: enriched });
                   break;
-                case FeatureOperation.SHELL:
-                  currentBody = applyShell(ctx, currentBody, feature.parameters as ShellParams);
+                }
+                case FeatureOperation.SHELL: {
+                  const p = feature.parameters as ShellParams;
+                  const enriched = enrichRefs(ctx, body, p.faces, 'face');
+                  currentBody = applyShell(ctx, body, p);
+                  if (enriched) refEnrichments.push({ featureId: feature.id, key: 'faces', refs: enriched });
                   break;
-                case FeatureOperation.OFFSET:
-                  currentBody = applyOffset(ctx, currentBody, feature.parameters as OffsetParams);
+                }
+                case FeatureOperation.OFFSET: {
+                  const p = feature.parameters as OffsetParams;
+                  const enriched = enrichRefs(ctx, body, p.faces, 'face');
+                  currentBody = applyOffset(ctx, body, p);
+                  if (enriched) refEnrichments.push({ featureId: feature.id, key: 'faces', refs: enriched });
                   break;
+                }
               }
             }
           }
@@ -418,7 +441,7 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
       const meshData = tessellate(ctx, currentBody, 0.1, 0.5);
       const transferables: Transferable[] = [...getTransferables(meshData)];
       for (const edge of Object.values(sketchEdgesMap)) transferables.push(edge.edgeVertices.buffer);
-      post({ type: 'rebuildComplete', meshData, shapeId: finalShapeId, sketchEdges: sketchEdgesMap }, transferables);
+      post({ type: 'rebuildComplete', meshData, shapeId: finalShapeId, sketchEdges: sketchEdgesMap, refEnrichments: refEnrichments.length ? refEnrichments : undefined }, transferables);
     } else {
       post({ type: 'rebuildComplete', meshData: { faceVertices: new Float32Array(0), faceNormals: new Float32Array(0), faceIndices: new Uint32Array(0), edgeVertices: new Float32Array(0), edgeIndices: new Uint32Array(0), faceMapping: new Uint32Array(0), edgeCount: 0 }, shapeId: '', sketchEdges: sketchEdgesMap });
     }

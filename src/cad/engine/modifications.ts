@@ -15,9 +15,9 @@
 
 type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
-import type { FilletParams, ChamferParams, ShellParams, OffsetParams, GeometryRef, Fingerprint } from '@/cad/types';
-import { toStableRef, refLabel } from '@/cad/types';
-import { fingerprintAll, matchFingerprint } from './fingerprint';
+import type { FilletParams, ChamferParams, ShellParams, OffsetParams, GeometryRef, Fingerprint, StableRef } from '@/cad/types';
+import { toStableRef, refLabel, hasFingerprint } from '@/cad/types';
+import { fingerprintAll, matchFingerprint, resolveAgainst } from './fingerprint';
 
 /** Tolerance used by the offset/thick-solid join builders. */
 const OFFSET_TOL = 1e-3;
@@ -107,6 +107,42 @@ export function resolveSubShapes(
 
   map.delete();
   return { shapes, unresolved };
+}
+
+/**
+ * Lazily upgrade bare-index refs to fingerprinted StableRefs against `body`.
+ *
+ * Called during rebuild with the body a modification is about to act on (where
+ * the stored indices are still valid). For each ref lacking a fingerprint, we
+ * resolve it to a live sub-shape and attach that sub-shape's fingerprint, so
+ * every later rebuild can re-find the selection by geometry even after the index
+ * map renumbers. Refs that already have a fingerprint are kept as-is (the
+ * original selection geometry is authoritative); malformed / unresolved refs are
+ * left untouched so the apply step still fails loudly on them.
+ *
+ * Returns the upgraded array, or `null` when nothing changed (so the caller can
+ * skip the write-back and the capture converges after one rebuild).
+ */
+export function enrichRefs(
+  ctx: WorkerContext,
+  body: TopoDS_Shape,
+  refs: GeometryRef[],
+  kind: 'edge' | 'face'
+): GeometryRef[] | null {
+  if (!refs?.length || refs.every(hasFingerprint)) return null;
+
+  const live = fingerprintAll(ctx, body, kind);
+  let changed = false;
+  const out = refs.map((ref) => {
+    if (hasFingerprint(ref)) return ref;
+    const stable = toStableRef(ref);
+    if (!stable || stable.kind !== kind) return ref; // malformed -> leave for loud error
+    const idx = resolveAgainst(live, stable);
+    if (idx < 0) return ref; // unresolved -> leave for loud error
+    changed = true;
+    return { kind, index: idx, fingerprint: live[idx] } as StableRef;
+  });
+  return changed ? out : null;
 }
 
 /**

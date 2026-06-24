@@ -744,6 +744,57 @@ describe("useCADState — deterministic build order", () => {
     expect(result.current.project.version).toBeGreaterThan(before);
   });
 
+  it("applyRefEnrichments persists fingerprinted refs WITHOUT bumping version", () => {
+    const { result } = renderHook(() => useCADState());
+    let filletId = "";
+    act(() => {
+      filletId = result.current.addFeature("Fillet", "fillet" as any, {
+        radius: 2,
+        edges: ["edge-3"],
+      } as any).id;
+    });
+
+    const versionBefore = result.current.project.version;
+    const enrichedRef = {
+      kind: "edge" as const,
+      index: 3,
+      fingerprint: {
+        kind: "edge" as const,
+        index: 3,
+        geomType: "line",
+        measure: 10,
+        centroid: { x: 0, y: 0, z: 5 },
+        obb: [0, 0, 5] as [number, number, number],
+      },
+    };
+
+    act(() =>
+      result.current.applyRefEnrichments([
+        { featureId: filletId, key: "edges", refs: [enrichedRef] },
+      ])
+    );
+
+    const feature = result.current.project.features.find((f) => f.id === filletId)!;
+    expect((feature.parameters as any).edges[0]).toEqual(enrichedRef);
+    // Derived enrichment — must not trigger another rebuild.
+    expect(result.current.project.version).toBe(versionBefore);
+  });
+
+  it("applyRefEnrichments is a no-op for an unknown feature id", () => {
+    const { result } = renderHook(() => useCADState());
+    act(() => {
+      result.current.addFeature("Fillet", "fillet" as any, { radius: 2, edges: ["edge-0"] } as any);
+    });
+    const projectBefore = result.current.project;
+    act(() =>
+      result.current.applyRefEnrichments([
+        { featureId: "does-not-exist", key: "edges", refs: ["edge-1"] },
+      ])
+    );
+    // Same reference back (no churn) when nothing matched.
+    expect(result.current.project).toBe(projectBefore);
+  });
+
   it("never reorders a feature before its own consumed sketch", () => {
     const { result } = renderHook(() => useCADState());
     let extrudeId = "";

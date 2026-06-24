@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseGeometryIndex,
   resolveSubShapes,
+  enrichRefs,
   applyFillet,
   applyChamfer,
   applyShell,
@@ -552,5 +553,49 @@ describe("resolveSubShapes — fingerprinted StableRefs", () => {
     const b = resolveSubShapes(fpCtx(), renumbered(geoBody()), [ref], "face");
     expect((a.shapes[0] as Geo).id).toBe((b.shapes[0] as Geo).id);
     expect((a.shapes[0] as Geo).id).toBe("F-back");
+  });
+});
+
+describe("enrichRefs — lazy fingerprint capture", () => {
+  it("attaches a fingerprint to a bare edge ref, anchored to its current geometry", () => {
+    const enriched = enrichRefs(fpCtx(), geoBody(), ["edge-2"], "edge");
+    expect(enriched).not.toBeNull();
+    const ref = enriched![0] as StableRef;
+    expect(ref.kind).toBe("edge");
+    expect(ref.index).toBe(2);
+    expect(ref.fingerprint).toBeDefined();
+    expect(ref.fingerprint!.measure).toBe(14); // E-c length
+  });
+
+  it("captures fingerprints for faces too", () => {
+    const enriched = enrichRefs(fpCtx(), geoBody(), ["face-1"], "face");
+    const ref = enriched![0] as StableRef;
+    expect(ref.fingerprint!.centroid).toEqual({ x: 5, y: 5, z: 10 }); // F-top
+  });
+
+  it("returns null when every ref already carries a fingerprint (capture has converged)", () => {
+    const fps = fingerprintAll(fpCtx(), geoBody(), "edge");
+    const already: StableRef = { kind: "edge", index: 1, fingerprint: fps[1] };
+    expect(enrichRefs(fpCtx(), geoBody(), [already], "edge")).toBeNull();
+  });
+
+  it("returns null for an empty selection", () => {
+    expect(enrichRefs(fpCtx(), geoBody(), [], "face")).toBeNull();
+  });
+
+  it("leaves an unresolved ref untouched (so apply still fails loudly) but enriches the rest", () => {
+    const enriched = enrichRefs(fpCtx(), geoBody(), ["edge-0", "edge-99"], "edge");
+    expect(enriched).not.toBeNull();
+    expect((enriched![0] as StableRef).fingerprint).toBeDefined(); // edge-0 captured
+    expect(enriched![1]).toBe("edge-99"); // out of range -> kept as the bare string
+  });
+
+  it("captured fingerprints then survive a later renumber (capture + resolve round trip)", () => {
+    // Capture against the original body...
+    const enriched = enrichRefs(fpCtx(), geoBody(), ["face-1"], "face")!;
+    // ...then resolve the enriched ref against a renumbered body.
+    const { shapes, unresolved } = resolveSubShapes(fpCtx(), renumbered(geoBody()), enriched, "face");
+    expect(unresolved).toEqual([]);
+    expect((shapes[0] as Geo).id).toBe("F-top");
   });
 });

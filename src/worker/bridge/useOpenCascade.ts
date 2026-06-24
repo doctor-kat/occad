@@ -11,6 +11,7 @@ import type {
   Point3D,
   Vector3D,
   Sketch,
+  FeatureRefEnrichment,
 } from "@/cad/types";
 
 export type { CADMeshData as MeshData };
@@ -32,6 +33,8 @@ interface UseOpenCascadeOptions {
   onFaceGeometry?: (faceId: number, origin: Point3D, normal: Vector3D, boundaryEdges?: string[]) => void;
   /** Callback when an error occurs */
   onError?: (message: string, featureId?: string) => void;
+  /** Callback when the worker captures fingerprint upgrades for selections (step 3b) */
+  onRefsEnriched?: (enrichments: FeatureRefEnrichment[]) => void;
 }
 
 export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
@@ -104,6 +107,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           setStatus("ready");
           setProgress("");
           optsRef.current.onRebuildComplete?.(msg.meshData);
+          if (msg.refEnrichments?.length) optsRef.current.onRefsEnriched?.(msg.refEnrichments);
           break;
 
         case "rebuildProgress":
