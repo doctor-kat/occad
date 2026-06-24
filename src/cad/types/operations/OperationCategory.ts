@@ -1,7 +1,10 @@
 export enum OperationCategory {
-  FEATURES = 'features',
+  FEATURES = 'features', // sidebar feature-tree tab only
   SKETCH = 'sketch',
-  EVALUATE = 'evaluate',
+  PRIMITIVES = 'primitives',
+  MODIFICATIONS = 'modifications',
   TRANSFORM = 'transform',
+  ADVANCED = 'advanced',
+  EVALUATE = 'evaluate',
   IO = 'io'
 }

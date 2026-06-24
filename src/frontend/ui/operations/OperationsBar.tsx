@@ -65,19 +65,25 @@ export function OperationsBar({ activeTab, activeOperation, selectedTreeItem, ac
       >
         <Box style={{ display: 'flex', flexDirection: 'column' }}>
           <Box style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: 8 }}>
-            <Tabs.Panel value="features" style={{ margin: 0 }}>
+            <Tabs.Panel value="primitives" style={{ margin: 0 }}>
+              {renderOperationGroup(primitiveOperations)}
+            </Tabs.Panel>
+
+            <Tabs.Panel value="modifications" style={{ margin: 0 }}>
+              <Group gap={4} align="center" wrap="nowrap">
+                {renderOperationGroup(cutOperations)}
+                <OperationDivider />
+                {renderOperationGroup(modifyOperations)}
+                <OperationDivider />
+                {renderOperationGroup(booleanOperations)}
+              </Group>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="advanced" style={{ margin: 0 }}>
               <Group gap={4} align="center" wrap="nowrap">
                 {renderOperationGroup(featureOperations)}
                 <OperationDivider />
-                {renderOperationGroup(cutOperations)}
-                <OperationDivider />
-                {renderOperationGroup(primitiveOperations)}
-                <OperationDivider />
                 {renderOperationGroup(otherOperations)}
-                <OperationDivider />
-                {renderOperationGroup(booleanOperations)}
-                <OperationDivider />
-                {renderOperationGroup(modifyOperations)}
               </Group>
             </Tabs.Panel>
 
@@ -123,9 +129,11 @@ export function OperationsBar({ activeTab, activeOperation, selectedTreeItem, ac
               padding: 0,
             }}
           >
-            <CADTab value={OperationCategory.FEATURES} label="Features" isActive={activeTab === OperationCategory.FEATURES} theme={theme} />
             <CADTab value={OperationCategory.SKETCH} label="Sketch" isActive={activeTab === OperationCategory.SKETCH} theme={theme} />
+            <CADTab value={OperationCategory.PRIMITIVES} label="Primitives" isActive={activeTab === OperationCategory.PRIMITIVES} theme={theme} />
+            <CADTab value={OperationCategory.MODIFICATIONS} label="Modifications" isActive={activeTab === OperationCategory.MODIFICATIONS} theme={theme} />
             <CADTab value={OperationCategory.TRANSFORM} label="Transform" isActive={activeTab === OperationCategory.TRANSFORM} theme={theme} />
+            <CADTab value={OperationCategory.ADVANCED} label="Advanced" isActive={activeTab === OperationCategory.ADVANCED} theme={theme} />
             <CADTab value={OperationCategory.EVALUATE} label="Evaluate" isActive={activeTab === OperationCategory.EVALUATE} theme={theme} />
             <CADTab value={OperationCategory.IO} label="I/O" isActive={activeTab === OperationCategory.IO} theme={theme} />
           </Tabs.List>

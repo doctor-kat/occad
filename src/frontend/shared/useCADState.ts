@@ -132,7 +132,7 @@ function migrateProject(raw: CADProject): CADProject {
 export function useCADState() {
   const [rawProject, setProject] = useLocalStorage<CADProject>(STORAGE_KEY, createNewProject());
   const project = useMemo(() => migrateProject(rawProject), [rawProject]);
-  const [activeTab, setActiveTab] = useState<OperationCategory>(OperationCategory.FEATURES);
+  const [activeTab, setActiveTab] = useState<OperationCategory>(OperationCategory.PRIMITIVES);
   const [activeOperation, setActiveOperation] = useState<Operation>(null);
   const [selectedTreeItem, setSelectedTreeItem] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);

@@ -49,9 +49,9 @@ describe("useCADState", () => {
       expect(result.current.selectedTreeItem).toBeNull();
     });
 
-    it("should have 'features' as the default active tab", () => {
+    it("should have 'primitives' as the default active tab", () => {
       const { result } = renderHook(() => useCADState());
-      expect(result.current.activeTab).toBe("features");
+      expect(result.current.activeTab).toBe("primitives");
     });
   });
 
