@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useCADState } from "./useCADState.ts";
 import { createConstraint } from "@/cad/engine/sketch/constraintFactory";
 import { SketchElementType } from "@/cad/types/sketch/SketchElementType";
 import type { SketchElement } from "@/cad/types/sketch/SketchElement";
 import type { Sketch } from "@/cad/types/sketch/Sketch";
+import { compareBuildOrder } from "@/cad/types";
 
 describe("useCADState", () => {
   describe("initial state", () => {
@@ -661,5 +662,121 @@ describe("useCADState", () => {
       expect(result2.current.project.id).toBe(projectId);
       expect(result2.current.project.sketches).toHaveLength(1);
     });
+  });
+});
+
+/**
+ * Determinism: the feature tree order and the worker rebuild order must agree,
+ * be stable under same-millisecond ties, and actually respond to reordering.
+ * (reorderFeature used to be a no-op because both layers sort by orderKey while
+ * it only reordered the array.)
+ */
+describe("useCADState — deterministic build order", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+
+  // Names of top-level FEATURE tree items, in displayed order.
+  function featureOrder(result: { current: ReturnType<typeof useCADState> }): string[] {
+    return result.current.featureTree
+      .filter((i) => i.type === "feature")
+      .map((i) => i.name);
+  }
+
+  function addThreeFeatures() {
+    const { result } = renderHook(() => useCADState());
+    const ids: Record<string, string> = {};
+    act(() => {
+      vi.setSystemTime(1000);
+      ids.A = result.current.addFeature("A", "box" as any).id;
+    });
+    act(() => {
+      vi.setSystemTime(2000);
+      ids.B = result.current.addFeature("B", "box" as any).id;
+    });
+    act(() => {
+      vi.setSystemTime(3000);
+      ids.C = result.current.addFeature("C", "box" as any).id;
+    });
+    return { result, ids };
+  }
+
+  it("lists features in creation order before any reorder", () => {
+    const { result } = addThreeFeatures();
+    expect(featureOrder(result)).toEqual(["A", "B", "C"]);
+  });
+
+  it("moves a feature to the front (and the tree reflects it)", () => {
+    const { result, ids } = addThreeFeatures();
+    act(() => result.current.reorderFeature(ids.C, 0));
+    expect(featureOrder(result)).toEqual(["C", "A", "B"]);
+  });
+
+  it("moves a feature to the middle", () => {
+    const { result, ids } = addThreeFeatures();
+    act(() => result.current.reorderFeature(ids.A, 1));
+    expect(featureOrder(result)).toEqual(["B", "A", "C"]);
+  });
+
+  it("worker build order (compareBuildOrder) matches the tree after a reorder", () => {
+    const { result, ids } = addThreeFeatures();
+    act(() => result.current.reorderFeature(ids.C, 0));
+
+    const treeNames = featureOrder(result);
+    const workerNames = [...result.current.project.features]
+      .sort(compareBuildOrder)
+      .map((f) => f.name);
+    expect(workerNames).toEqual(treeNames);
+    expect(workerNames).toEqual(["C", "A", "B"]);
+  });
+
+  it("bumps project.version so the reorder triggers a rebuild", () => {
+    const { result, ids } = addThreeFeatures();
+    const before = result.current.project.version;
+    act(() => result.current.reorderFeature(ids.C, 0));
+    expect(result.current.project.version).toBeGreaterThan(before);
+  });
+
+  it("never reorders a feature before its own consumed sketch", () => {
+    const { result } = renderHook(() => useCADState());
+    let extrudeId = "";
+    let sketchId = "";
+
+    act(() => {
+      vi.setSystemTime(1000);
+      result.current.addFeature("Plain", "box" as any);
+    });
+    act(() => {
+      vi.setSystemTime(2000);
+      sketchId = result.current.addSketch("Sketch", {
+        type: "xy" as any,
+        planeRef: "front-plane",
+        offset: 0,
+      }).id;
+    });
+    act(() => {
+      vi.setSystemTime(3000);
+      extrudeId = result.current.addFeature(
+        "Extrude",
+        "extrude-boss" as any,
+        { distance: 10, isCut: false } as any,
+        sketchId
+      ).id;
+    });
+
+    // Yank the extrude to the very front — before its sketch.
+    act(() => result.current.reorderFeature(extrudeId, 0));
+
+    const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
+    const extrude = result.current.project.features.find((f) => f.id === extrudeId)!;
+    // Build order must still place the sketch before the feature that consumes it.
+    expect(compareBuildOrder(sketch, extrude)).toBeLessThan(0);
   });
 });

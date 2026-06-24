@@ -26,9 +26,10 @@ started
 | **Advanced modeling**      | ❌      | —                                                   | —               | Sweep, Loft                      |
 | **Import / Export**        | ❌      | —                                                   | UI (disabled)   | STEP, IGES, STL, glTF, OBJ       |
 | **Measurement / Analysis** | ❌      | —                                                   | Type only       | Measure, volume, area, CoM, bbox |
-| **Feature tree**           | ✅      | Tree, reorder, suppress, visibility, edit           | —               | —                                |
+| **Feature tree**           | ✅      | Tree, reorder (deterministic), suppress, visibility, edit | —         | Wire reorder to a drag handler   |
 | **Undo / Redo**            | ❌      | —                                                   | —               | History stack (not started)      |
 | **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
+| **Deterministic topology** | 🟡     | Step 1: deterministic build order, working reorder, loud stale-selection errors | — | Stable face/edge IDs (fingerprint + history) — see `DETERMINISTIC.md` |
 
 **Overall:** Sketch + constraints + extrude/revolve + boolean + modification pipeline is solid. The biggest gaps are
 **undo/redo**, the **remaining primitives**, and the **transform/IO** families (UI buttons exist but do nothing on

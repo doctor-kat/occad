@@ -20,7 +20,9 @@ import {
   Workplane,
   Point3D,
   Vector3D,
-  PlaneType
+  PlaneType,
+  compareBuildOrder,
+  orderKey
 } from '@/cad/types';
 
 /** Create a Workplane (gp_Ax3) from plane definition */
@@ -82,6 +84,14 @@ function createWorkplane(type: PlaneType, origin?: Point3D, normal?: Vector3D, o
 }
 
 const STORAGE_KEY = 'occad-project';
+
+/**
+ * Smallest gap used when snapping a reordered feature to just after its
+ * consumed sketch. In the epoch-ms ordering domain this is far below any real
+ * timestamp granularity, so it slots the feature immediately after the sketch
+ * without disturbing other items.
+ */
+const REORDER_EPSILON = 1e-6;
 
 /** Migrate old persisted projects that lack isVisible on sketches and reference geometry */
 function migrateProject(raw: CADProject): CADProject {
@@ -214,8 +224,10 @@ export function useCADState() {
       });
     });
 
-    // Sort by createdAt ascending and append to tree
-    chronologicalItems.sort((a, b) => a.createdAt - b.createdAt);
+    // Sort by the shared deterministic build order (sequence ?? createdAt, then
+    // id) so the tree matches the worker's rebuild order exactly and never
+    // depends on Array.sort stability. `item.data` is the sketch/feature.
+    chronologicalItems.sort((a, b) => compareBuildOrder(a.item.data as any, b.item.data as any));
     chronologicalItems.forEach(({ item }) => tree.push(item));
 
     return tree;
@@ -508,21 +520,47 @@ export function useCADState() {
     }));
   }, [setProject]);
 
-  // Reorder features (for managing build order)
+  // Reorder a feature to position `newIndex` within the deterministic feature
+  // sequence. Rather than reordering the array (which both the tree and the
+  // worker ignore — they sort by orderKey), we assign the moved feature an
+  // explicit `sequence` slotted between its new neighbours' keys. The same
+  // (sequence ?? createdAt, id) order then reflects the move in both layers.
   const reorderFeature = useCallback((featureId: string, newIndex: number) => {
     setProject((prev) => {
-      const features = [...prev.features];
-      const currentIndex = features.findIndex((f) => f.id === featureId);
-      if (currentIndex === -1) return prev;
+      const ordered = [...prev.features].sort(compareBuildOrder);
+      const moved = ordered.find((f) => f.id === featureId);
+      if (!moved) return prev;
 
-      const [removed] = features.splice(currentIndex, 1);
-      features.splice(newIndex, 0, removed);
+      const without = ordered.filter((f) => f.id !== featureId);
+      const clamped = Math.max(0, Math.min(newIndex, without.length));
+      const before = without[clamped - 1];
+      const after = without[clamped];
+
+      let sequence: number;
+      if (!before && !after) sequence = orderKey(moved);          // only feature
+      else if (!before) sequence = orderKey(after) - 1;            // to the front
+      else if (!after) sequence = orderKey(before) + 1;            // to the back
+      else sequence = (orderKey(before) + orderKey(after)) / 2;    // between two
+
+      // Invariant: a feature must build after its consumed sketch, so its key
+      // must stay strictly greater than that sketch's key. A feature can never
+      // be moved before its own sketch; if the requested slot would do so, snap
+      // it to immediately after the sketch instead.
+      if (moved.sketchId) {
+        const sketch = prev.sketches.find((s) => s.id === moved.sketchId);
+        if (sketch) {
+          const sketchKey = orderKey(sketch);
+          if (sequence <= sketchKey) sequence = sketchKey + REORDER_EPSILON;
+        }
+      }
 
       return {
         ...prev,
         version: prev.version + 1,
         updatedAt: Date.now(),
-        features,
+        features: prev.features.map((f) =>
+          f.id === featureId ? { ...f, sequence, updatedAt: Date.now() } : f
+        ),
       };
     });
   }, [setProject]);

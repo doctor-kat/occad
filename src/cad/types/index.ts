@@ -49,6 +49,7 @@ export * from './operations/Operation';
 
 // Project
 export * from './project/Feature';
+export * from './project/buildOrder';
 export * from './project/ReferenceGeometry/ReferenceGeometryType';
 export * from './project/ReferenceGeometry/ReferenceGeometry';
 export * from './project/FeatureTreeItem';

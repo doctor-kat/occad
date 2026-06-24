@@ -51,4 +51,9 @@ export interface Sketch {
   isVisible: boolean;
   createdAt: number;
   updatedAt: number;
+  /**
+   * Explicit build-order override (epoch-ms domain), mirroring `Feature.sequence`.
+   * When unset, ordering falls back to `createdAt`. See `compareBuildOrder`.
+   */
+  sequence?: number;
 }

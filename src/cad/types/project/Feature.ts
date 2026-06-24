@@ -21,4 +21,10 @@ export interface Feature {
   createdAt: number;
   updatedAt: number;
   isExpanded?: boolean;
+  /**
+   * Explicit build-order override (epoch-ms domain). Set when the feature is
+   * reordered in the tree; when unset, ordering falls back to `createdAt`.
+   * See {@link OrderableItem} / `compareBuildOrder`.
+   */
+  sequence?: number;
 }

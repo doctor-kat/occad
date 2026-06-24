@@ -30,34 +30,52 @@ export function parseGeometryIndex(ref: string): number {
   return Number(suffix);
 }
 
+/** Result of resolving geometry references against a body. */
+export interface ResolvedSubShapes {
+  /** The OCC sub-shapes that resolved successfully. */
+  shapes: TopoDS_Shape[];
+  /**
+   * References that did NOT resolve (malformed, or out of range because the
+   * body topology changed since selection). Callers must treat a non-empty
+   * `unresolved` as an error rather than silently proceeding — an in-range but
+   * shifted index would otherwise bind to the *wrong* sub-shape.
+   */
+  unresolved: string[];
+}
+
 /**
  * Resolve a list of `edge-N` / `face-N` references to the corresponding OCC
  * sub-shapes of `shape`. The refs are 0-based; OCC indexed maps are 1-based,
- * so ref `N` maps to `FindKey(N + 1)`. Out-of-range and malformed refs are
- * skipped so a single stale selection never aborts the whole operation.
+ * so ref `N` maps to `FindKey(N + 1)`. Malformed and out-of-range refs are
+ * collected into `unresolved` (not silently dropped) so the caller can fail
+ * loudly and the stale selection surfaces on the feature instead of vanishing.
  */
 export function resolveSubShapes(
   ctx: WorkerContext,
   shape: TopoDS_Shape,
   refs: string[],
   kind: 'edge' | 'face'
-): TopoDS_Shape[] {
+): ResolvedSubShapes {
   const { oc } = ctx;
   const shapeEnum =
     kind === 'edge' ? oc.TopAbs_ShapeEnum.TopAbs_EDGE : oc.TopAbs_ShapeEnum.TopAbs_FACE;
   const map = new oc.TopTools_IndexedMapOfShape_1();
   oc.TopExp.MapShapes_1(shape, shapeEnum, map);
 
-  const result: TopoDS_Shape[] = [];
+  const shapes: TopoDS_Shape[] = [];
+  const unresolved: string[] = [];
   for (const ref of refs) {
     const idx = parseGeometryIndex(ref);
-    if (!Number.isInteger(idx) || idx < 0 || idx >= map.Extent()) continue;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= map.Extent()) {
+      unresolved.push(ref);
+      continue;
+    }
     const sub = map.FindKey(idx + 1);
-    result.push(kind === 'edge' ? oc.TopoDS.Edge_1(sub) : oc.TopoDS.Face_1(sub));
+    shapes.push(kind === 'edge' ? oc.TopoDS.Edge_1(sub) : oc.TopoDS.Face_1(sub));
   }
 
   map.delete();
-  return result;
+  return { shapes, unresolved };
 }
 
 /**
@@ -73,7 +91,12 @@ export function applyFillet(
   if (!params.edges?.length) throw new Error('Fillet requires at least one edge');
   if (!(params.radius > 0)) throw new Error('Fillet radius must be positive');
 
-  const edges = resolveSubShapes(ctx, shape, params.edges, 'edge');
+  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, params.edges, 'edge');
+  if (unresolved.length > 0) {
+    throw new Error(
+      `Fillet: could not resolve edge selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these edges were selected.`
+    );
+  }
   if (edges.length === 0) throw new Error('Fillet: none of the selected edges could be resolved');
 
   const maker = new oc.BRepFilletAPI_MakeFillet(shape, oc.ChFi3d_FilletShape.ChFi3d_Rational);
@@ -106,7 +129,12 @@ export function applyChamfer(
   if (!params.edges?.length) throw new Error('Chamfer requires at least one edge');
   if (!(params.distance > 0)) throw new Error('Chamfer distance must be positive');
 
-  const edges = resolveSubShapes(ctx, shape, params.edges, 'edge');
+  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, params.edges, 'edge');
+  if (unresolved.length > 0) {
+    throw new Error(
+      `Chamfer: could not resolve edge selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these edges were selected.`
+    );
+  }
   if (edges.length === 0) throw new Error('Chamfer: none of the selected edges could be resolved');
 
   const maker = new oc.BRepFilletAPI_MakeChamfer(shape);
@@ -139,7 +167,12 @@ export function applyShell(
   if (!params.faces?.length) throw new Error('Shell requires at least one face to remove');
   if (!params.thickness) throw new Error('Shell thickness must be non-zero');
 
-  const faces = resolveSubShapes(ctx, shape, params.faces, 'face');
+  const { shapes: faces, unresolved } = resolveSubShapes(ctx, shape, params.faces, 'face');
+  if (unresolved.length > 0) {
+    throw new Error(
+      `Shell: could not resolve face selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these faces were selected.`
+    );
+  }
   if (faces.length === 0) throw new Error('Shell: none of the selected faces could be resolved');
 
   const closingFaces = new oc.TopTools_ListOfShape_1();

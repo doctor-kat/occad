@@ -155,24 +155,34 @@ describe("parseGeometryIndex", () => {
 
 describe("resolveSubShapes", () => {
   it("maps 0-based edge refs to 1-based OCC map keys", () => {
-    const edges = resolveSubShapes(mockCtx(), boxShape(), ["edge-0", "edge-11"], "edge");
+    const { shapes, unresolved } = resolveSubShapes(
+      mockCtx(),
+      boxShape(),
+      ["edge-0", "edge-11"],
+      "edge"
+    );
     // edge-0 -> FindKey(1) -> e0 ; edge-11 -> FindKey(12) -> e11
-    expect(edges).toEqual([{ edge: { id: "e0" } }, { edge: { id: "e11" } }]);
+    expect(shapes).toEqual([{ edge: { id: "e0" } }, { edge: { id: "e11" } }]);
+    expect(unresolved).toEqual([]);
   });
 
   it("maps face refs through the face map", () => {
-    const faces = resolveSubShapes(mockCtx(), boxShape(), ["face-2"], "face");
-    expect(faces).toEqual([{ face: { id: "f2" } }]);
+    const { shapes, unresolved } = resolveSubShapes(mockCtx(), boxShape(), ["face-2"], "face");
+    expect(shapes).toEqual([{ face: { id: "f2" } }]);
+    expect(unresolved).toEqual([]);
   });
 
-  it("skips out-of-range and malformed refs", () => {
-    const edges = resolveSubShapes(
+  it("reports out-of-range and malformed refs as unresolved (not silently dropped)", () => {
+    const { shapes, unresolved } = resolveSubShapes(
       mockCtx(),
       boxShape(),
       ["edge-99", "edge-", "edge-1"],
       "edge"
     );
-    expect(edges).toEqual([{ edge: { id: "e1" } }]);
+    // The one valid ref still resolves...
+    expect(shapes).toEqual([{ edge: { id: "e1" } }]);
+    // ...but the stale/garbage refs are surfaced rather than swallowed.
+    expect(unresolved).toEqual(["edge-99", "edge-"]);
   });
 });
 
@@ -209,6 +219,24 @@ describe("applyFillet", () => {
     const params: FilletParams = { radius: 2, edges: ["edge-0"] };
     expect(() => applyFillet(mockCtx(rec), boxShape(), params)).toThrow(/fillet/i);
   });
+
+  // Determinism guard: if even ONE selected edge no longer resolves (e.g. an
+  // upstream edit shifted the topology so edge-99 is now out of range), the
+  // whole fillet must fail loudly. Silently filleting only the still-valid
+  // edges would produce wrong geometry with no indication anything was lost.
+  it("throws naming the unresolved refs when a selection is stale", () => {
+    const params: FilletParams = { radius: 2, edges: ["edge-0", "edge-99"] };
+    expect(() => applyFillet(mockCtx(), boxShape(), params)).toThrow(/edge-99/);
+    expect(() => applyFillet(mockCtx(), boxShape(), params)).toThrow(/topology may have changed/i);
+  });
+
+  it("does not call the OCC builder at all when a selection is stale", () => {
+    const rec: any = {};
+    const params: FilletParams = { radius: 2, edges: ["edge-0", "edge-99"] };
+    expect(() => applyFillet(mockCtx(rec), boxShape(), params)).toThrow();
+    // Bailed before constructing the fillet maker — no partial work performed.
+    expect(rec.fillet).toBeUndefined();
+  });
 });
 
 describe("applyChamfer", () => {
@@ -228,6 +256,11 @@ describe("applyChamfer", () => {
     const result = applyChamfer(mockCtx(rec), boxShape(), params);
     expect(rec.chamfer.adds).toEqual([{ distance: 1.5, edge: { edge: { id: "e3" } } }]);
     expect(result).toEqual({ chamfered: true });
+  });
+
+  it("throws naming the unresolved refs when a selection is stale", () => {
+    const params: ChamferParams = { distance: 2, edges: ["edge-3", "edge-50"] };
+    expect(() => applyChamfer(mockCtx(), boxShape(), params)).toThrow(/edge-50/);
   });
 });
 
@@ -251,6 +284,11 @@ describe("applyShell", () => {
     expect(args[2]).toBe(-3); // thickness/offset
     expect(args[1].items).toEqual([{ face: { id: "f0" } }, { face: { id: "f5" } }]);
     expect(result).toEqual({ shelled: true });
+  });
+
+  it("throws naming the unresolved refs when a face selection is stale", () => {
+    const params: ShellParams = { thickness: 2, faces: ["face-0", "face-9"] };
+    expect(() => applyShell(mockCtx(), boxShape(), params)).toThrow(/face-9/);
   });
 });
 

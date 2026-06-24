@@ -28,7 +28,7 @@ import type {
   Point3D,
   Vector3D,
 } from '@/cad/types';
-import { ShapeType, FeatureOperation, TransformOperation, PlaneType } from '@/cad/types';
+import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuildOrder } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
 import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
@@ -283,10 +283,12 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
     let currentBody: TopoDS_Shape | null = null;
     const sketchEdgesMap: Record<string, SketchEdgeData> = {};
 
+    // Deterministic, total build order shared with the feature tree: order by
+    // `sequence ?? createdAt`, tie-broken by id. See compareBuildOrder.
     const items = [
-      ...project.sketches.map(s => ({ type: 'sketch' as const, data: s, createdAt: s.createdAt })),
-      ...project.features.map(f => ({ type: 'feature' as const, data: f, createdAt: f.createdAt }))
-    ].sort((a, b) => a.createdAt - b.createdAt);
+      ...project.sketches.map(s => ({ type: 'sketch' as const, data: s })),
+      ...project.features.map(f => ({ type: 'feature' as const, data: f }))
+    ].sort((a, b) => compareBuildOrder(a.data, b.data));
 
     const totalItems = items.length;
     let processedItems = 0;
@@ -401,7 +403,12 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
         }
         processedItems++;
       } catch (err: unknown) {
+        // Surface the failure on the offending tree item instead of swallowing
+        // it. A featured error keeps the rebuild going (the body so far is still
+        // shown) but flags the item so a stale selection can't silently no-op.
+        const message = formatError(err);
         console.error(`Failed to rebuild item ${item.data.id}:`, err);
+        post({ type: 'error', message: `${item.data.name ?? item.data.id}: ${message}`, featureId: item.data.id });
       }
     }
 
