@@ -21,7 +21,7 @@ started
 | **Sketch-based features**  | ✅      | Extrude Boss/Cut, Revolve Boss/Cut                  | —               | —                                |
 | **Primitives**             | 🟡     | Box, Cylinder                                       | —               | Sphere, Cone, Torus, Wedge       |
 | **Boolean ops**            | 🟡     | Union, Subtract, Intersect (engine)                 | —               | UI for standalone booleans       |
-| **Modifications**          | ❌      | —                                                   | UI + types only | Fillet, Chamfer, Shell, Offset   |
+| **Modifications**          | ✅      | Fillet, Chamfer, Shell, Offset (engine+rebuild+UI)  | —               | —                                |
 | **Transforms**             | ❌      | —                                                   | UI + types only | Move, Rotate, Mirror, Scale      |
 | **Advanced modeling**      | ❌      | —                                                   | —               | Sweep, Loft                      |
 | **Import / Export**        | ❌      | —                                                   | UI (disabled)   | STEP, IGES, STL, glTF, OBJ       |
@@ -30,8 +30,9 @@ started
 | **Undo / Redo**            | ❌      | —                                                   | —               | History stack (not started)      |
 | **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
 
-**Overall:** Sketch + constraints + extrude/revolve + boolean pipeline is solid. The biggest gaps are **undo/redo**,
-the **remaining primitives**, and the **modify/transform/IO** families (UI buttons exist but do nothing on rebuild).
+**Overall:** Sketch + constraints + extrude/revolve + boolean + modification pipeline is solid. The biggest gaps are
+**undo/redo**, the **remaining primitives**, and the **transform/IO** families (UI buttons exist but do nothing on
+rebuild).
 
 ---
 
@@ -160,12 +161,28 @@ the **remaining primitives**, and the **modify/transform/IO** families (UI butto
 
 ### 2.4 Modifications
 
-| Op      | Params type | Engine | UI | Status | OCC API to use                  |
-|---------|:-----------:|:------:|:--:|--------|---------------------------------|
-| Fillet  |      ✅      |   ❌    | ✅  | ❌      | `BRepFilletAPI_MakeFillet`      |
-| Chamfer |      ✅      |   ❌    | ✅  | ❌      | `BRepFilletAPI_MakeChamfer`     |
-| Shell   |      ✅      |   ❌    | ✅  | ❌      | `BRepOffsetAPI_MakeThickSolid`  |
-| Offset  |      ✅      |   ❌    | ✅  | ❌      | `BRepOffsetAPI_MakeOffsetShape` |
+| Op      | Params type | Engine | Rebuild | UI | Status | OCC API used                    |
+|---------|:-----------:|:------:|:-------:|:--:|--------|---------------------------------|
+| Fillet  |      ✅      |   ✅    |    ✅    | ✅  | ✅      | `BRepFilletAPI_MakeFillet`      |
+| Chamfer |      ✅      |   ✅    |    ✅    | ✅  | ✅      | `BRepFilletAPI_MakeChamfer`     |
+| Shell   |      ✅      |   ✅    |    ✅    | ✅  | ✅      | `BRepOffsetAPI_MakeThickSolid`  |
+| Offset  |      ✅      |   ✅    |    ✅    | ✅  | ✅      | `BRepOffsetAPI_MakeOffsetShape` |
+
+> **Added (2026-06-23):** Modification engine (`src/cad/engine/modifications.ts`) + rebuild wiring. Unlike sketch
+> features/primitives, modifications transform the **current body in place** (no boolean combine): `handleRebuild`
+> now has a branch that feeds `currentBody` through `applyFillet` / `applyChamfer` / `applyShell` / `applyOffset` and
+> replaces it with the result (a modification with no body yet is a no-op; a failing one leaves the prior body intact
+> via the per-item try/catch). Edge/face selections (`edge-N` / `face-N`, 0-based) are mapped to OCC sub-shapes by
+> `resolveSubShapes` (0-based ref → 1-based `FindKey(N+1)`, mirroring `handleGetFaceGeometry`; out-of-range/malformed
+> refs are skipped). Fillet/chamfer use constant radius/distance per edge; shell removes the selected faces with
+> `MakeThickSolidByJoin`; offset acts on the whole body via `PerformByJoin`.
+>
+> **Tests (TDD):** `modifications.test.ts` (19 cases) covers ref parsing, sub-shape resolution, parameter
+> validation (empty selection, non-positive radius/distance, zero thickness), and that each op drives the expected
+> OCC calls — using a mock `oc` (the WASM kernel is not loaded in unit tests, same constraint noted for
+> `operations.ts`). Geometric validity is exercised by `e2e/modifications.spec.ts`. ⚠️ The unit suite cannot catch a
+> wrong OCC constructor/method name (a runtime-only failure per the CLAUDE.md hook-import gotcha); run the e2e suite
+> / load the app to confirm real geometry before relying on this.
 
 ### 2.5 Transforms
 
@@ -211,6 +228,30 @@ the **remaining primitives**, and the **modify/transform/IO** families (UI butto
 
 ## 5. Application Features
 
+> **Changed (2026-06-23):** `OperationsBar` tabs reorganized by **Area** (matching this doc's Summary table). The
+> catch-all **Features** tab was split into **Primitives**, **Modifications** (Extrude/Revolve Cut + Fillet/Chamfer/
+> Shell/Offset + Union/Intersect), and **Advanced** (Extrude/Revolve Boss + Sweep/Loft). Tab order is now
+> Sketch · Primitives · Modifications · Transform · Advanced · Evaluate · I/O. Default active tab is now
+> `PRIMITIVES`. `OperationCategory.FEATURES` is retained (sidebar Feature-Tree tab still uses it) but no longer
+> drives an operations-bar tab. Operation groupings in `OperationData.tsx` were untouched — only their tab placement
+> changed.
+>
+> **Added (2026-06-23):** Sketch hover **and selection** from the viewport (outside sketch mode). `SketchWireframes`
+> rendered bare `lineSegments` with no pointer handlers (raw line raycasting is too thin to hit). It now places
+> invisible cylinder hit-areas along each segment (same pattern as `OCCModel` edge hover). Hover sets
+> `hoveredTreeItem`; clicking calls `onSketchClick → selectTreeItem(sketchId)` (plumbed
+> CADLayout→CADViewport→OpenCascadeViewport→Scene, mirroring `onPlaneClick`). The wireframe is orange when hovered,
+> blue when selected (`selectedTreeItem === sketchId`) — so the viewport *and* the `FeatureTree` row stay in sync
+> both directions, matching reference-plane behaviour.
+>
+> Selection required replacing the `BackgroundPlane` click-catcher (a 10 000² ground plane) with the Canvas-level
+> `onPointerMissed` — the catcher sat in front of sketch wireframes along many rays and stole their clicks via
+> `stopPropagation`. `onPointerMissed` clears selection only when a click truly hits nothing (skipped in sketch
+> mode). `BackgroundPlane.tsx` deleted.
+>
+> (Rectangle draw-preview was a separate report; it already works since commit `1410072` — that symptom was a stale
+> dev server.)
+
 | Feature                          | Status | Notes                                                     |
 |----------------------------------|--------|-----------------------------------------------------------|
 | Feature tree (hierarchy)         | ✅      | `FeatureTree.tsx`                                         |
@@ -221,6 +262,7 @@ the **remaining primitives**, and the **modify/transform/IO** families (UI butto
 | Parametric rebuild               | 🟡     | only wired feature types replay                           |
 | localStorage persistence         | ✅      | key `occad-project`                                       |
 | Face → sketch workflow           | ✅      | `getFaceGeometry`                                         |
+| Sketch hover + select (viewport) | ✅      | `SketchWireframes` cylinder hit-areas; tree↔viewport sync |
 | **Undo / Redo**                  | ❌      | **No history stack** — highest-impact gap                 |
 | Multi-body / part management     | ❌      | single implicit `currentBody`                             |
 | Reference geometry (planes/axes) | 🟡     | types + reference planes render; no custom-plane creation |
@@ -243,4 +285,4 @@ the **remaining primitives**, and the **modify/transform/IO** families (UI butto
 
 ---
 
-_Last updated: 2026-06-23 — fixed rectangle "no closed sketches" + flat-extrude (Top/Right plane) + sketch-mode-exit bugs. Keep statuses honest — only mark ✅ when types + engine + rebuild + UI are all wired._
+_Last updated: 2026-06-23 — implemented the Modifications family (fillet/chamfer/shell/offset) end-to-end: engine `modifications.ts` + `handleRebuild` wiring + TDD unit suite (`modifications.test.ts`); reorganized the operations bar into area-based tabs (Primitives/Modifications/Transform/Advanced). Earlier same day: added sketch hover + viewport selection; fixed rectangle "no closed sketches" + flat-extrude + sketch-mode-exit bugs. Keep statuses honest — only mark ✅ when types + engine + rebuild + UI are all wired._

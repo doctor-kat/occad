@@ -10,6 +10,7 @@ test.describe('Modification Operations', () => {
     });
 
     test('should have disabled Apply button when applying fillet without selection', async ({ page }) => {
+        await page.getByRole('tab', { name: 'Modifications' }).click();
         const filletButton = page.locator('button').filter({ hasText: /^Fillet$/ });
         await filletButton.click();
         
@@ -31,7 +32,7 @@ test.describe('Modification Operations', () => {
         await expect(edge1).toBeVisible({ timeout: 15000 });
         await edge1.click();
 
-        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.getByRole('tab', { name: 'Modifications' }).click();
         const filletButton = page.locator('button').filter({ hasText: /^Fillet$/ });
         await filletButton.click();
         
@@ -57,7 +58,7 @@ test.describe('Modification Operations', () => {
         await expect(edge1).toBeVisible({ timeout: 15000 });
         await edge1.click();
 
-        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.getByRole('tab', { name: 'Modifications' }).click();
         const chamferButton = page.locator('button').filter({ hasText: /^Chamfer$/ });
         await chamferButton.click();
         
@@ -83,7 +84,7 @@ test.describe('Modification Operations', () => {
         await expect(face1).toBeVisible({ timeout: 15000 });
         await face1.click();
 
-        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.getByRole('tab', { name: 'Modifications' }).click();
         const shellButton = page.locator('button').filter({ hasText: /^Shell$/ });
         await shellButton.click();
         
@@ -104,7 +105,7 @@ test.describe('Modification Operations', () => {
         await expect(page.locator('.tree-item-row').getByText(/Box\s*\d+/)).toBeVisible({ timeout: 15000 });
         await expect(page.locator('text=Rebuild complete').last()).toBeVisible({ timeout: 30000 });
 
-        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.getByRole('tab', { name: 'Modifications' }).click();
         const offsetButton = page.locator('button').filter({ hasText: /^Offset$/ });
         await offsetButton.click();
         
@@ -159,7 +160,7 @@ test.describe('Modification Operations', () => {
         await expect(page.locator('text=Sketch completed')).toBeVisible({ timeout: 15000 });
 
         // 5. Extrude Boss
-        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.getByRole('tab', { name: 'Advanced' }).click();
         const extrudeButton = page.locator('button').filter({ hasText: /^Extrude Boss$/ });
         await extrudeButton.click();
         
@@ -178,7 +179,7 @@ test.describe('Modification Operations', () => {
         const lastEdge = page.getByText(/Edge \d+/).last();
         await lastEdge.click();
 
-        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.getByRole('tab', { name: 'Modifications' }).click();
         const filletButton = page.locator('button').filter({ hasText: /^Fillet$/ });
         await filletButton.click();
         await page.getByRole('button', { name: 'Apply' }).click();

@@ -33,6 +33,7 @@ import type { WorkerContext } from './workerContext';
 import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
 import { buildSketchWire } from './sketchBuilders';
+import { applyFillet, applyChamfer, applyShell, applyOffset } from './modifications';
 import { tessellate, extractEdgeVertices } from './tessellation';
 import { SketchSolver } from './SketchSolver';
 import { reprojectExternalGeometry } from './sketch/externalGeometry';
@@ -358,6 +359,31 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
             const cylinder = new oc.BRepPrimAPI_MakeCylinder_2(axis, params.radius, params.height);
             if (cylinder.IsDone()) newShape = cylinder.Shape();
             axisOrigin.delete(); axis.delete(); cylinder.delete();
+          } else if (
+            feature.type === FeatureOperation.FILLET ||
+            feature.type === FeatureOperation.CHAMFER ||
+            feature.type === FeatureOperation.SHELL ||
+            feature.type === FeatureOperation.OFFSET
+          ) {
+            // Modifications transform the current body in place rather than
+            // producing a separate solid to boolean-combine. A modification
+            // with no body to act on (none built yet) is a no-op.
+            if (currentBody) {
+              switch (feature.type) {
+                case FeatureOperation.FILLET:
+                  currentBody = applyFillet(ctx, currentBody, feature.parameters as FilletParams);
+                  break;
+                case FeatureOperation.CHAMFER:
+                  currentBody = applyChamfer(ctx, currentBody, feature.parameters as ChamferParams);
+                  break;
+                case FeatureOperation.SHELL:
+                  currentBody = applyShell(ctx, currentBody, feature.parameters as ShellParams);
+                  break;
+                case FeatureOperation.OFFSET:
+                  currentBody = applyOffset(ctx, currentBody, feature.parameters as OffsetParams);
+                  break;
+              }
+            }
           }
 
           if (newShape && !newShape.IsNull()) {

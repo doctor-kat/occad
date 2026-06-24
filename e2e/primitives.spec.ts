@@ -106,7 +106,7 @@ test.describe('Primitive Shapes', () => {
         await expect(page.locator('text=Sketch completed')).toBeVisible({ timeout: 15000 });
 
         // 5. Extrude Boss
-        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.getByRole('tab', { name: 'Advanced' }).click();
         const extrudeButton = page.locator('button').filter({ hasText: /^Extrude Boss$/ });
         await extrudeButton.click();
         
@@ -158,7 +158,7 @@ test.describe('Primitive Shapes', () => {
         await expect(page.getByText('Sketch completed')).toBeVisible({ timeout: 15000 });
 
         // 3. Extrude Boss with a distance of 10
-        await page.getByRole('tab', { name: 'Features' }).click();
+        await page.getByRole('tab', { name: 'Advanced' }).click();
         await page.locator('button').filter({ hasText: /^Extrude Boss$/ }).click();
         await expect(page.getByRole('heading', { name: 'Extrude Boss' })).toBeVisible({ timeout: 10000 });
         await expect(page.getByText('No closed sketches')).not.toBeVisible();
