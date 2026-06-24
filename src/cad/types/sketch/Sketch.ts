@@ -2,6 +2,7 @@ import { ShapeReference } from '../geometry/ShapeReference';
 import { Workplane } from './Workplane';
 import { Point2D } from '../geometry/Point2D';
 import { SketchElement } from './SketchElement';
+import { StableRef } from '../geometry/Fingerprint';
 
 export type SketchPrimitiveType = 'point' | 'line' | 'circle' | 'arc' | 'ellipse';
 
@@ -14,8 +15,15 @@ export interface SketchPrimitive {
   fixed: boolean;
   /** Whether this is external geometry projected from the solid */
   isExternal?: boolean;
-  /** Source OCC history tag if external */
+  /** Source OCC tag if external — bare positional `edge-N`/`vertex-N`/`face-N` (fallback / dedup key) */
   sourceId?: string;
+  /**
+   * Geometry-anchored upgrade of `sourceId`, captured lazily by the worker during
+   * rebuild (fingerprint + index). Preferred over `sourceId` when resolving the
+   * external sub-shape, so it survives an upstream edit that renumbers the index
+   * map. See `DETERMINISTIC.md` step 3c.
+   */
+  sourceRef?: StableRef;
 }
 
 export interface SketchVisualMetadata {

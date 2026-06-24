@@ -33,17 +33,30 @@ export const AMBIGUITY_MARGIN = 0.02;
 
 // ---- OCC extraction (all via ctx.oc so it can be mocked) -------------------
 
+/** The OCC `TopAbs_ShapeEnum` for a sub-shape kind. */
+function shapeEnumFor(ctx: WorkerContext, kind: SubShapeKind): any {
+  const e = ctx.oc.TopAbs_ShapeEnum;
+  return kind === 'edge' ? e.TopAbs_EDGE : kind === 'face' ? e.TopAbs_FACE : e.TopAbs_VERTEX;
+}
+
+/** Cast a raw sub-shape to its concrete OCC type for the given kind. */
+function castSubShape(ctx: WorkerContext, sub: TopoDS_Shape, kind: SubShapeKind): TopoDS_Shape {
+  const { oc } = ctx;
+  return kind === 'edge'
+    ? oc.TopoDS.Edge_1(sub)
+    : kind === 'face'
+      ? oc.TopoDS.Face_1(sub)
+      : oc.TopoDS.Vertex_1(sub);
+}
+
 /** Flatten the 1-based OCC sub-shape map to a 0-based array of sub-shapes. */
 function mapSubShapes(ctx: WorkerContext, shape: TopoDS_Shape, kind: SubShapeKind): TopoDS_Shape[] {
   const { oc } = ctx;
-  const shapeEnum =
-    kind === 'edge' ? oc.TopAbs_ShapeEnum.TopAbs_EDGE : oc.TopAbs_ShapeEnum.TopAbs_FACE;
   const map = new oc.TopTools_IndexedMapOfShape_1();
-  oc.TopExp.MapShapes_1(shape, shapeEnum, map);
+  oc.TopExp.MapShapes_1(shape, shapeEnumFor(ctx, kind), map);
   const out: TopoDS_Shape[] = [];
   for (let i = 1; i <= map.Extent(); i++) {
-    const sub = map.FindKey(i);
-    out.push(kind === 'edge' ? oc.TopoDS.Edge_1(sub) : oc.TopoDS.Face_1(sub));
+    out.push(castSubShape(ctx, map.FindKey(i), kind));
   }
   map.delete();
   return out;
@@ -116,6 +129,20 @@ function obbHalfSizes(ctx: WorkerContext, sub: TopoDS_Shape): [number, number, n
   return sizes;
 }
 
+/**
+ * Location of a vertex sub-shape. A vertex has no area/length or extent, so its
+ * fingerprint is just its world point (measure 0, zero OBB) — matching then
+ * reduces to point coincidence, which is exactly the right identity for a
+ * geometry-anchored vertex selection.
+ */
+function vertexPoint(ctx: WorkerContext, vertex: TopoDS_Shape): { x: number; y: number; z: number } {
+  const { oc } = ctx;
+  const pnt = oc.BRep_Tool.Pnt(vertex);
+  const point = { x: pnt.X(), y: pnt.Y(), z: pnt.Z() };
+  pnt.delete?.();
+  return point;
+}
+
 /** Compute a fingerprint for one sub-shape at a known ordinal index. */
 export function computeFingerprint(
   ctx: WorkerContext,
@@ -123,6 +150,9 @@ export function computeFingerprint(
   kind: SubShapeKind,
   index: number
 ): Fingerprint {
+  if (kind === 'vertex') {
+    return { kind, index, geomType: 'point', measure: 0, centroid: vertexPoint(ctx, sub), obb: [0, 0, 0] };
+  }
   const geomType = kind === 'face' ? faceGeomType(ctx, sub) : edgeGeomType(ctx, sub);
   const { measure, centroid } = massAndCentroid(ctx, sub, kind);
   const obb = obbHalfSizes(ctx, sub);

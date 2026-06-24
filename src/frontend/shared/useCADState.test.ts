@@ -795,6 +795,64 @@ describe("useCADState — deterministic build order", () => {
     expect(result.current.project).toBe(projectBefore);
   });
 
+  it("applySketchRefEnrichments persists sourceRef on a primitive WITHOUT bumping version", () => {
+    const { result } = renderHook(() => useCADState());
+    let sketchId = "";
+    act(() => {
+      sketchId = result.current.addSketch("S", { type: "xy" } as any).id;
+    });
+    // Give the sketch an external primitive anchored by a bare positional tag.
+    act(() => {
+      const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
+      result.current.updateSketchState(sketchId, {
+        ...sketch,
+        primitives: [
+          { id: "p1", type: "point", data: { x: 0, y: 0 }, fixed: true, isExternal: true, sourceId: "vertex-2" } as any,
+        ],
+      });
+    });
+
+    const versionBefore = result.current.project.version;
+    const ref = {
+      kind: "vertex" as const,
+      index: 2,
+      fingerprint: {
+        kind: "vertex" as const,
+        index: 2,
+        geomType: "point",
+        measure: 0,
+        centroid: { x: 10, y: 10, z: 0 },
+        obb: [0, 0, 0] as [number, number, number],
+      },
+    };
+
+    act(() =>
+      result.current.applySketchRefEnrichments([
+        { sketchId, primitiveId: "p1", ref },
+      ])
+    );
+
+    const sketch = result.current.project.sketches.find((s) => s.id === sketchId)!;
+    expect((sketch.primitives[0] as any).sourceRef).toEqual(ref);
+    // Derived enrichment — must not trigger another rebuild.
+    expect(result.current.project.version).toBe(versionBefore);
+  });
+
+  it("applySketchRefEnrichments is a no-op for an unknown sketch id", () => {
+    const { result } = renderHook(() => useCADState());
+    act(() => {
+      result.current.addSketch("S", { type: "xy" } as any);
+    });
+    const projectBefore = result.current.project;
+    act(() =>
+      result.current.applySketchRefEnrichments([
+        { sketchId: "does-not-exist", primitiveId: "p1", ref: { kind: "vertex", index: 0 } },
+      ])
+    );
+    // Same reference back (no churn) when nothing matched.
+    expect(result.current.project).toBe(projectBefore);
+  });
+
   it("never reorders a feature before its own consumed sketch", () => {
     const { result } = renderHook(() => useCADState());
     let extrudeId = "";

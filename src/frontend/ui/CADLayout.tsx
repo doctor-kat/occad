@@ -64,6 +64,7 @@ export function CADLayout() {
     stopSketchEdit,
     updateFeatureParameters,
     applyRefEnrichments,
+    applySketchRefEnrichments,
     saveProject,
     newProject,
     exportProject,
@@ -149,6 +150,10 @@ export function CADLayout() {
     onRefsEnriched: (enrichments) => {
       // Persist lazily-captured fingerprints (no version bump -> no rebuild loop).
       applyRefEnrichments(enrichments);
+    },
+    onSketchRefsEnriched: (enrichments) => {
+      // Persist external-geometry fingerprints (no version bump). See step 3c.
+      applySketchRefEnrichments(enrichments);
     },
     onError: (message, featureId) => {
       if (featureId) {

@@ -1,36 +1,97 @@
 import type { OpenCascadeInstance, TopoDS_Shape, TopoDS_Edge, TopoDS_Vertex } from 'opencascade.js';
-import { Sketch, SketchPrimitive, Workplane, Point2D, Point3D } from '../../types';
+import { Sketch, SketchPrimitive, Workplane, Point2D, Point3D, GeometryRef, StableRef, SketchRefEnrichment, SubShapeKind } from '../../types';
+import { toStableRef, parseRefString } from '../../types';
 import { project } from './coordinateSystem';
 import { WorkerContext } from '../workerContext';
+import { fingerprintAll, resolveAgainst } from '../fingerprint';
+
+/** The OCC `TopAbs_ShapeEnum` for an external-geometry sub-shape kind. */
+function shapeEnumFor(ctx: WorkerContext, kind: SubShapeKind): any {
+  const e = ctx.oc.TopAbs_ShapeEnum;
+  return kind === 'face' ? e.TopAbs_FACE : kind === 'edge' ? e.TopAbs_EDGE : e.TopAbs_VERTEX;
+}
 
 /**
  * Finds a shape (face, edge, or vertex) within a solid by its tag (e.g., "face-1", "edge-5").
- * Uses indexed maps to match the UI's selection mechanism.
+ * Uses indexed maps to match the UI's selection mechanism. Purely positional —
+ * prefer {@link findShapeByRef}, which also honours a fingerprinted StableRef.
  */
 export function findShapeByTag(ctx: WorkerContext, body: TopoDS_Shape, tag: string): TopoDS_Shape | undefined {
+  return findShapeByRef(ctx, body, tag);
+}
+
+/**
+ * Resolve an external-geometry reference — a legacy positional `face-N`/`edge-N`/
+ * `vertex-N` string OR a fingerprinted {@link StableRef} — to the matching raw
+ * sub-shape of `body`.
+ *
+ * A bare index resolves positionally (cheap; never fingerprints the body). A ref
+ * carrying a fingerprint is re-found by *geometry*, so it survives an upstream
+ * edit that renumbered the index map, and only falls back to its stored ordinal
+ * index. Returns `undefined` when the ref is malformed or cannot be resolved
+ * (the caller — reprojection — tolerates a miss by leaving the primitive as-is).
+ */
+export function findShapeByRef(ctx: WorkerContext, body: TopoDS_Shape, ref: GeometryRef): TopoDS_Shape | undefined {
   const { oc } = ctx;
-  const match = tag.match(/^(face|edge|vertex)-(\d+)$/);
-  if (!match) return undefined;
-
-  const type = match[1];
-  const index = parseInt(match[2]);
-
-  let shapeType: any;
-  if (type === 'face') shapeType = oc.TopAbs_ShapeEnum.TopAbs_FACE;
-  else if (type === 'edge') shapeType = oc.TopAbs_ShapeEnum.TopAbs_EDGE;
-  else if (type === 'vertex') shapeType = oc.TopAbs_ShapeEnum.TopAbs_VERTEX;
-  else return undefined;
+  const stable = toStableRef(ref);
+  if (!stable) return undefined;
 
   const map = new oc.TopTools_IndexedMapOfShape_1();
-  oc.TopExp.MapShapes_1(body, shapeType, map);
+  oc.TopExp.MapShapes_1(body, shapeEnumFor(ctx, stable.kind), map);
+  const extent = map.Extent();
 
-  let result: TopoDS_Shape | undefined;
-  if (index >= 0 && index < map.Extent()) {
-    result = map.FindKey(index + 1);
+  let idx: number;
+  if (stable.fingerprint) {
+    // Geometry-anchored: re-find by fingerprint, fall back to stored index.
+    idx = resolveAgainst(fingerprintAll(ctx, body, stable.kind), stable);
+  } else {
+    idx = Number.isInteger(stable.index) && stable.index >= 0 && stable.index < extent ? stable.index : -1;
   }
-  
+
+  const result = idx >= 0 && idx < extent ? map.FindKey(idx + 1) : undefined;
   map.delete();
   return result;
+}
+
+/**
+ * Lazily upgrade a sketch's external-geometry references to fingerprinted
+ * StableRefs against `body` (where the stored positional `sourceId` indices are
+ * still valid). For each external primitive lacking a captured `sourceRef`, we
+ * resolve its tag to a live sub-shape and attach that sub-shape's fingerprint, so
+ * every later rebuild re-finds the source by geometry even after the index map
+ * renumbers. Already-captured primitives and ones whose tag no longer resolves
+ * are skipped (the latter is left bare for the tolerant reprojection). Returns the
+ * captured enrichments (empty when nothing new) for the main thread to persist
+ * without bumping version. See `DETERMINISTIC.md` step 3c.
+ */
+export function enrichSketchExternalRefs(
+  ctx: WorkerContext,
+  sketch: Sketch,
+  body: TopoDS_Shape | null
+): SketchRefEnrichment[] {
+  if (!body) return [];
+
+  // Fingerprint the body at most once per kind across all external primitives.
+  const liveByKind = new Map<SubShapeKind, ReturnType<typeof fingerprintAll>>();
+  const live = (kind: SubShapeKind) => {
+    let l = liveByKind.get(kind);
+    if (!l) { l = fingerprintAll(ctx, body, kind); liveByKind.set(kind, l); }
+    return l;
+  };
+
+  const out: SketchRefEnrichment[] = [];
+  for (const primitive of sketch.primitives) {
+    if (!primitive.isExternal || !primitive.sourceId) continue;
+    if (primitive.sourceRef?.fingerprint) continue; // already captured / converged
+    const base = primitive.sourceRef ?? parseRefString(primitive.sourceId);
+    if (!base) continue; // malformed tag
+    const candidates = live(base.kind);
+    const idx = resolveAgainst(candidates, base);
+    if (idx < 0) continue; // unresolved — leave bare
+    const ref: StableRef = { kind: base.kind, index: idx, fingerprint: candidates[idx] };
+    out.push({ sketchId: sketch.id, primitiveId: primitive.id, ref });
+  }
+  return out;
 }
 
 /**
@@ -48,7 +109,9 @@ export function reprojectExternalGeometry(
   const updatedPrimitives = sketch.primitives.map(primitive => {
     if (!primitive.isExternal || !primitive.sourceId) return primitive;
 
-    const sourceShape = findShapeByTag(ctx, body, primitive.sourceId);
+    // Prefer the geometry-anchored sourceRef (survives renumber); fall back to the
+    // bare positional sourceId tag for primitives not yet captured / persisted.
+    const sourceShape = findShapeByRef(ctx, body, primitive.sourceRef ?? primitive.sourceId);
     if (!sourceShape) return primitive;
 
     try {

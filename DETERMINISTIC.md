@@ -168,7 +168,7 @@ converged→null, empty→null, unresolved-left-untouched, capture+resolve-after
 round trip); `useCADState.test.ts` applyRefEnrichments (params updated, **no** version
 bump, unknown-id no-op).
 
-### 🟡 Step 3c — History propagation (exactness)  *(scaffold DONE — wiring pending)*
+### 🟡 Step 3c — History propagation (exactness)  *(scaffold + external-geom DONE; boolean exact-resolution deferred)*
 
 Goal: `SetToFillHistory(true)` on every boolean; carry stable IDs across `handleRebuild` via
 `BRepTools_History.Merge` so IDs survive upstream edits exactly (fingerprint becomes the
@@ -194,10 +194,38 @@ unit-tested without WASM, mirroring `fingerprint.ts` in step 2):
 modified-beats-generated), Handle-vs-bare-history adapter, id carry across unchanged/modified/
 split/removed, two-op chain composition, `SetToFillHistory` flag, and `Merge_1` accumulation.
 
-**Wiring (PENDING):** thread a `TrackedRef[]` through `handleRebuild`'s boolean chain
-(`performBooleanOperation` to enable + return history), prefer the exact history result over
-fingerprint in `resolveSubShapes`, demote the fingerprint to fallback, and extend to
-`findShapeByTag` (sketch external geometry). Validatable e2e only (real OCC history).
+**External-geometry stabilization (DONE).** The other half of 3c — sketch external geometry —
+*was* a live staleness bug and is now fixed with the same fingerprint + lazy-capture pattern as
+3a/3b:
+
+- `SketchPrimitive.sourceId` (bare positional `edge-N`/`vertex-N`/`face-N`, set in `CADLayout`)
+  gained a geometry-anchored sibling `sourceRef?: StableRef`. `SubShapeKind` now includes
+  `'vertex'`, and `fingerprint.ts` fingerprints a vertex from its `BRep_Tool.Pnt` world point
+  (zero measure/OBB) — matching reduces to point coincidence, the right identity for a vertex.
+- `externalGeometry.findShapeByRef(ctx, body, ref)` resolves a bare tag positionally (cheap) or
+  a fingerprinted `StableRef` by geometry (survives renumber, index fallback). `findShapeByTag`
+  is now a thin positional wrapper; `reprojectExternalGeometry` prefers `sourceRef ?? sourceId`.
+- `enrichSketchExternalRefs` captures fingerprints for external refs against the body where the
+  positional indices are still valid (fingerprints each kind at most once per sketch). Shipped in
+  `rebuildComplete.sketchRefEnrichments` (`SketchRefEnrichment` in `cad/types`); `useOpenCascade`
+  fires `onSketchRefsEnriched`; `useCADState.applySketchRefEnrichments` persists `sourceRef`
+  **without bumping `version`** (derived data → no rebuild loop), converging after one rebuild.
+
+**Tests:** `externalGeometry.test.ts` (14) — positional resolution, vertex fingerprint, re-find
+after renumber + bare-index-drifts contrast, lazy capture (converged/non-external/unresolved
+skips), and `reprojectExternalGeometry` projecting from the tracked vs. positionally-drifted
+vertex; `useCADState.test.ts` +2 (`applySketchRefEnrichments` persists `sourceRef`, no version
+bump, unknown-id no-op). e2e: full suite green (face-select → external-geom path exercised by
+`box-sketch-flow` + `primitives` face tests).
+
+**Boolean exact-resolution (DEFERRED, not pursued).** Threading `TrackedRef[]` through the
+boolean chain to *resolve* selections by exact history has **no e2e-demonstrable payoff for the
+current selection model**: a modification's edges/faces are selected against the same live body
+the modification then acts on (selection-origin == use-point), so the 3a/3b fingerprint already
+re-anchors them across renumbers (modifications e2e 6/6). Exact history only adds value once the
+selection model carries a *creation-time* stable id to propagate across intervening booleans —
+the `history.ts` scaffold is ready for that day. Deferred deliberately rather than shipped as
+speculative dead code.
 
 ### 🔜 Step 4 — Snapshot undo/redo
 
@@ -209,14 +237,17 @@ fingerprint in `resolveSubShapes`, demote the fingerprint to fallback, and exten
 
 ## Validation status
 
-- **Unit (vitest):** 184 passing. Determinism-specific: `buildOrder.test.ts`,
+- **Unit (vitest):** 200 passing. Determinism-specific: `buildOrder.test.ts`,
   `fingerprint.test.ts` (15), `history.test.ts` (17), `modifications.test.ts` (fingerprint
-  resolution + enrichRefs), `useCADState.test.ts` (reorder + applyRefEnrichments).
-- **e2e (Playwright, real OCC kernel):**
+  resolution + enrichRefs), `externalGeometry.test.ts` (14, incl. vertex fingerprint + capture),
+  `useCADState.test.ts` (reorder + applyRefEnrichments + applySketchRefEnrichments).
+- **e2e (Playwright, real OCC kernel):** full suite **32 green** (1 pre-existing UI-timing flake
+  in `box-sketch-flow`, 3/3 on isolated re-run).
   - `e2e/modifications.spec.ts` — **6/6 pass** (fillet/chamfer/shell/offset + extrude-then-
     fillet). This is the suite that directly exercises the changed resolution/capture path.
-  - `e2e/transformations.spec.ts` — pass. `e2e/primitives.spec.ts` — face-based sketching
-    passes.
+  - `e2e/box-sketch-flow.spec.ts` + `e2e/primitives.spec.ts` face tests — exercise the
+    face-select → external-geometry reproject/capture path (step 3c).
+  - `e2e/transformations.spec.ts` — pass.
   - ✅ **Fixed (separate from the determinism work):** `primitives.spec.ts › "extrude a
     rectangle on the Top Plane …"` used to fail with *"No closed sketches"*. Root cause was
     unrelated to determinism — the sketch pointer handlers (`SketchOverlay`) depended on
@@ -233,7 +264,7 @@ fingerprint in `resolveSubShapes`, demote the fingerprint to fallback, and exten
 | Shared build order | `src/cad/types/project/buildOrder.ts` (+ `.test.ts`) |
 | Worker rebuild order / per-item errors | `src/cad/engine/operations.ts` (`handleRebuild`) |
 | Selection resolution (modifications) | `src/cad/engine/modifications.ts` (`resolveSubShapes`) |
-| Selection resolution (sketch external geom) | `src/cad/engine/sketch/externalGeometry.ts` (`findShapeByTag`) |
+| Selection resolution (sketch external geom) | `src/cad/engine/sketch/externalGeometry.ts` (`findShapeByRef` / `enrichSketchExternalRefs`, + `.test.ts`) |
 | Index production | `src/cad/engine/tessellation.ts`, `operations.ts` (`handleGetFaceGeometry`) |
 | Tree + reorder | `src/frontend/shared/useCADState.ts` (`featureTree`, `reorderFeature`) |
 | Fingerprints | `src/cad/engine/fingerprint.ts` (+ `.test.ts`) |

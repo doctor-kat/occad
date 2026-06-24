@@ -28,6 +28,7 @@ import type {
   Point3D,
   Vector3D,
   FeatureRefEnrichment,
+  SketchRefEnrichment,
 } from '@/cad/types';
 import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuildOrder } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
@@ -37,7 +38,7 @@ import { buildSketchWire } from './sketchBuilders';
 import { applyFillet, applyChamfer, applyShell, applyOffset, enrichRefs } from './modifications';
 import { tessellate, extractEdgeVertices } from './tessellation';
 import { SketchSolver } from './SketchSolver';
-import { reprojectExternalGeometry } from './sketch/externalGeometry';
+import { reprojectExternalGeometry, enrichSketchExternalRefs } from './sketch/externalGeometry';
 
 /** Counter for generating unique shape IDs */
 let shapeIdCounter = 0;
@@ -285,6 +286,8 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
     const sketchEdgesMap: Record<string, SketchEdgeData> = {};
     // Lazily-captured fingerprint upgrades for modification selections (step 3b).
     const refEnrichments: FeatureRefEnrichment[] = [];
+    // Lazily-captured fingerprint upgrades for sketch external-geometry refs (step 3c).
+    const sketchRefEnrichments: SketchRefEnrichment[] = [];
 
     // Deterministic, total build order shared with the feature tree: order by
     // `sequence ?? createdAt`, tie-broken by id. See compareBuildOrder.
@@ -306,6 +309,13 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
           if (!hasEdges) {
             processedItems++;
             continue;
+          }
+          // Capture geometry-anchored upgrades for external refs against the
+          // body where the positional indices are still valid (step 3c), then
+          // reproject. Persistence (no version bump) converges after one rebuild.
+          if (currentBody) {
+            const caps = enrichSketchExternalRefs(ctx, sketch, currentBody);
+            if (caps.length) sketchRefEnrichments.push(...caps);
           }
           const sketchToSolve = currentBody ? reprojectExternalGeometry(ctx, sketch, currentBody) : sketch;
           const solvedSketch = await solver.solve(sketchToSolve);
@@ -441,7 +451,7 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
       const meshData = tessellate(ctx, currentBody, 0.1, 0.5);
       const transferables: Transferable[] = [...getTransferables(meshData)];
       for (const edge of Object.values(sketchEdgesMap)) transferables.push(edge.edgeVertices.buffer);
-      post({ type: 'rebuildComplete', meshData, shapeId: finalShapeId, sketchEdges: sketchEdgesMap, refEnrichments: refEnrichments.length ? refEnrichments : undefined }, transferables);
+      post({ type: 'rebuildComplete', meshData, shapeId: finalShapeId, sketchEdges: sketchEdgesMap, refEnrichments: refEnrichments.length ? refEnrichments : undefined, sketchRefEnrichments: sketchRefEnrichments.length ? sketchRefEnrichments : undefined }, transferables);
     } else {
       post({ type: 'rebuildComplete', meshData: { faceVertices: new Float32Array(0), faceNormals: new Float32Array(0), faceIndices: new Uint32Array(0), edgeVertices: new Float32Array(0), edgeIndices: new Uint32Array(0), faceMapping: new Uint32Array(0), edgeCount: 0 }, shapeId: '', sketchEdges: sketchEdgesMap });
     }

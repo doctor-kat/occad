@@ -11,7 +11,7 @@
  * `DETERMINISTIC.md`.
  */
 
-export type SubShapeKind = 'edge' | 'face';
+export type SubShapeKind = 'edge' | 'face' | 'vertex';
 
 export interface Fingerprint {
   kind: SubShapeKind;
@@ -46,9 +46,9 @@ export interface StableRef {
  */
 export type GeometryRef = string | StableRef;
 
-/** Parse a legacy `edge-N` / `face-N` string into a (fingerprint-less) StableRef. */
+/** Parse a legacy `edge-N` / `face-N` / `vertex-N` string into a (fingerprint-less) StableRef. */
 export function parseRefString(ref: string): StableRef | null {
-  const m = ref.match(/^(edge|face)-(\d+)$/);
+  const m = ref.match(/^(edge|face|vertex)-(\d+)$/);
   if (!m) return null;
   return { kind: m[1] as SubShapeKind, index: Number(m[2]) };
 }
@@ -79,4 +79,21 @@ export interface FeatureRefEnrichment {
   /** Which selection field this replaces: fillet/chamfer use 'edges', shell/offset 'faces'. */
   key: 'edges' | 'faces';
   refs: GeometryRef[];
+}
+
+/**
+ * A worker→main enrichment for a sketch's *external geometry* reference, captured
+ * lazily during rebuild. External sketch primitives are anchored to a solid's
+ * sub-shape by `sourceId` (a bare positional `edge-N` / `vertex-N` / `face-N`
+ * tag), which silently rebinds after an upstream edit renumbers the index map.
+ * The worker re-resolves the tag against the body where it is still valid,
+ * captures the matching {@link StableRef} (with fingerprint), and the main thread
+ * persists it into `primitive.sourceRef` *without bumping version* — the
+ * geometry-anchored ref then survives later renumbers. See `DETERMINISTIC.md`
+ * step 3c.
+ */
+export interface SketchRefEnrichment {
+  sketchId: string;
+  primitiveId: string;
+  ref: StableRef;
 }

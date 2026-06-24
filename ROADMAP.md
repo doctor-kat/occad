@@ -29,7 +29,7 @@ started
 | **Feature tree**           | ✅      | Tree, reorder (deterministic), suppress, visibility, edit | —         | Wire reorder to a drag handler   |
 | **Undo / Redo**            | ❌      | —                                                   | —               | History stack (not started)      |
 | **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
-| **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history propagation engine scaffold (`history.ts`) | — | Wire 3c into rebuild's boolean chain + sketch external-geom (`findShapeByTag`) + undo/redo — see `DETERMINISTIC.md` |
+| **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history scaffold (`history.ts`) + sketch external-geom now fingerprint-stable (`findShapeByRef`, vertex fingerprints, lazy `sourceRef` capture) | — | Undo/redo (step 4); boolean exact-history resolution deferred (no payoff for current selection model) — see `DETERMINISTIC.md` |
 
 **Overall:** Sketch + constraints + extrude/revolve + boolean + modification pipeline is solid. The biggest gaps are
 **undo/redo**, the **remaining primitives**, and the **transform/IO** families (UI buttons exist but do nothing on

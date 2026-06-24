@@ -1,5 +1,5 @@
 
-import type { MeshData, SketchEdgeData, FeatureRefEnrichment } from '@/cad/types';
+import type { MeshData, SketchEdgeData, FeatureRefEnrichment, SketchRefEnrichment } from '@/cad/types';
 
 /** Full model rebuild complete */
 export interface RebuildCompleteResponse {
@@ -13,4 +13,10 @@ export interface RebuildCompleteResponse {
      * captured this rebuild. See DETERMINISTIC.md step 3b.
      */
     refEnrichments?: FeatureRefEnrichment[];
+    /**
+     * Lazily-captured fingerprint upgrades for sketch external-geometry refs,
+     * applied by the main thread without bumping version. Absent when nothing new
+     * was captured this rebuild. See DETERMINISTIC.md step 3c.
+     */
+    sketchRefEnrichments?: SketchRefEnrichment[];
 }

@@ -17,6 +17,7 @@ import {
   ShapeReference,
   RebuildState,
   FeatureRefEnrichment,
+  SketchRefEnrichment,
   createNewProject,
   Workplane,
   Point3D,
@@ -497,6 +498,35 @@ export function useCADState() {
     });
   }, [setProject]);
 
+  // Apply lazily-captured fingerprint upgrades for sketch external-geometry refs.
+  // Like applyRefEnrichments this is DERIVED data from a rebuild, so it must NOT
+  // bump `version` (that would loop the rebuild). Converges after one rebuild
+  // (enrichSketchExternalRefs returns nothing once every external ref carries a
+  // sourceRef). See DETERMINISTIC.md step 3c.
+  const applySketchRefEnrichments = useCallback((enrichments: SketchRefEnrichment[]) => {
+    if (!enrichments?.length) return;
+    setProject((prev) => {
+      let changed = false;
+      const sketches = prev.sketches.map((sketch) => {
+        const ours = enrichments.filter((e) => e.sketchId === sketch.id);
+        if (!ours.length) return sketch;
+        const byPrimitive = new Map(ours.map((e) => [e.primitiveId, e.ref]));
+        let sketchChanged = false;
+        const primitives = sketch.primitives.map((primitive) => {
+          const ref = byPrimitive.get(primitive.id);
+          if (!ref) return primitive;
+          sketchChanged = true;
+          return { ...primitive, sourceRef: ref };
+        });
+        if (!sketchChanged) return sketch;
+        changed = true;
+        return { ...sketch, primitives };
+      });
+      if (!changed) return prev;
+      return { ...prev, sketches }; // intentionally no version / updatedAt bump
+    });
+  }, [setProject]);
+
   // Update feature geometry reference (after OpenCascade builds it)
   const updateFeatureGeometry = useCallback((featureId: string, geometry: ShapeReference) => {
     setProject((prev) => ({
@@ -756,6 +786,7 @@ export function useCADState() {
     updateFeatureParameters,
     updateFeatureGeometry,
     applyRefEnrichments,
+    applySketchRefEnrichments,
     toggleFeatureSuppression,
     toggleFeatureVisibility,
     deleteFeature,
