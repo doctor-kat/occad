@@ -39,6 +39,12 @@ rebuild).
 
 ## 1. Sketch System
 
+> **Fixed:** multi-click sketch tools (rectangle/line/polygon/arc) used to drop the second
+> click after the first point was placed (the plane's R3F handlers re-bound on state change),
+> surfacing downstream as "No closed sketches". `SketchOverlay` now keeps its pointer handlers
+> referentially stable (points read from a ref) and marks decorations non-raycastable. Covered
+> by `e2e/helpers.ts drawClosedRectangle` + the Top-Plane extrude e2e.
+
 ### 1.1 Sketch primitives
 
 | Primitive | Type         | Builder (`sketchBuilders.ts`) | UI         | Status |

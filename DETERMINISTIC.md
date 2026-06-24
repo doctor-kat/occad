@@ -192,14 +192,14 @@ bump, unknown-id no-op).
     fillet). This is the suite that directly exercises the changed resolution/capture path.
   - `e2e/transformations.spec.ts` — pass. `e2e/primitives.spec.ts` — face-based sketching
     passes.
-  - ⚠️ **Known pre-existing failure (NOT caused by this work):**
-    `primitives.spec.ts › "extrude a rectangle on the Top Plane …"` fails with *"No closed
-    sketches"*. It's reference-**plane** sketching (no body), which needs the
-    `BackgroundPlane` raycast target. The identical sketch→extrude pipeline on a **face**
-    passes, and the determinism changes touch neither raycasting nor sketch closure.
-    Reproduces on clean committed code with the (unrelated, uncommitted) viewport refactor
-    reverted. That in-progress refactor in the working tree deletes `BackgroundPlane.tsx`
-    and reworks plane/edge rendering — fix belongs there, not here.
+  - ✅ **Fixed (separate from the determinism work):** `primitives.spec.ts › "extrude a
+    rectangle on the Top Plane …"` used to fail with *"No closed sketches"*. Root cause was
+    unrelated to determinism — the sketch pointer handlers (`SketchOverlay`) depended on
+    `currentPoints`, so placing the first point re-bound the plane's R3F event handlers and
+    the plane stopped receiving pointer events, dropping the second click. Fixed by making
+    the handlers referentially stable (read points from a ref) and marking all sketch
+    decorations non-raycastable. Full e2e suite (32 tests) now green. See the
+    `fix(sketch): second click dropped …` commit.
 
 ## Key files
 
