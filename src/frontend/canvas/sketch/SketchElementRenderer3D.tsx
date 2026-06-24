@@ -116,6 +116,15 @@ export function SketchElementRenderer3D({
       opacity={opacity}
       transparent
       position={[0, 0, 0.05]}
+      // Decoration only: hover/selection is computed by 2D distance math in
+      // SketchOverlay, never by raycasting these lines. Leaving them raycastable
+      // lets a thick preview/element line sit under the cursor and swallow the
+      // click meant for the sketch plane (e.g. the preview rectangle's far
+      // corner is always under the pointer), so the next sketch point is lost.
+      raycast={NO_RAYCAST}
     />
   );
 }
+
+/** A no-op raycast so a mesh/line is visible but never an intersection target. */
+const NO_RAYCAST = () => null;

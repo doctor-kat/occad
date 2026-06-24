@@ -8,6 +8,107 @@ import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 
+/**
+ * No-op raycast: makes a mesh/line render but never be an intersection target.
+ * Every sketch decoration (grid, axes, hover/snap/construction indicators,
+ * element/preview lines) uses this so it can't sit under the cursor and swallow
+ * a click meant for the sketch plane. Element hover/selection is computed from
+ * 2D distance math on pointer-move, not from raycasting these objects, so making
+ * them non-interactive costs nothing. Only the plane and the point-selection
+ * handles remain real pointer targets.
+ */
+const NO_RAYCAST = () => null;
+
+/** Project a point onto a line segment; returns the projection and distance. */
+function projectPointOntoLineSegment(
+  point: Point2D,
+  lineStart: Point2D,
+  lineEnd: Point2D
+): { projection: Point2D; distance: number } {
+  const dx = lineEnd.x - lineStart.x;
+  const dy = lineEnd.y - lineStart.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) {
+    const distance = Math.sqrt(
+      Math.pow(point.x - lineStart.x, 2) + Math.pow(point.y - lineStart.y, 2)
+    );
+    return { projection: lineStart, distance };
+  }
+
+  let t = ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / lengthSquared;
+  t = Math.max(0, Math.min(1, t));
+
+  const projection: Point2D = { x: lineStart.x + t * dx, y: lineStart.y + t * dy };
+  const distance = Math.sqrt(
+    Math.pow(point.x - projection.x, 2) + Math.pow(point.y - projection.y, 2)
+  );
+  return { projection, distance };
+}
+
+/**
+ * Distance from a 2D point to a sketch element (for hover/selection). Pure —
+ * hoisted to module scope so the pointer handlers that use it stay referentially
+ * stable across renders (see `currentPointsRef`).
+ */
+function getDistanceToElement(point: Point2D, element: SketchElement): number {
+  switch (element.type) {
+    case SketchElementType.LINE: {
+      const { distance } = projectPointOntoLineSegment(point, element.start, element.end);
+      return distance;
+    }
+
+    case SketchElementType.RECTANGLE: {
+      const edges: [Point2D, Point2D][] = [
+        [element.corner1, { x: element.corner2.x, y: element.corner1.y }],
+        [{ x: element.corner2.x, y: element.corner1.y }, element.corner2],
+        [element.corner2, { x: element.corner1.x, y: element.corner2.y }],
+        [{ x: element.corner1.x, y: element.corner2.y }, element.corner1],
+      ];
+      let minDistance = Infinity;
+      edges.forEach(([start, end]) => {
+        const { distance } = projectPointOntoLineSegment(point, start, end);
+        minDistance = Math.min(minDistance, distance);
+      });
+      return minDistance;
+    }
+
+    case SketchElementType.CIRCLE: {
+      const distToCenter = Math.sqrt(
+        Math.pow(point.x - element.center.x, 2) + Math.pow(point.y - element.center.y, 2)
+      );
+      return Math.abs(distToCenter - element.radius);
+    }
+
+    case SketchElementType.POLYGON: {
+      if (element.points.length < 2) return Infinity;
+      let minDistance = Infinity;
+      for (let i = 0; i < element.points.length; i++) {
+        const start = element.points[i];
+        const end = element.points[(i + 1) % element.points.length];
+        const { distance } = projectPointOntoLineSegment(point, start, end);
+        minDistance = Math.min(minDistance, distance);
+      }
+      return minDistance;
+    }
+
+    case SketchElementType.ARC: {
+      if (element.points && element.points.length === 3) {
+        let minDistance = Infinity;
+        element.points.forEach((p) => {
+          const dist = Math.sqrt(Math.pow(point.x - p.x, 2) + Math.pow(point.y - p.y, 2));
+          minDistance = Math.min(minDistance, dist);
+        });
+        return minDistance;
+      }
+      return Infinity;
+    }
+
+    default:
+      return Infinity;
+  }
+}
+
 export interface SketchOverlayProps {
   sketch: Sketch;
   activeOperation: SketchOperation | null;
@@ -27,6 +128,24 @@ export function SketchOverlay({
   onBackgroundClick,
 }: SketchOverlayProps) {
   const [currentPoints, setCurrentPoints] = useState<Point2D[]>([]);
+  // Mirror of `currentPoints` for the pointer handlers to read. The handlers are
+  // attached to the R3F plane mesh; if they closed over `currentPoints` directly
+  // they'd need it in their dependency list, get a new identity the moment the
+  // first point is placed, and force R3F to re-bind the mesh's event handlers —
+  // which drops every subsequent pointer event and silently breaks any
+  // multi-click tool (rectangle, line, polygon, arc). Reading from a ref keeps
+  // the handlers stable across clicks. `setPoints` updates ref + state together.
+  const currentPointsRef = useRef<Point2D[]>([]);
+  const setPoints = useCallback(
+    (next: Point2D[] | ((prev: Point2D[]) => Point2D[])) => {
+      const value = typeof next === 'function'
+        ? (next as (p: Point2D[]) => Point2D[])(currentPointsRef.current)
+        : next;
+      currentPointsRef.current = value;
+      setCurrentPoints(value);
+    },
+    []
+  );
   const [previewElement, setPreviewElement] = useState<SketchElement | null>(null);
   const [hoverPoint, setHoverPoint] = useState<Point2D | null>(null);
   const [snapPoint2D, setSnapPoint2D] = useState<Point2D | null>(null);
@@ -59,17 +178,18 @@ export function SketchOverlay({
 
   // Complete polygon (for polygon operation)
   const handleCompletePolygon = useCallback(() => {
-    if (activeOperation === SketchOperation.POLYGON && currentPoints.length >= 3) {
+    const points = currentPointsRef.current;
+    if (activeOperation === SketchOperation.POLYGON && points.length >= 3) {
       const newPolygon: SketchElement = {
         type: SketchElementType.POLYGON,
         id: crypto.randomUUID(),
-        points: currentPoints,
+        points,
       };
       onElementsChange(sketch.id, [...sketch.elements, newPolygon]);
-      setCurrentPoints([]);
+      setPoints([]);
       setPreviewElement(null);
     }
-  }, [activeOperation, currentPoints, sketch.elements, sketch.id, onElementsChange]);
+  }, [activeOperation, sketch.elements, sketch.id, onElementsChange, setPoints]);
 
   // Handle keyboard events
   useEffect(() => {
@@ -88,8 +208,8 @@ export function SketchOverlay({
 
       // Cancel current drawing
       if (e.key === 'Escape') {
-        if (currentPoints.length > 0) {
-          setCurrentPoints([]);
+        if (currentPointsRef.current.length > 0) {
+          setPoints([]);
           setPreviewElement(null);
         } else {
           // If no drawing in progress, clear selection
@@ -119,7 +239,7 @@ export function SketchOverlay({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, currentPoints, handleCompletePolygon, clearSketchSelection]);
+  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints]);
 
   // Origin crosshair geometries (memoised to avoid per-render allocation)
   const xAxisGeo = useMemo(() => {
@@ -202,107 +322,6 @@ export function SketchOverlay({
     });
     return centers;
   }, [sketch.elements]);
-
-  // Project point onto line segment
-  const projectPointOntoLineSegment = (
-    point: Point2D,
-    lineStart: Point2D,
-    lineEnd: Point2D
-  ): { projection: Point2D; distance: number } => {
-    const dx = lineEnd.x - lineStart.x;
-    const dy = lineEnd.y - lineStart.y;
-    const lengthSquared = dx * dx + dy * dy;
-
-    if (lengthSquared === 0) {
-      // Line segment is a point
-      const distance = Math.sqrt(
-        Math.pow(point.x - lineStart.x, 2) + Math.pow(point.y - lineStart.y, 2)
-      );
-      return { projection: lineStart, distance };
-    }
-
-    // Calculate parameter t (0 to 1) for the projection point
-    let t = ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / lengthSquared;
-    t = Math.max(0, Math.min(1, t)); // Clamp to [0, 1]
-
-    const projection: Point2D = {
-      x: lineStart.x + t * dx,
-      y: lineStart.y + t * dy,
-    };
-
-    const distance = Math.sqrt(
-      Math.pow(point.x - projection.x, 2) + Math.pow(point.y - projection.y, 2)
-    );
-
-    return { projection, distance };
-  };
-
-  // Calculate distance from point to sketch element
-  const getDistanceToElement = (point: Point2D, element: SketchElement): number => {
-    switch (element.type) {
-      case SketchElementType.LINE: {
-        const { distance } = projectPointOntoLineSegment(point, element.start, element.end);
-        return distance;
-      }
-
-      case SketchElementType.RECTANGLE: {
-        // Calculate distance to each of the four edges
-        const edges: [Point2D, Point2D][] = [
-          [element.corner1, { x: element.corner2.x, y: element.corner1.y }],
-          [{ x: element.corner2.x, y: element.corner1.y }, element.corner2],
-          [element.corner2, { x: element.corner1.x, y: element.corner2.y }],
-          [{ x: element.corner1.x, y: element.corner2.y }, element.corner1],
-        ];
-
-        let minDistance = Infinity;
-        edges.forEach(([start, end]) => {
-          const { distance } = projectPointOntoLineSegment(point, start, end);
-          minDistance = Math.min(minDistance, distance);
-        });
-        return minDistance;
-      }
-
-      case SketchElementType.CIRCLE: {
-        // Distance to circle is |distance_to_center - radius|
-        const distToCenter = Math.sqrt(
-          Math.pow(point.x - element.center.x, 2) + Math.pow(point.y - element.center.y, 2)
-        );
-        return Math.abs(distToCenter - element.radius);
-      }
-
-      case SketchElementType.POLYGON: {
-        // Distance to nearest edge of polygon
-        if (element.points.length < 2) return Infinity;
-
-        let minDistance = Infinity;
-        for (let i = 0; i < element.points.length; i++) {
-          const start = element.points[i];
-          const end = element.points[(i + 1) % element.points.length];
-          const { distance } = projectPointOntoLineSegment(point, start, end);
-          minDistance = Math.min(minDistance, distance);
-        }
-        return minDistance;
-      }
-
-      case SketchElementType.ARC: {
-        // Simplified: distance to any of the three points (proper arc distance is more complex)
-        if (element.points && element.points.length === 3) {
-          let minDistance = Infinity;
-          element.points.forEach((p) => {
-            const dist = Math.sqrt(
-              Math.pow(point.x - p.x, 2) + Math.pow(point.y - p.y, 2)
-            );
-            minDistance = Math.min(minDistance, dist);
-          });
-          return minDistance;
-        }
-        return Infinity;
-      }
-
-      default:
-        return Infinity;
-    }
-  };
 
   // Find nearest snap point based on active constraint
   const findSnapPoint = useCallback(
@@ -431,45 +450,48 @@ export function SketchOverlay({
       }
 
       const snappedPoint = snapPoint(point2D);
+      // Read the in-progress points from the ref, never the closure, so this
+      // handler stays referentially stable (see currentPointsRef).
+      const points = currentPointsRef.current;
 
       switch (activeOperation) {
         case SketchOperation.LINE:
-          if (currentPoints.length === 0) {
-            setCurrentPoints([snappedPoint]);
-          } else if (currentPoints.length === 1) {
+          if (points.length === 0) {
+            setPoints([snappedPoint]);
+          } else if (points.length === 1) {
             const newLine: SketchElement = {
               type: SketchElementType.LINE,
               id: crypto.randomUUID(),
-              start: currentPoints[0],
+              start: points[0],
               end: snappedPoint,
             };
             onElementsChange(sketch.id, [...sketch.elements, newLine]);
-            setCurrentPoints([]);
+            setPoints([]);
             setPreviewElement(null);
           }
           break;
 
         case SketchOperation.RECTANGLE:
-          if (currentPoints.length === 0) {
-            setCurrentPoints([snappedPoint]);
-          } else if (currentPoints.length === 1) {
+          if (points.length === 0) {
+            setPoints([snappedPoint]);
+          } else if (points.length === 1) {
             const newRect: SketchElement = {
               type: SketchElementType.RECTANGLE,
               id: crypto.randomUUID(),
-              corner1: currentPoints[0],
+              corner1: points[0],
               corner2: snappedPoint,
             };
             onElementsChange(sketch.id, [...sketch.elements, newRect]);
-            setCurrentPoints([]);
+            setPoints([]);
             setPreviewElement(null);
           }
           break;
 
         case SketchOperation.CIRCLE:
-          if (currentPoints.length === 0) {
-            setCurrentPoints([snappedPoint]);
-          } else if (currentPoints.length === 1) {
-            const center = currentPoints[0];
+          if (points.length === 0) {
+            setPoints([snappedPoint]);
+          } else if (points.length === 1) {
+            const center = points[0];
             const radius = Math.sqrt(
               Math.pow(snappedPoint.x - center.x, 2) +
               Math.pow(snappedPoint.y - center.y, 2)
@@ -481,26 +503,26 @@ export function SketchOverlay({
               radius,
             };
             onElementsChange(sketch.id, [...sketch.elements, newCircle]);
-            setCurrentPoints([]);
+            setPoints([]);
             setPreviewElement(null);
           }
           break;
 
         case SketchOperation.POLYGON:
-          setCurrentPoints([...currentPoints, snappedPoint]);
+          setPoints([...points, snappedPoint]);
           break;
 
         case SketchOperation.ARC:
-          if (currentPoints.length < 2) {
-            setCurrentPoints([...currentPoints, snappedPoint]);
-          } else if (currentPoints.length === 2) {
+          if (points.length < 2) {
+            setPoints([...points, snappedPoint]);
+          } else if (points.length === 2) {
             const newArc: SketchElement = {
               type: SketchElementType.ARC,
               id: crypto.randomUUID(),
-              points: [currentPoints[0], currentPoints[1], snappedPoint],
+              points: [points[0], points[1], snappedPoint],
             };
             onElementsChange(sketch.id, [...sketch.elements, newArc]);
-            setCurrentPoints([]);
+            setPoints([]);
             setPreviewElement(null);
           }
           break;
@@ -509,7 +531,7 @@ export function SketchOverlay({
           console.warn(`Operation ${activeOperation} not yet implemented`);
       }
     },
-    [activeOperation, currentPoints, sketch, onElementsChange, snapPoint, planeTransform, hoveredElementId, toggleSketchElementSelection, clearSketchSelection]
+    [activeOperation, sketch, onElementsChange, snapPoint, planeTransform, hoveredElementId, toggleSketchElementSelection, clearSketchSelection, setPoints]
   );
 
   // Handle mouse move for preview
@@ -541,41 +563,42 @@ export function SketchOverlay({
       }
 
       const snappedPoint = snapPoint(point2D);
+      const points = currentPointsRef.current;
 
       setHoverPoint(snappedPoint);
       setHoveredElementId(null); // Clear hover when drawing
 
-      if (currentPoints.length === 0) {
+      if (points.length === 0) {
         setPreviewElement(null);
         return;
       }
 
       switch (activeOperation) {
         case SketchOperation.LINE:
-          if (currentPoints.length === 1) {
+          if (points.length === 1) {
             setPreviewElement({
               type: SketchElementType.LINE,
               id: 'preview',
-              start: currentPoints[0],
+              start: points[0],
               end: snappedPoint,
             } as SketchElement);
           }
           break;
 
         case SketchOperation.RECTANGLE:
-          if (currentPoints.length === 1) {
+          if (points.length === 1) {
             setPreviewElement({
               type: SketchElementType.RECTANGLE,
               id: 'preview',
-              corner1: currentPoints[0],
+              corner1: points[0],
               corner2: snappedPoint,
             } as SketchElement);
           }
           break;
 
         case SketchOperation.CIRCLE:
-          if (currentPoints.length === 1) {
-            const center = currentPoints[0];
+          if (points.length === 1) {
+            const center = points[0];
             const radius = Math.sqrt(
               Math.pow(snappedPoint.x - center.x, 2) +
               Math.pow(snappedPoint.y - center.y, 2)
@@ -590,7 +613,7 @@ export function SketchOverlay({
           break;
       }
     },
-    [activeOperation, currentPoints, snapPoint, planeTransform, hoverThreshold, sketch.elements, getDistanceToElement]
+    [activeOperation, snapPoint, planeTransform, hoverThreshold, sketch.elements]
   );
 
   return (
@@ -625,17 +648,18 @@ export function SketchOverlay({
         args={[200, 200 / gridSize, '#6366f1', '#444466']}
         rotation={[Math.PI / 2, 0, 0]}
         position={[0, 0, 0.01]}
+        raycast={NO_RAYCAST}
       />
 
       {/* Origin crosshair — red X, green Y */}
-      <line geometry={xAxisGeo} position={[0, 0, 0.02]} renderOrder={1000}>
+      <line geometry={xAxisGeo} position={[0, 0, 0.02]} renderOrder={1000} raycast={NO_RAYCAST}>
         <lineBasicMaterial color="#ef4444" transparent opacity={0.35} depthTest={false} />
       </line>
-      <line geometry={yAxisGeo} position={[0, 0, 0.02]} renderOrder={1000}>
+      <line geometry={yAxisGeo} position={[0, 0, 0.02]} renderOrder={1000} raycast={NO_RAYCAST}>
         <lineBasicMaterial color="#22c55e" transparent opacity={0.35} depthTest={false} />
       </line>
       {/* Origin dot */}
-      <mesh position={[0, 0, 0.03]} renderOrder={1001}>
+      <mesh position={[0, 0, 0.03]} renderOrder={1001} raycast={NO_RAYCAST}>
         <circleGeometry args={[1.5, 24]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.6} depthTest={false} />
       </mesh>
@@ -685,7 +709,7 @@ export function SketchOverlay({
 
       {/* Render current construction points */}
       {currentPoints.map((point, index) => (
-        <mesh key={index} position={[point.x, point.y, 0.1]}>
+        <mesh key={index} position={[point.x, point.y, 0.1]} raycast={NO_RAYCAST}>
           <circleGeometry args={[1, 16]} />
           <meshBasicMaterial color="#22c55e" />
         </mesh>
@@ -693,7 +717,7 @@ export function SketchOverlay({
 
       {/* Render hover point indicator */}
       {hoverPoint && activeOperation && (
-        <mesh position={[hoverPoint.x, hoverPoint.y, 0.1]}>
+        <mesh position={[hoverPoint.x, hoverPoint.y, 0.1]} raycast={NO_RAYCAST}>
           <circleGeometry args={[0.8, 16]} />
           <meshBasicMaterial color="#60a5fa" transparent opacity={0.5} />
         </mesh>
@@ -703,12 +727,12 @@ export function SketchOverlay({
       {snapPoint2D && activeOperation && (
         <group position={[snapPoint2D.x, snapPoint2D.y, 0.15]}>
           {/* Outer ring */}
-          <mesh>
+          <mesh raycast={NO_RAYCAST}>
             <ringGeometry args={[1.5, 2, 16]} />
             <meshBasicMaterial color="#22c55e" transparent opacity={0.8} />
           </mesh>
           {/* Center dot */}
-          <mesh>
+          <mesh raycast={NO_RAYCAST}>
             <circleGeometry args={[0.5, 16]} />
             <meshBasicMaterial color="#22c55e" />
           </mesh>
@@ -717,21 +741,21 @@ export function SketchOverlay({
 
       {/* Render available snap points based on active constraint */}
       {activeConstraint === 'point' && snapPoints.map((point, index) => (
-        <mesh key={`snap-${index}`} position={[point.x, point.y, 0.12]}>
+        <mesh key={`snap-${index}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
           <circleGeometry args={[0.6, 8]} />
           <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} />
         </mesh>
       ))}
 
       {activeConstraint === 'midpoint' && edgeMidpoints.map((point, index) => (
-        <mesh key={`midpoint-${index}`} position={[point.x, point.y, 0.12]}>
+        <mesh key={`midpoint-${index}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
           <boxGeometry args={[1.2, 1.2, 0.1]} />
           <meshBasicMaterial color="#8b5cf6" transparent opacity={0.6} />
         </mesh>
       ))}
 
       {activeConstraint === 'center' && circleCenters.map((point, index) => (
-        <mesh key={`center-${index}`} position={[point.x, point.y, 0.12]}>
+        <mesh key={`center-${index}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
           <ringGeometry args={[0.8, 1.2, 16]} />
           <meshBasicMaterial color="#ec4899" transparent opacity={0.6} />
         </mesh>

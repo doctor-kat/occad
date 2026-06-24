@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { drawClosedRectangle } from './helpers';
 
 test.describe('Primitive Shapes', () => {
     test.beforeEach(async ({ page }) => {
@@ -140,20 +141,10 @@ test.describe('Primitive Shapes', () => {
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
         await expect(page.locator('.tree-item-row').getByText(/Sketch\s*\d+/)).toBeVisible({ timeout: 20000 });
 
-        // 2. Draw a rectangle
+        // 2. Draw a rectangle (robust against R3F pointer-event timing)
         const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
         await rectangleTool.click();
-
-        const canvas = page.locator('canvas').first();
-        const b = await canvas.boundingBox();
-        if (b) {
-            const centerX = b.x + b.width / 2;
-            const centerY = b.y + b.height / 2;
-            await page.mouse.click(centerX - 30, centerY - 30);
-            await page.waitForTimeout(200);
-            await page.mouse.click(centerX + 30, centerY + 30);
-            await page.waitForTimeout(500);
-        }
+        await drawClosedRectangle(page);
         await page.getByRole('button', { name: 'Finish Sketch' }).click();
         await expect(page.getByText('Sketch completed')).toBeVisible({ timeout: 15000 });
 
