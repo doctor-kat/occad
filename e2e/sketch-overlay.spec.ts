@@ -23,11 +23,15 @@ test.describe('SketchOverlay', () => {
     // Wait for the app to load - Front Plane should always be there
     await page.waitForSelector('text=Front Plane', { timeout: 10000 });
 
-    // Switch to Sketch tab first
+    // Select a plane to sketch on — sketch tools no longer auto-pick the front
+    // plane; they require a plane (or face) to be selected first.
+    await page.getByText('Front Plane').click();
+
+    // Switch to Sketch tab
     await page.getByRole('tab', { name: 'Sketch' }).click();
 
-    // Click a sketch operation to start a new sketch
-    // This will automatically create "Sketch 1" on the default plane
+    // Click a sketch operation to start a new sketch on the selected plane.
+    // This creates "Sketch 1" on the Front Plane.
     const rectangleOperation = page.locator('button').filter({ hasText: /^Rectangle$/ });
     await rectangleOperation.click();
 

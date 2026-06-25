@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { Toolbar } from './Toolbar';
 import { OperationsBar } from './operations/OperationsBar';
 import { FeatureTree } from './FeatureTree/FeatureTree';
@@ -18,6 +18,19 @@ import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitive
 import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 import { SketchConstraintToolbar } from './operations/SketchConstraintToolbar';
 import { SketchConstraintList } from './operations/SketchConstraintList';
+
+// Sketch drawing tools. Selecting one of these enters sketch mode rather than
+// opening the OperationPanel.
+const SKETCH_TOOL_OPERATIONS: SketchOperation[] = [
+  SketchOperation.LINE,
+  SketchOperation.RECTANGLE,
+  SketchOperation.CIRCLE,
+  SketchOperation.POLYGON,
+  SketchOperation.ARC,
+  SketchOperation.ELLIPSE,
+  SketchOperation.SPLINE,
+  SketchOperation.BEZIER,
+];
 
 export function CADLayout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -226,43 +239,103 @@ export function CADLayout() {
   const [operationPanelOpen, setOperationPanelOpen] = useState(false);
   const [editingFeatureId, setEditingFeatureId] = useState<string | null>(null);
 
-  // Handle operation selection from OperationsBar
-  useEffect(() => {
-    if (activeOperation) {
-      // Check if it's a sketch operation
-      const sketchOperations: SketchOperation[] = [
-        SketchOperation.LINE,
-        SketchOperation.RECTANGLE,
-        SketchOperation.CIRCLE,
-        SketchOperation.POLYGON,
-        SketchOperation.ARC,
-        SketchOperation.ELLIPSE,
-        SketchOperation.SPLINE,
-        SketchOperation.BEZIER,
-      ];
-
-      if (sketchOperations.includes(activeOperation as SketchOperation)) {
-        // Handle entering sketch mode
-        if (!activeSketchId) {
-          const plane: SketchPlane = {
-            type: PlaneType.XY,
-            planeRef: 'front-plane',
-            offset: 0,
-          };
-          const newSketch = addSketch(`Sketch ${project.sketches.length + 1}`, plane);
-          startSketchEdit(newSketch.id);
-          notifications.show({ color: 'blue', message: 'Sketch mode active' });
-        }
-      } else {
-        // For all other operations, open the OperationPanel
-        setOperationPanelOpen(true);
-        setEditingFeatureId(null);
-        if (!isSidebarOpen) toggleSidebar();
-      }
-    } else {
-      setOperationPanelOpen(false);
+  // Request face geometry from the worker, then create a sketch on that face
+  // (the sketch is created in the onFaceGeometry callback above).
+  const beginFaceSketch = useCallback((faceId: number) => {
+    if (!currentFeatureShapeId) {
+      notifications.show({
+        color: 'red',
+        title: 'Error',
+        message: 'No geometry available. Please create a feature first.',
+      });
+      return;
     }
-  }, [activeOperation, activeSketchId, project.sketches.length, addSketch, startSketchEdit, isSidebarOpen, toggleSidebar]);
+    setPendingSketchOnFace(faceId);
+    getFaceGeometry(faceId, currentFeatureShapeId);
+    notifications.show({ color: 'blue', message: 'Extracting face geometry...' });
+  }, [currentFeatureShapeId, setPendingSketchOnFace, getFaceGeometry]);
+
+  // Create a new sketch on one of the standard reference planes and enter
+  // sketch-edit mode.
+  const createSketchOnPlane = useCallback((planeId: string) => {
+    const selectedPlane = project.referenceGeometry.find((ref) => ref.id === planeId);
+    if (!selectedPlane || selectedPlane.type !== ReferenceGeometryType.PLANE) return;
+
+    let planeType: PlaneType = PlaneType.XY;
+    if (selectedPlane.id === 'front-plane') planeType = PlaneType.XY;
+    else if (selectedPlane.id === 'top-plane') planeType = PlaneType.XZ;
+    else if (selectedPlane.id === 'right-plane') planeType = PlaneType.YZ;
+
+    const plane: SketchPlane = { type: planeType, planeRef: selectedPlane.id, offset: 0 };
+    const newSketch = addSketch(`Sketch ${project.sketches.length + 1}`, plane);
+    startSketchEdit(newSketch.id);
+    notifications.show({ color: 'blue', message: `Sketch created on ${selectedPlane.name}` });
+  }, [project.referenceGeometry, project.sketches.length, addSketch, startSketchEdit]);
+
+  // The id of the selected tree item when it is a reference plane (else null).
+  // Kept as a primitive so it is stable across renders for use in effect deps.
+  const selectedReferencePlaneId =
+    project.referenceGeometry.find(
+      (ref) => ref.id === selectedTreeItem && ref.type === ReferenceGeometryType.PLANE
+    )?.id ?? null;
+
+  // A sketch tool is active, we are not yet sketching, and nothing valid
+  // (plane or face) is selected to sketch on. In this state we reveal all three
+  // reference planes so the user always has something to click — important on a
+  // brand-new document where no geometry exists yet.
+  const awaitingSketchPlane =
+    !activeSketchId &&
+    !!activeOperation &&
+    SKETCH_TOOL_OPERATIONS.includes(activeOperation as SketchOperation) &&
+    selectedFaceId === null &&
+    !selectedReferencePlaneId;
+
+  // Open/close the OperationPanel for non-sketch operations. Kept separate from
+  // the sketch-tool effect below so selection changes don't reset editing state.
+  useEffect(() => {
+    if (!activeOperation) {
+      setOperationPanelOpen(false);
+      return;
+    }
+    if (SKETCH_TOOL_OPERATIONS.includes(activeOperation as SketchOperation)) return;
+
+    // For all other operations, open the OperationPanel
+    setOperationPanelOpen(true);
+    setEditingFeatureId(null);
+    if (!isSidebarOpen) toggleSidebar();
+  }, [activeOperation, isSidebarOpen, toggleSidebar]);
+
+  // Enter sketch mode when a sketch tool is selected. Selecting a sketch tool no
+  // longer auto-creates a sketch on the front plane — instead it starts a sketch
+  // on whatever plane/face is selected, or (if nothing is selected) asks the
+  // user to pick one. selectedFaceId/selectedReferencePlaneId are dependencies,
+  // so clicking a plane while awaiting re-runs this effect and starts the sketch.
+  useEffect(() => {
+    if (!activeOperation) return;
+    if (!SKETCH_TOOL_OPERATIONS.includes(activeOperation as SketchOperation)) return;
+    // Already sketching — selecting a tool just changes the active draw tool.
+    if (activeSketchId) return;
+
+    // A face is selected → sketch on that face.
+    if (selectedFaceId !== null) {
+      beginFaceSketch(selectedFaceId);
+      return;
+    }
+
+    // A reference plane is selected → sketch on that plane.
+    if (selectedReferencePlaneId) {
+      createSketchOnPlane(selectedReferencePlaneId);
+      return;
+    }
+
+    // Nothing valid selected → ask the user to pick a plane. All three
+    // reference planes are revealed (see awaitingSketchPlane) for picking.
+    notifications.show({
+      color: 'yellow',
+      title: 'Select a sketch plane',
+      message: 'Choose a plane (or a face) to start your sketch on.',
+    });
+  }, [activeOperation, activeSketchId, selectedFaceId, selectedReferencePlaneId, beginFaceSketch, createSketchOnPlane]);
 
   // Handle operation confirmation
   const handleOperationConfirm = (params: OperationParams, sketchId?: string) => {
@@ -479,20 +552,7 @@ export function CADLayout() {
 
     // Check if a face is selected
     if (selectedFaceId !== null) {
-      // Request face geometry from the worker before creating the sketch
-      if (!currentFeatureShapeId) {
-        notifications.show({
-          color: 'red',
-          title: 'Error',
-          message: 'No geometry available. Please create a feature first.',
-        });
-        return;
-      }
-
-      // Request face geometry - the sketch will be created in the onFaceGeometry callback
-      setPendingSketchOnFace(selectedFaceId);
-      getFaceGeometry(selectedFaceId, currentFeatureShapeId);
-      notifications.show({ color: 'blue', message: 'Extracting face geometry...' });
+      beginFaceSketch(selectedFaceId);
       return;
     }
 
@@ -509,21 +569,7 @@ export function CADLayout() {
     // Check if selected item is a plane
     const selectedPlane = project.referenceGeometry.find((ref) => ref.id === selectedTreeItem);
     if (selectedPlane && selectedPlane.type === ReferenceGeometryType.PLANE) {
-      // Create a new sketch on the selected plane
-      let planeType: PlaneType = PlaneType.XY;
-      if (selectedPlane.id === 'front-plane') planeType = PlaneType.XY;
-      else if (selectedPlane.id === 'top-plane') planeType = PlaneType.XZ;
-      else if (selectedPlane.id === 'right-plane') planeType = PlaneType.YZ;
-
-      const plane: SketchPlane = {
-        type: planeType,
-        planeRef: selectedPlane.id,
-        offset: 0,
-      };
-
-      const newSketch = addSketch(`Sketch ${project.sketches.length + 1}`, plane);
-      startSketchEdit(newSketch.id);
-      notifications.show({ color: 'blue', message: `Sketch created on ${selectedPlane.name}` });
+      createSketchOnPlane(selectedPlane.id);
       return;
     }
 
@@ -869,6 +915,7 @@ export function CADLayout() {
             activeSketchId={activeSketchId}
             activeOperation={activeOperation as SketchOperation}
             selectedTreeItem={selectedTreeItem}
+            awaitingSketchPlane={awaitingSketchPlane}
             occStatus={occStatus}
             occProgress={occProgress}
             occError={occError}

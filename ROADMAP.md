@@ -39,6 +39,15 @@ rebuild).
 
 ## 1. Sketch System
 
+> **Fixed (2026-06-24):** picking a sketch tool (Rectangle/Line/etc.) with nothing selected used
+> to silently auto-create a sketch on the Front Plane. It now requires a sketch plane/face: if one
+> is selected the sketch starts there; otherwise all three reference planes are revealed for picking
+> (`awaitingSketchPlane` → `ReferencePlanes` `showAllPlanes`) and a "Select a sketch plane" prompt
+> shows. Clicking a plane while awaiting starts the sketch. The operation-selection effect in
+> `CADLayout` was split into a panel-open effect and a sketch-entry effect (so selection changes
+> no longer reset feature-editing state); plane/face sketch creation is shared via
+> `beginFaceSketch`/`createSketchOnPlane`. Covered by `CADLayout.test.tsx` + `ReferencePlanes.test.tsx`.
+
 > **Fixed:** multi-click sketch tools (rectangle/line/polygon/arc) used to drop the second
 > click after the first point was placed (the plane's R3F handlers re-bound on state change),
 > surfacing downstream as "No closed sketches". `SketchOverlay` now keeps its pointer handlers

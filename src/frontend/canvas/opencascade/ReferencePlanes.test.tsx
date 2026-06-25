@@ -63,4 +63,15 @@ describe('isPlaneVisible', () => {
     expect(isPlaneVisible('top-plane', { ...base, visibilityMap })).toBe(false);
     expect(isPlaneVisible('right-plane', { ...base, visibilityMap })).toBe(true);
   });
+
+  it('shows every plane when showAllPlanes is set (awaiting a sketch-plane pick)', () => {
+    const opts = { ...base, showAllPlanes: true };
+    expect(isPlaneVisible('front-plane', opts)).toBe(true);
+    expect(isPlaneVisible('top-plane', opts)).toBe(true);
+    expect(isPlaneVisible('right-plane', opts)).toBe(true);
+  });
+
+  it('does not force planes visible when showAllPlanes is false', () => {
+    expect(isPlaneVisible('top-plane', { ...base, showAllPlanes: false })).toBe(false);
+  });
 });

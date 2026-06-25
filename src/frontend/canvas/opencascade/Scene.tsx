@@ -17,6 +17,8 @@ export interface SceneProps {
   selectedFaceId?: number | null;
   selectedEdgeIndex?: number | null;
   selectedVertexIndex?: number | null;
+  /** Reveal all reference planes (awaiting a sketch-plane pick) */
+  showAllPlanes?: boolean;
   activeSketch?: Sketch | null;
   activeOperation?: SketchOperation | null;
   activeConstraint?: string;
@@ -37,6 +39,7 @@ export function Scene({
   selectedFaceId,
   selectedEdgeIndex,
   selectedVertexIndex,
+  showAllPlanes,
   activeSketch,
   activeOperation,
   activeConstraint,
@@ -79,6 +82,7 @@ export function Scene({
           selectedPlaneId={selectedPlaneId}
           hoveredPlaneId={hoveredPlaneId}
           visibilityMap={visibilityMap}
+          showAllPlanes={showAllPlanes}
           onPlaneClick={onPlaneClick}
         />
       )}

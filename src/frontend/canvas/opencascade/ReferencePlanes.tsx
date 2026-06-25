@@ -6,6 +6,8 @@ export interface ReferencePlanesProps {
   selectedPlaneId: string | null;
   hoveredPlaneId?: string | null;
   visibilityMap: Record<string, boolean>;
+  /** Force all reference planes visible (e.g. while awaiting a sketch-plane pick) */
+  showAllPlanes?: boolean;
   onPlaneClick?: (planeId: string) => void;
 }
 
@@ -25,7 +27,9 @@ export function buildReferenceVisibilityMap(
 
 /**
  * A reference plane is shown when its visibility is toggled on (from the tree),
- * or transiently when it is selected or hovered.
+ * transiently when it is selected or hovered, or whenever the app is awaiting a
+ * sketch-plane pick (showAllPlanes) — so there is always something to click,
+ * even on a brand-new document with no geometry yet.
  */
 export function isPlaneVisible(
   planeId: string,
@@ -33,16 +37,18 @@ export function isPlaneVisible(
     selectedPlaneId: string | null;
     hoveredPlaneId?: string | null;
     visibilityMap: Record<string, boolean>;
+    showAllPlanes?: boolean;
   }
 ): boolean {
   return (
+    opts.showAllPlanes === true ||
     opts.visibilityMap[planeId] === true ||
     opts.selectedPlaneId === planeId ||
     opts.hoveredPlaneId === planeId
   );
 }
 
-export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap, onPlaneClick }: ReferencePlanesProps) {
+export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap, showAllPlanes, onPlaneClick }: ReferencePlanesProps) {
   const planeSize = 100;
 
   const handlePlaneClick = (e: ThreeEvent<MouseEvent>, planeId: string) => {
@@ -59,7 +65,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
 
   // Check if plane should be visible: toggled on, or selected/hovered from tree
   const planeVisible = (planeId: string) =>
-    isPlaneVisible(planeId, { selectedPlaneId, hoveredPlaneId, visibilityMap });
+    isPlaneVisible(planeId, { selectedPlaneId, hoveredPlaneId, visibilityMap, showAllPlanes });
 
   // Create plane outline edges
   const createPlaneEdges = () => {

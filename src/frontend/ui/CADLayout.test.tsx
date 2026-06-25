@@ -18,6 +18,7 @@ vi.mock("@/frontend/canvas/CADViewport", () => ({
   CADViewport: (props: any) => (
     <div data-testid="mock-viewport">
       <span data-testid="occ-status">{props.occStatus}</span>
+      <span data-testid="awaiting-plane">{String(props.awaitingSketchPlane)}</span>
       <button
         data-testid="face-click"
         onClick={() => props.onFaceClick?.(0)}
@@ -93,6 +94,41 @@ describe("CADLayout", () => {
   // means it does NOT exercise the real worker.onmessage closure path. The
   // stale-closure bug (where onFaceGeometry saw null pendingSketchOnFace) is
   // covered by useOpenCascade.test.ts instead.
+  it("does not auto-create a sketch when a sketch tool is picked with nothing selected", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CADLayout />);
+
+    // Switch to the Sketch tab and pick the Rectangle tool with no plane/face selected
+    const sketchTab = screen.getByRole("tab", { name: /sketch/i });
+    await user.click(sketchTab);
+    await user.click(screen.getByText("Rectangle"));
+
+    // No sketch is created — the user is asked to pick a plane instead
+    expect(screen.queryByText(/Sketch 1/)).not.toBeInTheDocument();
+
+    // And all reference planes are revealed for picking
+    await waitFor(() => {
+      expect(screen.getByTestId("awaiting-plane").textContent).toBe("true");
+    });
+  });
+
+  it("creates a sketch on the selected plane when a sketch tool is picked", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CADLayout />);
+
+    // Select a plane first, then pick the Rectangle tool
+    await user.click(screen.getByText("Top Plane"));
+    const sketchTab = screen.getByRole("tab", { name: /sketch/i });
+    await user.click(sketchTab);
+    await user.click(screen.getByText("Rectangle"));
+
+    // A sketch is created on the selected plane, so we are no longer awaiting one
+    await waitFor(() => {
+      expect(screen.getByText(/Sketch 1/)).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("awaiting-plane").textContent).toBe("false");
+  });
+
   it("should create sketch on face via geometry request", async () => {
     const user = userEvent.setup();
     mockOCC.currentFeatureShapeId = "shape-123";

@@ -31,6 +31,8 @@ export interface OpenCascadeViewportProps {
   activeSketch?: any | null;
   /** Active sketch operation */
   activeOperation?: any | null;
+  /** A sketch tool is active but no plane/face is selected yet — reveal all planes for picking */
+  awaitingSketchPlane?: boolean;
   /** Callback when a plane is clicked */
   onPlaneClick?: (planeId: string) => void;
   /** Callback when a face is clicked */
@@ -65,6 +67,7 @@ export function OpenCascadeViewport({
   occRetry,
   activeSketch,
   activeOperation,
+  awaitingSketchPlane,
   onPlaneClick,
   onFaceClick,
   onEdgeClick,
@@ -122,6 +125,7 @@ export function OpenCascadeViewport({
             selectedFaceId={selectedFaceId}
             selectedEdgeIndex={selectedEdgeIndex}
             selectedVertexIndex={selectedVertexIndex}
+            showAllPlanes={awaitingSketchPlane}
             activeSketch={activeSketch as Sketch | undefined}
             activeOperation={activeOperation as SketchOperation | undefined}
             activeConstraint={activeConstraint}
