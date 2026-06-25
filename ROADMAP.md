@@ -278,7 +278,7 @@ rebuild).
 | Sketch hover + select (viewport) | ✅      | `SketchWireframes` cylinder hit-areas; tree↔viewport sync |
 | **Undo / Redo**                  | ✅      | Snapshot history in `useCADState`; buttons + Ctrl/⌘+Z·Y   |
 | Multi-body / part management     | ❌      | single implicit `currentBody`                             |
-| Reference geometry (planes/axes) | 🟡     | types + reference planes render; no custom-plane creation |
+| Reference geometry (planes/axes) | 🟡     | types + reference planes render (visibility toggle fixed 2026-06-24); no custom-plane creation |
 | Measurement readout panel        | ❌      | —                                                         |
 
 ---

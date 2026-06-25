@@ -3,7 +3,7 @@ import { Environment, OrbitControls, GizmoHelper, GizmoViewport } from "@react-t
 import type { MeshData, CADProject, Sketch, SketchEdgeData, SketchOperation } from "@/cad/types";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import { OCCModel } from "./OCCModel";
-import { ReferencePlanes } from "./ReferencePlanes";
+import { ReferencePlanes, buildReferenceVisibilityMap } from "./ReferencePlanes";
 import { OriginPoint } from "./OriginPoint";
 import { SketchWireframes } from "./SketchWireframes";
 import { ExtrudeArrows } from "./ExtrudeArrows";
@@ -53,16 +53,13 @@ export function Scene({
   const inSketchMode = !!activeSketch;
 
   // Build visibility map from project reference geometry
-  const visibilityMap = useMemo(() => {
-    const map: Record<string, boolean> = {};
-    project?.referenceGeometry.forEach((ref) => {
-      map[ref.id] = (ref as any).visible !== false; // Default to visible if not set
-    });
-    return map;
-  }, [project?.referenceGeometry]);
+  const visibilityMap = useMemo(
+    () => buildReferenceVisibilityMap(project?.referenceGeometry),
+    [project?.referenceGeometry]
+  );
 
   // Show origin based on visibility
-  const showOrigin = visibilityMap['origin'] !== false;
+  const showOrigin = visibilityMap['origin'] === true;
 
   return (
     <>

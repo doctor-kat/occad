@@ -9,6 +9,39 @@ export interface ReferencePlanesProps {
   onPlaneClick?: (planeId: string) => void;
 }
 
+/**
+ * Build an id -> visible map from a project's reference geometry. A plane/origin
+ * is visible only when its `isVisible` flag is explicitly true.
+ */
+export function buildReferenceVisibilityMap(
+  referenceGeometry?: ReadonlyArray<{ id: string; isVisible: boolean }>
+): Record<string, boolean> {
+  const map: Record<string, boolean> = {};
+  referenceGeometry?.forEach((ref) => {
+    map[ref.id] = ref.isVisible === true;
+  });
+  return map;
+}
+
+/**
+ * A reference plane is shown when its visibility is toggled on (from the tree),
+ * or transiently when it is selected or hovered.
+ */
+export function isPlaneVisible(
+  planeId: string,
+  opts: {
+    selectedPlaneId: string | null;
+    hoveredPlaneId?: string | null;
+    visibilityMap: Record<string, boolean>;
+  }
+): boolean {
+  return (
+    opts.visibilityMap[planeId] === true ||
+    opts.selectedPlaneId === planeId ||
+    opts.hoveredPlaneId === planeId
+  );
+}
+
 export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap, onPlaneClick }: ReferencePlanesProps) {
   const planeSize = 100;
 
@@ -24,10 +57,9 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
     return "#888888"; // Gray default
   };
 
-  // Check if plane should be visible: only if selected or hovered from tree
-  const isPlaneVisible = (planeId: string) => {
-    return selectedPlaneId === planeId || hoveredPlaneId === planeId;
-  };
+  // Check if plane should be visible: toggled on, or selected/hovered from tree
+  const planeVisible = (planeId: string) =>
+    isPlaneVisible(planeId, { selectedPlaneId, hoveredPlaneId, visibilityMap });
 
   // Create plane outline edges
   const createPlaneEdges = () => {
@@ -54,7 +86,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
   return (
     <group>
       {/* Front Plane (XY plane at Z=0) - Outline only */}
-      {isPlaneVisible('front-plane') && (
+      {planeVisible('front-plane') && (
         <group>
           {/* Plane outline */}
           <lineSegments geometry={createPlaneEdges()} position={[0, 0, 0]}>
@@ -87,7 +119,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
       )}
 
       {/* Top Plane (XZ plane at Y=0) - Outline only */}
-      {isPlaneVisible('top-plane') && (
+      {planeVisible('top-plane') && (
         <group>
           {/* Plane outline */}
           <lineSegments
@@ -126,7 +158,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
       )}
 
       {/* Right Plane (YZ plane at X=0) - Outline only */}
-      {isPlaneVisible('right-plane') && (
+      {planeVisible('right-plane') && (
         <group>
           {/* Plane outline */}
           <lineSegments
