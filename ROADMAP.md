@@ -66,15 +66,30 @@ rebuild).
 
 | Primitive | Type         | Builder (`sketchBuilders.ts`) | UI         | Status |
 |-----------|--------------|-------------------------------|------------|--------|
-| Point     | ✅            | ✅ `point`                     | ✅          | ✅      |
-| Line      | ✅            | ✅ `line`                      | ✅          | ✅      |
-| Rectangle | ✅            | ✅ (decomposed to lines)       | ✅          | ✅      |
-| Circle    | ✅            | ✅ `circle`                    | ✅          | ✅      |
-| Polygon   | ✅            | ✅ (decomposed to lines)       | ✅          | ✅      |
-| Arc       | ✅            | ✅ `arc`                       | ✅          | ✅      |
-| Ellipse   | ✅            | ✅ `ellipse`                   | ✅          | ✅      |
-| Spline    | ✅            | 🟡 `GeomAPI_PointsToBSpline`  | ✅          | 🟡     |
-| Bezier    | 🟡 type only | ❌                             | ✅ (button) | ❌      |
+| Point             | ✅            | ✅ `point`                     | ✅          | ✅      |
+| Line              | ✅            | ✅ `line`                      | ✅          | ✅      |
+| Corner Rectangle  | ✅            | ✅ (decomposed to lines)       | ✅          | ✅      |
+| Circle            | ✅            | ✅ `circle`                    | ✅          | ✅      |
+| Polygon           | ✅            | ✅ (decomposed to lines)       | ✅          | ✅      |
+| 3 Point Arc       | ✅            | ✅ `arc`                       | ✅          | ✅      |
+| Ellipse           | ✅            | ✅ `ellipse`                   | ✅          | ✅      |
+| Spline            | ✅            | 🟡 `GeomAPI_PointsToBSpline`  | ✅          | 🟡     |
+| Bezier            | 🟡 type only | ❌                             | ✅ (button) | ❌      |
+
+**Sketch toolbar groups (UI-only, 2026-06-24):** in the sketch tab every tool except the big **Sketch** button is
+rendered small (compact), flowing into **columns of 2, left to right** (CSS grid, `renderSketchTools`). Tools with
+variants are compact split-button groups (`OperationGroupButton`) whose dropdowns offer not-yet-implemented variants
+(disabled). The original Rectangle op is relabelled **Corner Rectangle**.
+
+| Group     | Options (✅ = implemented, ❌ = disabled placeholder)                                                        |
+|-----------|-------------------------------------------------------------------------------------------------------------|
+| Line      | Line ✅ · Centerline ❌ · Midpoint Line ❌                                                                     |
+| Rectangle | Corner Rectangle ✅ · Center Rectangle ❌ · 3 Point Corner Rectangle ❌ · 3 Point Center Rectangle ❌ · Parallelogram ❌ |
+| Circle    | Circle ✅ · Perimeter Circle ❌                                                                               |
+| Arc       | Centerpoint Arc ❌ · Tangent Arc ❌ · 3 Point Arc ✅ (default; the existing arc tool is 3-point)              |
+
+Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `OperationGroupButton` still supports
+`full` (big, caret-on-bottom) and `icon` variants for other toolbars.
 
 ### 1.2 Sketch constraint solver
 

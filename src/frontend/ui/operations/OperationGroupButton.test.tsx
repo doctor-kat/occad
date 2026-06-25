@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/helpers";
 import { OperationGroupButton, OperationGroupOption } from "./OperationGroupButton";
 import { SketchOperation } from "@/cad/types";
-import { lineGroup } from "./OperationData";
+import { lineGroup, rectangleGroup, circleGroup, arcGroup } from "./OperationData";
 
 const enabledGroup: OperationGroupOption[] = [
   { id: SketchOperation.LINE, icon: <span>L</span>, label: "Line" },
@@ -73,5 +73,71 @@ describe("OperationGroupButton", () => {
     // Disabled options don't activate or change the shown body.
     await userEvent.click(within(menu).getByText("Centerline"));
     expect(onOperationSelect).not.toHaveBeenCalled();
+  });
+
+  it("renders the rectangle group with only Corner Rectangle enabled", async () => {
+    const onOperationSelect = vi.fn();
+    renderWithProviders(
+      <OperationGroupButton
+        options={rectangleGroup.options}
+        activeOperation={null}
+        onOperationSelect={onOperationSelect}
+      />,
+    );
+
+    // The shown body is the Corner Rectangle (the implemented option).
+    expect(screen.getByText("Corner Rectangle")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Corner Rectangle options" }));
+    const menu = await screen.findByRole("menu");
+
+    expect(within(menu).getByText("Center Rectangle")).toBeInTheDocument();
+    expect(within(menu).getByText("3 Point Corner Rectangle")).toBeInTheDocument();
+    expect(within(menu).getByText("3 Point Center Rectangle")).toBeInTheDocument();
+    expect(within(menu).getByText("Parallelogram")).toBeInTheDocument();
+
+    // The disabled variants don't activate.
+    await userEvent.click(within(menu).getByText("Parallelogram"));
+    expect(onOperationSelect).not.toHaveBeenCalled();
+  });
+
+  it("renders the circle group with Perimeter Circle disabled", async () => {
+    const onOperationSelect = vi.fn();
+    renderWithProviders(
+      <OperationGroupButton
+        options={circleGroup.options}
+        variant="full"
+        activeOperation={null}
+        onOperationSelect={onOperationSelect}
+      />,
+    );
+
+    expect(screen.getByText("Circle")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Circle options" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByText("Perimeter Circle")).toBeInTheDocument();
+
+    await userEvent.click(within(menu).getByText("Perimeter Circle"));
+    expect(onOperationSelect).not.toHaveBeenCalled();
+  });
+
+  it("defaults the arc group to the implemented 3 Point Arc", async () => {
+    const onOperationSelect = vi.fn();
+    renderWithProviders(
+      <OperationGroupButton
+        options={arcGroup.options}
+        defaultOptionId={arcGroup.defaultOptionId}
+        variant="full"
+        activeOperation={null}
+        onOperationSelect={onOperationSelect}
+      />,
+    );
+
+    // 3 Point Arc is shown even though it is listed last (Centerpoint/Tangent are disabled).
+    expect(screen.getByText("3 Point Arc")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("3 Point Arc"));
+    expect(onOperationSelect).toHaveBeenCalledWith(SketchOperation.ARC);
   });
 });

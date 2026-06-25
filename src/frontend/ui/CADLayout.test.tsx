@@ -107,7 +107,7 @@ describe("CADLayout", () => {
     // Switch to the Sketch tab and pick the Rectangle tool with no plane/face selected
     const sketchTab = screen.getByRole("tab", { name: /sketch/i });
     await user.click(sketchTab);
-    await user.click(screen.getByText("Rectangle"));
+    await user.click(screen.getByText("Corner Rectangle"));
 
     // No sketch is created — the user is asked to pick a plane instead
     expect(screen.queryByText(/Sketch 1/)).not.toBeInTheDocument();
@@ -125,7 +125,7 @@ describe("CADLayout", () => {
     // Pick a sketch tool with nothing selected → awaiting a plane, no sketch
     const sketchTab = screen.getByRole("tab", { name: /sketch/i });
     await user.click(sketchTab);
-    await user.click(screen.getByText("Rectangle"));
+    await user.click(screen.getByText("Corner Rectangle"));
 
     await waitFor(() => {
       expect(screen.getByTestId("awaiting-plane").textContent).toBe("true");
@@ -146,7 +146,7 @@ describe("CADLayout", () => {
 
     const sketchTab = screen.getByRole("tab", { name: /sketch/i });
     await user.click(sketchTab);
-    await user.click(screen.getByText("Rectangle"));
+    await user.click(screen.getByText("Corner Rectangle"));
 
     await waitFor(() => {
       expect(screen.getByTestId("awaiting-plane").textContent).toBe("true");
@@ -166,7 +166,7 @@ describe("CADLayout", () => {
     await user.click(screen.getByText("Top Plane"));
     const sketchTab = screen.getByRole("tab", { name: /sketch/i });
     await user.click(sketchTab);
-    await user.click(screen.getByText("Rectangle"));
+    await user.click(screen.getByText("Corner Rectangle"));
 
     // A sketch is created on the selected plane, so we are no longer awaiting one
     await waitFor(() => {

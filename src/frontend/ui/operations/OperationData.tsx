@@ -32,13 +32,22 @@ import {
   Package,
   Unite,
   LineSegment,
-  LineSegments
+  LineSegments,
+  Rectangle,
+  Selection,
+  BoundingBox,
+  Parallelogram,
+  CircleDashed,
+  ArrowArcLeft,
+  ArrowArcRight
 } from '@phosphor-icons/react';
 import { FeatureOperation, SketchOperation, EvaluateOperation, TransformOperation, IOOperation, Operation } from '@/cad/types';
 
 export interface OperationGroup {
   id: string;
   options: { id: Operation; icon: React.ReactNode; label: string; disabled?: boolean }[];
+  /** Option shown by default. Falls back to the first option when omitted. */
+  defaultOptionId?: Operation;
 }
 
 export const featureOperations: { id: FeatureOperation; icon: React.ReactNode; label: string }[] = [
@@ -88,12 +97,46 @@ export const lineGroup: OperationGroup = {
   ],
 };
 
+// The Rectangle button is a group. Only Corner Rectangle (the original Rectangle op)
+// is implemented; the rest are not yet implemented and are disabled.
+export const rectangleGroup: OperationGroup = {
+  id: 'rectangle-group',
+  options: [
+    { id: SketchOperation.RECTANGLE, icon: <Square size={16} weight="regular" />, label: 'Corner Rectangle' },
+    { id: SketchOperation.CENTER_RECTANGLE, icon: <Selection size={16} weight="regular" />, label: 'Center Rectangle', disabled: true },
+    { id: SketchOperation.THREE_POINT_CORNER_RECTANGLE, icon: <Rectangle size={16} weight="regular" />, label: '3 Point Corner Rectangle', disabled: true },
+    { id: SketchOperation.THREE_POINT_CENTER_RECTANGLE, icon: <BoundingBox size={16} weight="regular" />, label: '3 Point Center Rectangle', disabled: true },
+    { id: SketchOperation.PARALLELOGRAM, icon: <Parallelogram size={16} weight="regular" />, label: 'Parallelogram', disabled: true },
+  ],
+};
+
+// The Circle button is a group. Only Circle is implemented; Perimeter Circle is not.
+export const circleGroup: OperationGroup = {
+  id: 'circle-group',
+  options: [
+    { id: SketchOperation.CIRCLE, icon: <Circle size={16} weight="regular" />, label: 'Circle' },
+    { id: SketchOperation.PERIMETER_CIRCLE, icon: <CircleDashed size={16} weight="regular" />, label: 'Perimeter Circle', disabled: true },
+  ],
+};
+
+// The Arc button is a group. The existing arc tool draws a 3-point arc, so that's the
+// implemented (default) option; Centerpoint and Tangent arcs are not implemented yet.
+export const arcGroup: OperationGroup = {
+  id: 'arc-group',
+  defaultOptionId: SketchOperation.ARC,
+  options: [
+    { id: SketchOperation.CENTERPOINT_ARC, icon: <ArrowArcRight size={16} weight="regular" />, label: 'Centerpoint Arc', disabled: true },
+    { id: SketchOperation.TANGENT_ARC, icon: <ArrowArcLeft size={16} weight="regular" />, label: 'Tangent Arc', disabled: true },
+    { id: SketchOperation.ARC, icon: <ArrowRight size={16} weight="regular" />, label: '3 Point Arc' },
+  ],
+};
+
 export const sketchOperations: { id: SketchOperation; icon: React.ReactNode; label: string }[] = [
   { id: SketchOperation.LINE, icon: <Minus size={16} weight="regular" />, label: 'Line' },
-  { id: SketchOperation.RECTANGLE, icon: <Square size={16} weight="regular" />, label: 'Rectangle' },
+  { id: SketchOperation.RECTANGLE, icon: <Square size={16} weight="regular" />, label: 'Corner Rectangle' },
   { id: SketchOperation.CIRCLE, icon: <Circle size={16} weight="regular" />, label: 'Circle' },
   { id: SketchOperation.POLYGON, icon: <Hexagon size={16} weight="regular" />, label: 'Polygon' },
-  { id: SketchOperation.ARC, icon: <ArrowRight size={16} weight="regular" />, label: 'Arc' },
+  { id: SketchOperation.ARC, icon: <ArrowRight size={16} weight="regular" />, label: '3 Point Arc' },
   { id: SketchOperation.ELLIPSE, icon: <DotsThree size={16} weight="regular" style={{ transform: 'rotate(90deg)' }} />, label: 'Ellipse' },
   { id: SketchOperation.SPLINE, icon: <Pen size={16} weight="regular" />, label: 'Spline' },
   { id: SketchOperation.BEZIER, icon: <WaveSine size={16} weight="regular" />, label: 'Bezier' },
@@ -123,6 +166,11 @@ export const ioOperations: { id: IOOperation; icon: React.ReactNode; label: stri
 export const disabledOperations: Operation[] = [
   // Sketch line variants - not yet implemented
   SketchOperation.CENTERLINE, SketchOperation.MIDPOINT_LINE,
+  // Sketch rectangle variants - not yet implemented
+  SketchOperation.CENTER_RECTANGLE, SketchOperation.THREE_POINT_CORNER_RECTANGLE,
+  SketchOperation.THREE_POINT_CENTER_RECTANGLE, SketchOperation.PARALLELOGRAM,
+  // Sketch circle / arc variants - not yet implemented
+  SketchOperation.PERIMETER_CIRCLE, SketchOperation.CENTERPOINT_ARC, SketchOperation.TANGENT_ARC,
   // 3D Operations - not yet implemented
   'sweep', 'loft',
   // I/O - not yet implemented

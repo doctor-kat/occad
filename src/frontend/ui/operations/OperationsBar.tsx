@@ -1,5 +1,5 @@
 import { Pen } from '@phosphor-icons/react';
-import { Tabs, Box, Group, Stack, useMantineTheme } from '@mantine/core';
+import { Tabs, Box, Group, useMantineTheme } from '@mantine/core';
 import { OperationCategory, Operation, SketchOperation } from '@/cad/types';
 import { OperationButton } from './OperationButton';
 import { CompactOperationButton } from './CompactOperationButton';
@@ -15,18 +15,27 @@ import {
   modifyOperations,
   sketchOperations,
   lineGroup,
+  rectangleGroup,
+  circleGroup,
+  arcGroup,
   transformOperations,
   evaluateOperations,
   ioOperations,
   disabledOperations
 } from './OperationData';
+import type { OperationGroup } from './OperationData';
 
 type OperationItem = { id: Operation; icon: React.ReactNode; label: string };
 
-// Sketch operations that render as a stacked column of compact (icon + inline text)
-// buttons instead of large square buttons. Line is rendered as a group (split button)
-// via lineGroup, so only Rectangle remains as a plain compact button here.
-const stackedSketchOps: SketchOperation[] = [SketchOperation.RECTANGLE];
+// In the sketch tab every tool (except the Sketch button itself) is rendered small
+// (compact). Tools that have variants are compact split-button groups; the rest are
+// plain compact buttons. They flow into 2-row columns.
+const sketchGroupsByOp: Partial<Record<SketchOperation, OperationGroup>> = {
+  [SketchOperation.LINE]: lineGroup,
+  [SketchOperation.RECTANGLE]: rectangleGroup,
+  [SketchOperation.CIRCLE]: circleGroup,
+  [SketchOperation.ARC]: arcGroup,
+};
 
 export interface OperationsBarProps {
   activeTab: OperationCategory;
@@ -57,24 +66,43 @@ export function OperationsBar({ activeTab, activeOperation, selectedTreeItem, ac
     </Group>
   );
 
-  const renderCompactButtons = (operations: OperationItem[]) =>
-    operations.map((operation) => (
-      <CompactOperationButton
-        key={operation.id}
-        icon={operation.icon}
-        label={operation.label}
-        operationId={operation.id}
-        isActive={activeOperation === operation.id}
-        onClick={() => onOperationSelect(operation.id)}
-        disabled={disabledOperations.includes(operation.id)}
-      />
-    ));
-
-  const stackedSketchOperations = sketchOperations.filter((op) => stackedSketchOps.includes(op.id));
-  // Line is handled by the line group split-button; exclude it (and the stacked ops)
-  // from the full-size square button row.
-  const fullSketchOperations = sketchOperations.filter(
-    (op) => op.id !== SketchOperation.LINE && !stackedSketchOps.includes(op.id),
+  // Every sketch tool is small (compact): grouped tools as compact split-buttons, the
+  // rest as plain compact buttons. They flow into columns of 2, left to right.
+  const renderSketchTools = () => (
+    <Box
+      style={{
+        display: 'grid',
+        gridTemplateRows: 'repeat(2, auto)',
+        gridAutoFlow: 'column',
+        justifyItems: 'start',
+        alignItems: 'center',
+        gap: 4,
+      }}
+    >
+      {sketchOperations.map((operation) => {
+        const group = sketchGroupsByOp[operation.id];
+        return group ? (
+          <OperationGroupButton
+            key={operation.id}
+            options={group.options}
+            defaultOptionId={group.defaultOptionId}
+            variant="compact"
+            activeOperation={activeOperation}
+            onOperationSelect={onOperationSelect}
+          />
+        ) : (
+          <CompactOperationButton
+            key={operation.id}
+            icon={operation.icon}
+            label={operation.label}
+            operationId={operation.id}
+            isActive={activeOperation === operation.id}
+            onClick={() => onOperationSelect(operation.id)}
+            disabled={disabledOperations.includes(operation.id)}
+          />
+        );
+      })}
+    </Box>
   );
 
   return (
@@ -127,16 +155,7 @@ export function OperationsBar({ activeTab, activeOperation, selectedTreeItem, ac
                   onClick={() => onSketchButtonClick?.()}
                 />
                 <OperationDivider />
-                <Stack gap={4} align="stretch" justify="center">
-                  <OperationGroupButton
-                    options={lineGroup.options}
-                    variant="compact"
-                    activeOperation={activeOperation}
-                    onOperationSelect={onOperationSelect}
-                  />
-                  {renderCompactButtons(stackedSketchOperations)}
-                </Stack>
-                {renderOperationGroup(fullSketchOperations)}
+                {renderSketchTools()}
               </Group>
             </Tabs.Panel>
 
