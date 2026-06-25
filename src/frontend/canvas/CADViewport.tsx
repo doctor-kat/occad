@@ -9,6 +9,8 @@ export interface CADViewportProps {
   selectedTreeItem?: string | null;
   /** A sketch tool is active but no plane/face is selected yet */
   awaitingSketchPlane?: boolean;
+  /** Cancel plane-picking sketch mode (deselect the sketch tool) */
+  onCancelSketchPlane?: () => void;
   occStatus: OCCStatus;
   occProgress: string;
   occError: string | null;
@@ -38,6 +40,7 @@ export function CADViewport({
   activeOperation,
   selectedTreeItem,
   awaitingSketchPlane,
+  onCancelSketchPlane,
   occStatus,
   occProgress,
   occError,
@@ -74,6 +77,7 @@ export function CADViewport({
       activeSketch={activeSketch}
       activeOperation={activeOperation}
       awaitingSketchPlane={awaitingSketchPlane}
+      onCancelSketchPlane={onCancelSketchPlane}
       onPlaneClick={onPlaneClick}
       onFaceClick={onFaceClick}
       onEdgeClick={onEdgeClick}

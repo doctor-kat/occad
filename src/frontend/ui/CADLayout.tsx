@@ -307,9 +307,15 @@ export function CADLayout() {
 
   // Enter sketch mode when a sketch tool is selected. Selecting a sketch tool no
   // longer auto-creates a sketch on the front plane — instead it starts a sketch
-  // on whatever plane/face is selected, or (if nothing is selected) asks the
-  // user to pick one. selectedFaceId/selectedReferencePlaneId are dependencies,
-  // so clicking a plane while awaiting re-runs this effect and starts the sketch.
+  // on whatever plane/face is selected, or (if nothing is selected) keeps the
+  // user in plane-picking sketch mode until they click a plane or cancel.
+  // selectedFaceId/selectedReferencePlaneId are dependencies, so clicking a
+  // plane while awaiting re-runs this effect and starts the sketch.
+  //
+  // When nothing valid is selected we do NOT create a sketch and we do NOT fire
+  // a transient toast. Instead `awaitingSketchPlane` (below) stays true, which
+  // reveals all reference planes and shows a persistent in-viewport prompt that
+  // remains until the user picks a plane/face or cancels (see CADViewport).
   useEffect(() => {
     if (!activeOperation) return;
     if (!SKETCH_TOOL_OPERATIONS.includes(activeOperation as SketchOperation)) return;
@@ -328,14 +334,28 @@ export function CADLayout() {
       return;
     }
 
-    // Nothing valid selected → ask the user to pick a plane. All three
-    // reference planes are revealed (see awaitingSketchPlane) for picking.
-    notifications.show({
-      color: 'yellow',
-      title: 'Select a sketch plane',
-      message: 'Choose a plane (or a face) to start your sketch on.',
-    });
+    // Nothing valid selected → remain in plane-picking sketch mode. The
+    // persistent prompt + revealed planes are driven by `awaitingSketchPlane`.
   }, [activeOperation, activeSketchId, selectedFaceId, selectedReferencePlaneId, beginFaceSketch, createSketchOnPlane]);
+
+  // Cancel plane-picking sketch mode: deselect the sketch tool. This clears
+  // `activeOperation`, so `awaitingSketchPlane` becomes false and the prompt +
+  // revealed planes disappear.
+  const handleCancelSketchPlane = useCallback(() => {
+    selectOperation(null);
+  }, [selectOperation]);
+
+  // While awaiting a sketch plane, Esc cancels the pending sketch (mirrors the
+  // Cancel button in the viewport prompt). Sketch drawing has its own Esc
+  // handling once a sketch is active, so this only runs before then.
+  useEffect(() => {
+    if (!awaitingSketchPlane) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleCancelSketchPlane();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [awaitingSketchPlane, handleCancelSketchPlane]);
 
   // Handle operation confirmation
   const handleOperationConfirm = (params: OperationParams, sketchId?: string) => {
@@ -916,6 +936,7 @@ export function CADLayout() {
             activeOperation={activeOperation as SketchOperation}
             selectedTreeItem={selectedTreeItem}
             awaitingSketchPlane={awaitingSketchPlane}
+            onCancelSketchPlane={handleCancelSketchPlane}
             occStatus={occStatus}
             occProgress={occProgress}
             occError={occError}

@@ -47,6 +47,14 @@ rebuild).
 > `CADLayout` was split into a panel-open effect and a sketch-entry effect (so selection changes
 > no longer reset feature-editing state); plane/face sketch creation is shared via
 > `beginFaceSketch`/`createSketchOnPlane`. Covered by `CADLayout.test.tsx` + `ReferencePlanes.test.tsx`.
+>
+> **Refined (2026-06-24):** the "Select a sketch plane" prompt was a transient toast that
+> auto-dismissed, leaving the planes revealed with no guidance. It is now a **persistent**
+> in-viewport banner (top-center, in `OpenCascadeViewport`) shown while `awaitingSketchPlane` is
+> true — no sketch is created yet. It stays until the user clicks a plane/face (which starts the
+> sketch) or cancels via the banner's Cancel button or `Esc` (`handleCancelSketchPlane` →
+> `selectOperation(null)`, threaded `CADLayout` → `CADViewport` → `OpenCascadeViewport`). Covered
+> by `CADLayout.test.tsx` (awaiting-mode cancel + Escape).
 
 > **Fixed:** multi-click sketch tools (rectangle/line/polygon/arc) used to drop the second
 > click after the first point was placed (the plane's R3F handlers re-bound on state change),

@@ -20,6 +20,12 @@ vi.mock("@/frontend/canvas/CADViewport", () => ({
       <span data-testid="occ-status">{props.occStatus}</span>
       <span data-testid="awaiting-plane">{String(props.awaitingSketchPlane)}</span>
       <button
+        data-testid="cancel-sketch-plane"
+        onClick={() => props.onCancelSketchPlane?.()}
+      >
+        Cancel Plane
+      </button>
+      <button
         data-testid="face-click"
         onClick={() => props.onFaceClick?.(0)}
       >
@@ -109,6 +115,46 @@ describe("CADLayout", () => {
     // And all reference planes are revealed for picking
     await waitFor(() => {
       expect(screen.getByTestId("awaiting-plane").textContent).toBe("true");
+    });
+  });
+
+  it("stays in awaiting-plane mode (no sketch) until a plane is picked, then cancels cleanly", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CADLayout />);
+
+    // Pick a sketch tool with nothing selected → awaiting a plane, no sketch
+    const sketchTab = screen.getByRole("tab", { name: /sketch/i });
+    await user.click(sketchTab);
+    await user.click(screen.getByText("Rectangle"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("awaiting-plane").textContent).toBe("true");
+    });
+    expect(screen.queryByText(/Sketch 1/)).not.toBeInTheDocument();
+
+    // Cancel exits sketch mode without creating a sketch
+    await user.click(screen.getByTestId("cancel-sketch-plane"));
+    await waitFor(() => {
+      expect(screen.getByTestId("awaiting-plane").textContent).toBe("false");
+    });
+    expect(screen.queryByText(/Sketch 1/)).not.toBeInTheDocument();
+  });
+
+  it("cancels awaiting-plane mode when Escape is pressed", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<CADLayout />);
+
+    const sketchTab = screen.getByRole("tab", { name: /sketch/i });
+    await user.click(sketchTab);
+    await user.click(screen.getByText("Rectangle"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("awaiting-plane").textContent).toBe("true");
+    });
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.getByTestId("awaiting-plane").textContent).toBe("false");
     });
   });
 

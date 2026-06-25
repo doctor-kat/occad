@@ -33,6 +33,8 @@ export interface OpenCascadeViewportProps {
   activeOperation?: any | null;
   /** A sketch tool is active but no plane/face is selected yet — reveal all planes for picking */
   awaitingSketchPlane?: boolean;
+  /** Cancel plane-picking sketch mode (deselect the sketch tool) */
+  onCancelSketchPlane?: () => void;
   /** Callback when a plane is clicked */
   onPlaneClick?: (planeId: string) => void;
   /** Callback when a face is clicked */
@@ -68,6 +70,7 @@ export function OpenCascadeViewport({
   activeSketch,
   activeOperation,
   awaitingSketchPlane,
+  onCancelSketchPlane,
   onPlaneClick,
   onFaceClick,
   onEdgeClick,
@@ -211,6 +214,50 @@ export function OpenCascadeViewport({
             </Text>
           </Box>
         </Stack>
+      )}
+
+      {/* Plane-picking prompt — shown while a sketch tool is active but no
+          plane/face has been chosen yet. Persistent (no auto-dismiss): it
+          stays until the user clicks a plane/face or cancels. */}
+      {awaitingSketchPlane && !activeSketch && (
+        <Box
+          pos="absolute"
+          style={{
+            top: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            borderRadius: theme.radius.lg,
+            border: `1px solid ${theme.colors.yellow[6]}`,
+            backgroundColor: `${theme.other.colors.card}cc`,
+            backdropFilter: 'blur(12px)',
+            boxShadow: theme.shadows.lg,
+            paddingLeft: 16,
+            paddingRight: 16,
+            paddingTop: 8,
+            paddingBottom: 8,
+          }}
+        >
+          <Group gap="md" wrap="nowrap">
+            <Stack gap={2}>
+              <Text size="xs" fw={600} c={theme.colors.yellow[5]}>
+                Select a sketch plane
+              </Text>
+              <Text size="xs" c={theme.other.colors.mutedForeground}>
+                Click a plane (or a face) to start your sketch.
+              </Text>
+            </Stack>
+            <Button
+              size="xs"
+              variant="outline"
+              color="gray"
+              onClick={onCancelSketchPlane}
+              leftSection={<X size={14} weight="regular" />}
+            >
+              Cancel
+            </Button>
+          </Group>
+        </Box>
       )}
 
       {/* Constraints Menu (when in sketch mode) */}
