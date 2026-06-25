@@ -30,9 +30,16 @@ import {
   DownloadSimple,
   FileCode,
   Package,
-  Unite
+  Unite,
+  LineSegment,
+  LineSegments
 } from '@phosphor-icons/react';
 import { FeatureOperation, SketchOperation, EvaluateOperation, TransformOperation, IOOperation, Operation } from '@/cad/types';
+
+export interface OperationGroup {
+  id: string;
+  options: { id: Operation; icon: React.ReactNode; label: string; disabled?: boolean }[];
+}
 
 export const featureOperations: { id: FeatureOperation; icon: React.ReactNode; label: string }[] = [
   { id: FeatureOperation.EXTRUDE_BOSS, icon: <ArrowLineUp size={16} weight="regular" />, label: 'Extrude Boss' },
@@ -70,6 +77,17 @@ export const booleanOperations: { id: FeatureOperation; icon: React.ReactNode; l
   { id: FeatureOperation.INTERSECT, icon: <Unite size={16} weight="regular" />, label: 'Intersect' },
 ];
 
+// The Line button is a group: the dropdown offers Line / Centerline / Midpoint Line.
+// Centerline and Midpoint Line are not implemented yet, so they're disabled.
+export const lineGroup: OperationGroup = {
+  id: 'line-group',
+  options: [
+    { id: SketchOperation.LINE, icon: <Minus size={16} weight="regular" />, label: 'Line' },
+    { id: SketchOperation.CENTERLINE, icon: <LineSegments size={16} weight="regular" />, label: 'Centerline', disabled: true },
+    { id: SketchOperation.MIDPOINT_LINE, icon: <LineSegment size={16} weight="regular" />, label: 'Midpoint Line', disabled: true },
+  ],
+};
+
 export const sketchOperations: { id: SketchOperation; icon: React.ReactNode; label: string }[] = [
   { id: SketchOperation.LINE, icon: <Minus size={16} weight="regular" />, label: 'Line' },
   { id: SketchOperation.RECTANGLE, icon: <Square size={16} weight="regular" />, label: 'Rectangle' },
@@ -103,6 +121,8 @@ export const ioOperations: { id: IOOperation; icon: React.ReactNode; label: stri
 
 // Operations that are not yet implemented (disabled in UI)
 export const disabledOperations: Operation[] = [
+  // Sketch line variants - not yet implemented
+  SketchOperation.CENTERLINE, SketchOperation.MIDPOINT_LINE,
   // 3D Operations - not yet implemented
   'sweep', 'loft',
   // I/O - not yet implemented

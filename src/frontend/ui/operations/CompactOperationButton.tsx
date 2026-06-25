@@ -1,7 +1,7 @@
 import { Button, Box, useMantineTheme } from '@mantine/core';
 import { Operation } from '@/cad/types';
 
-const operationButtonInternalStyles = {
+const compactButtonInternalStyles = {
   inner: {
     display: 'block !important',
     height: '100%',
@@ -10,22 +10,22 @@ const operationButtonInternalStyles = {
   label: {
     display: 'block !important',
     height: '100%',
+    width: '100%',
   },
 };
 
-export interface OperationButtonProps {
+export interface CompactOperationButtonProps {
   icon: React.ReactNode;
   label: string;
   operationId: Operation;
   isActive: boolean;
   onClick: () => void;
-  color?: string;
   disabled?: boolean;
   /** Override the corner radius (e.g. 0 when nested inside a button group). */
   radius?: number | string;
 }
 
-export function OperationButton({ icon, label, isActive, onClick, disabled = false, radius }: OperationButtonProps) {
+export function CompactOperationButton({ icon, label, isActive, onClick, disabled = false, radius }: CompactOperationButtonProps) {
   const theme = useMantineTheme();
 
   return (
@@ -36,10 +36,10 @@ export function OperationButton({ icon, label, isActive, onClick, disabled = fal
       disabled={disabled}
       onClick={onClick}
       style={{
-        height: 72,
-        width: 72,
-        minWidth: 72,
-        padding: 0,
+        height: 34,
+        width: 116,
+        minWidth: 116,
+        padding: '0 8px',
         opacity: disabled ? 0.4 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'all 200ms',
@@ -48,27 +48,28 @@ export function OperationButton({ icon, label, isActive, onClick, disabled = fal
         root: {
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
           '--button-bg': isActive ? `${theme.colors.blue[5]}15` : undefined,
           '--button-bd': isActive ? `1px solid ${theme.colors.blue[5]}30` : undefined,
         },
-        ...operationButtonInternalStyles,
+        ...compactButtonInternalStyles,
       }}
     >
       <Box
         style={{
           display: 'flex',
-          flexDirection: 'column',
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
           height: '100%',
-          gap: 4,
+          width: '100%',
+          gap: 8,
         }}
       >
-        <Box style={{ fontSize: 24, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Box style={{ fontSize: 16, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {icon}
         </Box>
-        <Box component="span" style={{ fontSize: 10, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>
+        <Box component="span" style={{ fontSize: 11, fontWeight: 500, textAlign: 'left', lineHeight: 1.2 }}>
           {label}
         </Box>
       </Box>

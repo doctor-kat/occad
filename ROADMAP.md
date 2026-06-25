@@ -244,6 +244,26 @@ rebuild).
 
 ## 5. Application Features
 
+> **Added (2026-06-24):** `OperationsBar` now supports a **stacked compact-button layout** for selected operations.
+> New `CompactOperationButton.tsx` renders an icon + inline (horizontal) label at 116×34 instead of the 72×72
+> square `OperationButton`. `OperationsBar` renders a vertical `Stack` of these (`renderStackedColumn`) so two
+> compact buttons occupy the height of one square button. Started with the sketch tab: **Line** and **Rectangle**
+> (`stackedSketchOps`) now stack in a single column; the remaining sketch ops stay as square buttons. Covered by
+> `OperationsBar.test.tsx`. There is also an **icon-only** variant `IconOperationButton.tsx` (34×34, label exposed
+> via tooltip + `aria-label`, no visible text) for the densest layouts — `IconOperationButton.test.tsx`.
+>
+> **Added (2026-06-24):** **Operation groups / split buttons** (`OperationGroupButton.tsx`). A group renders the
+> currently-shown option as a normal operation button (usable directly without opening the menu) plus an attached
+> caret segment — styled as a button group: an outlined, `overflow:hidden` rounded container with a `Divider`
+> between the body and the caret. The body button is rendered with `radius={0}` (new optional `radius` prop on
+> `OperationButton`/`CompactOperationButton`/`IconOperationButton`) so it sits flush against the divider while the
+> container clips the outer corners back to rounded. Caret placement follows the variant: bottom for the big `full`
+> button, right edge for `compact`/`icon`. Picking a dropdown item changes the shown option **and** activates it;
+> the caret's `aria-label` (`"<label> options"`) tracks the shown option. First use: the **Line** group
+> (`lineGroup` in `OperationData.tsx`) with options Line / Centerline / Midpoint Line — the latter two are
+> **disabled** (not implemented; added as `SketchOperation.CENTERLINE` / `MIDPOINT_LINE` and to
+> `disabledOperations`). Covered by `OperationGroupButton.test.tsx`.
+>
 > **Changed (2026-06-23):** `OperationsBar` tabs reorganized by **Area** (matching this doc's Summary table). The
 > catch-all **Features** tab was split into **Primitives**, **Modifications** (Extrude/Revolve Cut + Fillet/Chamfer/
 > Shell/Offset + Union/Intersect), and **Advanced** (Extrude/Revolve Boss + Sweep/Loft). Tab order is now
