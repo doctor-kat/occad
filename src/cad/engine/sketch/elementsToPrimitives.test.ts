@@ -62,6 +62,17 @@ describe('mapElementsToPrimitives', () => {
     ]);
   });
 
+  it('skips construction lines (centerlines) so they never reach the profile wire', () => {
+    const centerline: SketchElement = {
+      type: SketchElementType.LINE,
+      id: 'CL',
+      start: { x: 0, y: 0 },
+      end: { x: 10, y: 0 },
+      construction: true,
+    };
+    expect(mapElementsToPrimitives([centerline])).toEqual([]);
+  });
+
   it('maps a polygon to N points + N closed lines', () => {
     const poly: SketchElement = {
       type: SketchElementType.POLYGON,

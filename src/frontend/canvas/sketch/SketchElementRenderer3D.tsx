@@ -108,6 +108,10 @@ export function SketchElementRenderer3D({
 
   if (points.length === 0) return null;
 
+  // Construction geometry (centerlines) renders dashed to read as reference-only.
+  const isConstruction =
+    element.type === SketchElementType.LINE && Boolean(element.construction);
+
   return (
     <Line
       points={points}
@@ -115,6 +119,9 @@ export function SketchElementRenderer3D({
       lineWidth={finalLineWidth}
       opacity={opacity}
       transparent
+      dashed={isConstruction}
+      dashSize={isConstruction ? 1.5 : undefined}
+      gapSize={isConstruction ? 1 : undefined}
       position={[0, 0, 0.05]}
       // Decoration only: hover/selection is computed by 2D distance math in
       // SketchOverlay, never by raycasting these lines. Leaving them raycastable

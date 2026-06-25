@@ -28,6 +28,9 @@ export function mapElementsToPrimitives(elements: SketchElement[]): SketchPrimit
   elements.forEach((el) => {
     switch (el.type) {
       case 'line': {
+        // Construction lines (centerlines) are reference-only: never emit them as
+        // profile geometry, or they'd add a stray edge that breaks the closed wire.
+        if (el.construction) break;
         const p1Id = `${el.id}_p1`;
         const p2Id = `${el.id}_p2`;
         primitives.push({ id: p1Id, type: 'point', fixed: false, data: { x: el.start.x, y: el.start.y } });

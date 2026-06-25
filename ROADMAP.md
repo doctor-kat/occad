@@ -78,15 +78,23 @@ rebuild).
 
 **Sketch toolbar groups (UI-only, 2026-06-24):** in the sketch tab every tool except the big **Sketch** button is
 rendered small (compact), flowing into **columns of 2, left to right** (CSS grid, `renderSketchTools`). Tools with
-variants are compact split-button groups (`OperationGroupButton`) whose dropdowns offer not-yet-implemented variants
-(disabled). The original Rectangle op is relabelled **Corner Rectangle**.
+variants are compact split-button groups (`OperationGroupButton`) whose dropdowns offer the variants. The original
+Rectangle op is relabelled **Corner Rectangle**.
 
 | Group     | Options (✅ = implemented, ❌ = disabled placeholder)                                                        |
 |-----------|-------------------------------------------------------------------------------------------------------------|
-| Line      | Line ✅ · Centerline ❌ · Midpoint Line ❌                                                                     |
-| Rectangle | Corner Rectangle ✅ · Center Rectangle ❌ · 3 Point Corner Rectangle ❌ · 3 Point Center Rectangle ❌ · Parallelogram ❌ |
+| Line      | Line ✅ · Centerline ✅ · Midpoint Line ✅                                                                     |
+| Rectangle | Corner Rectangle ✅ · Center Rectangle ✅ · 3 Point Corner Rectangle ✅ · 3 Point Center Rectangle ✅ · Parallelogram ✅ |
 | Circle    | Circle ✅ · Perimeter Circle ❌                                                                               |
 | Arc       | Centerpoint Arc ❌ · Tangent Arc ❌ · 3 Point Arc ✅ (default; the existing arc tool is 3-point)              |
+
+**Line & rectangle variants (2026-06-25):** all line/rectangle dropdown variants are now drawable. Pure geometry
+lives in `src/cad/engine/sketch/sketchShapeBuilders.ts` (unit-tested); `SketchOverlay` collects the clicks and
+previews. **Centerline** is a `SketchLine` with `construction: true` — rendered dashed and skipped by
+`mapElementsToPrimitives`, so it stays reference-only and never reaches the OCC profile wire. **Midpoint Line** /
+**Center Rectangle** reuse the line/rectangle element types (first click = midpoint/center). The rotated/skewed
+variants (**3 Point Corner/Center Rectangle**, **Parallelogram**) can't be an axis-aligned `SketchRectangle`, so
+they're emitted as 4-point **polygons**.
 
 Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `OperationGroupButton` still supports
 `full` (big, caret-on-bottom) and `icon` variants for other toolbars.
@@ -283,9 +291,9 @@ Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `Opera
 > container clips the outer corners back to rounded. Caret placement follows the variant: bottom for the big `full`
 > button, right edge for `compact`/`icon`. Picking a dropdown item changes the shown option **and** activates it;
 > the caret's `aria-label` (`"<label> options"`) tracks the shown option. First use: the **Line** group
-> (`lineGroup` in `OperationData.tsx`) with options Line / Centerline / Midpoint Line — the latter two are
-> **disabled** (not implemented; added as `SketchOperation.CENTERLINE` / `MIDPOINT_LINE` and to
-> `disabledOperations`). Covered by `OperationGroupButton.test.tsx`.
+> (`lineGroup` in `OperationData.tsx`) with options Line / Centerline / Midpoint Line — all implemented as of
+> 2026-06-25 (see "Line & rectangle variants" above); `SketchOperation.CENTERLINE` / `MIDPOINT_LINE` removed from
+> `disabledOperations`. Covered by `OperationGroupButton.test.tsx`.
 >
 > **Changed (2026-06-23):** `OperationsBar` tabs reorganized by **Area** (matching this doc's Summary table). The
 > catch-all **Features** tab was split into **Primitives**, **Modifications** (Extrude/Revolve Cut + Fillet/Chamfer/

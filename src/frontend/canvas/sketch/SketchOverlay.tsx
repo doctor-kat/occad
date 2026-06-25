@@ -4,6 +4,13 @@ import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D } from '@/cad/types';
 import { SketchOperation, SketchElementType } from '@/cad/types';
 import { getWorkplaneTransform } from './getPlaneTransform';
+import {
+  buildMidpointLine,
+  buildCenterRectangle,
+  buildThreePointCornerRectangle,
+  buildThreePointCenterRectangle,
+  buildParallelogram,
+} from '@/cad/engine/sketch/sketchShapeBuilders';
 import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
@@ -456,6 +463,7 @@ export function SketchOverlay({
 
       switch (activeOperation) {
         case SketchOperation.LINE:
+        case SketchOperation.CENTERLINE:
           if (points.length === 0) {
             setPoints([snappedPoint]);
           } else if (points.length === 1) {
@@ -464,6 +472,24 @@ export function SketchOverlay({
               id: crypto.randomUUID(),
               start: points[0],
               end: snappedPoint,
+              ...(activeOperation === SketchOperation.CENTERLINE ? { construction: true } : {}),
+            };
+            onElementsChange(sketch.id, [...sketch.elements, newLine]);
+            setPoints([]);
+            setPreviewElement(null);
+          }
+          break;
+
+        case SketchOperation.MIDPOINT_LINE:
+          if (points.length === 0) {
+            setPoints([snappedPoint]);
+          } else if (points.length === 1) {
+            const { start, end } = buildMidpointLine(points[0], snappedPoint);
+            const newLine: SketchElement = {
+              type: SketchElementType.LINE,
+              id: crypto.randomUUID(),
+              start,
+              end,
             };
             onElementsChange(sketch.id, [...sketch.elements, newLine]);
             setPoints([]);
@@ -482,6 +508,68 @@ export function SketchOverlay({
               corner2: snappedPoint,
             };
             onElementsChange(sketch.id, [...sketch.elements, newRect]);
+            setPoints([]);
+            setPreviewElement(null);
+          }
+          break;
+
+        case SketchOperation.CENTER_RECTANGLE:
+          if (points.length === 0) {
+            setPoints([snappedPoint]);
+          } else if (points.length === 1) {
+            const { corner1, corner2 } = buildCenterRectangle(points[0], snappedPoint);
+            const newRect: SketchElement = {
+              type: SketchElementType.RECTANGLE,
+              id: crypto.randomUUID(),
+              corner1,
+              corner2,
+            };
+            onElementsChange(sketch.id, [...sketch.elements, newRect]);
+            setPoints([]);
+            setPreviewElement(null);
+          }
+          break;
+
+        case SketchOperation.THREE_POINT_CORNER_RECTANGLE:
+          if (points.length < 2) {
+            setPoints([...points, snappedPoint]);
+          } else {
+            const newPoly: SketchElement = {
+              type: SketchElementType.POLYGON,
+              id: crypto.randomUUID(),
+              points: buildThreePointCornerRectangle(points[0], points[1], snappedPoint),
+            };
+            onElementsChange(sketch.id, [...sketch.elements, newPoly]);
+            setPoints([]);
+            setPreviewElement(null);
+          }
+          break;
+
+        case SketchOperation.THREE_POINT_CENTER_RECTANGLE:
+          if (points.length < 2) {
+            setPoints([...points, snappedPoint]);
+          } else {
+            const newPoly: SketchElement = {
+              type: SketchElementType.POLYGON,
+              id: crypto.randomUUID(),
+              points: buildThreePointCenterRectangle(points[0], points[1], snappedPoint),
+            };
+            onElementsChange(sketch.id, [...sketch.elements, newPoly]);
+            setPoints([]);
+            setPreviewElement(null);
+          }
+          break;
+
+        case SketchOperation.PARALLELOGRAM:
+          if (points.length < 2) {
+            setPoints([...points, snappedPoint]);
+          } else {
+            const newPoly: SketchElement = {
+              type: SketchElementType.POLYGON,
+              id: crypto.randomUUID(),
+              points: buildParallelogram(points[0], points[1], snappedPoint),
+            };
+            onElementsChange(sketch.id, [...sketch.elements, newPoly]);
             setPoints([]);
             setPreviewElement(null);
           }
@@ -575,12 +663,26 @@ export function SketchOverlay({
 
       switch (activeOperation) {
         case SketchOperation.LINE:
+        case SketchOperation.CENTERLINE:
           if (points.length === 1) {
             setPreviewElement({
               type: SketchElementType.LINE,
               id: 'preview',
               start: points[0],
               end: snappedPoint,
+              ...(activeOperation === SketchOperation.CENTERLINE ? { construction: true } : {}),
+            } as SketchElement);
+          }
+          break;
+
+        case SketchOperation.MIDPOINT_LINE:
+          if (points.length === 1) {
+            const { start, end } = buildMidpointLine(points[0], snappedPoint);
+            setPreviewElement({
+              type: SketchElementType.LINE,
+              id: 'preview',
+              start,
+              end,
             } as SketchElement);
           }
           break;
@@ -592,6 +694,70 @@ export function SketchOverlay({
               id: 'preview',
               corner1: points[0],
               corner2: snappedPoint,
+            } as SketchElement);
+          }
+          break;
+
+        case SketchOperation.CENTER_RECTANGLE:
+          if (points.length === 1) {
+            const { corner1, corner2 } = buildCenterRectangle(points[0], snappedPoint);
+            setPreviewElement({
+              type: SketchElementType.RECTANGLE,
+              id: 'preview',
+              corner1,
+              corner2,
+            } as SketchElement);
+          }
+          break;
+
+        case SketchOperation.THREE_POINT_CORNER_RECTANGLE:
+          // First edge previews as a line; the third click previews the full rectangle.
+          if (points.length === 1) {
+            setPreviewElement({
+              type: SketchElementType.LINE,
+              id: 'preview',
+              start: points[0],
+              end: snappedPoint,
+            } as SketchElement);
+          } else if (points.length === 2) {
+            setPreviewElement({
+              type: SketchElementType.POLYGON,
+              id: 'preview',
+              points: buildThreePointCornerRectangle(points[0], points[1], snappedPoint),
+            } as SketchElement);
+          }
+          break;
+
+        case SketchOperation.THREE_POINT_CENTER_RECTANGLE:
+          if (points.length === 1) {
+            setPreviewElement({
+              type: SketchElementType.LINE,
+              id: 'preview',
+              start: points[0],
+              end: snappedPoint,
+            } as SketchElement);
+          } else if (points.length === 2) {
+            setPreviewElement({
+              type: SketchElementType.POLYGON,
+              id: 'preview',
+              points: buildThreePointCenterRectangle(points[0], points[1], snappedPoint),
+            } as SketchElement);
+          }
+          break;
+
+        case SketchOperation.PARALLELOGRAM:
+          if (points.length === 1) {
+            setPreviewElement({
+              type: SketchElementType.LINE,
+              id: 'preview',
+              start: points[0],
+              end: snappedPoint,
+            } as SketchElement);
+          } else if (points.length === 2) {
+            setPreviewElement({
+              type: SketchElementType.POLYGON,
+              id: 'preview',
+              points: buildParallelogram(points[0], points[1], snappedPoint),
             } as SketchElement);
           }
           break;

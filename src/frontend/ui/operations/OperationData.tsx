@@ -87,26 +87,25 @@ export const booleanOperations: { id: FeatureOperation; icon: React.ReactNode; l
 ];
 
 // The Line button is a group: the dropdown offers Line / Centerline / Midpoint Line.
-// Centerline and Midpoint Line are not implemented yet, so they're disabled.
 export const lineGroup: OperationGroup = {
   id: 'line-group',
   options: [
     { id: SketchOperation.LINE, icon: <Minus size={16} weight="regular" />, label: 'Line' },
-    { id: SketchOperation.CENTERLINE, icon: <LineSegments size={16} weight="regular" />, label: 'Centerline', disabled: true },
-    { id: SketchOperation.MIDPOINT_LINE, icon: <LineSegment size={16} weight="regular" />, label: 'Midpoint Line', disabled: true },
+    { id: SketchOperation.CENTERLINE, icon: <LineSegments size={16} weight="regular" />, label: 'Centerline' },
+    { id: SketchOperation.MIDPOINT_LINE, icon: <LineSegment size={16} weight="regular" />, label: 'Midpoint Line' },
   ],
 };
 
-// The Rectangle button is a group. Only Corner Rectangle (the original Rectangle op)
-// is implemented; the rest are not yet implemented and are disabled.
+// The Rectangle button is a group offering corner/center/3-point/parallelogram variants.
+// Rotated and skewed variants are emitted as 4-point polygons (see sketchShapeBuilders).
 export const rectangleGroup: OperationGroup = {
   id: 'rectangle-group',
   options: [
     { id: SketchOperation.RECTANGLE, icon: <Square size={16} weight="regular" />, label: 'Corner Rectangle' },
-    { id: SketchOperation.CENTER_RECTANGLE, icon: <Selection size={16} weight="regular" />, label: 'Center Rectangle', disabled: true },
-    { id: SketchOperation.THREE_POINT_CORNER_RECTANGLE, icon: <Rectangle size={16} weight="regular" />, label: '3 Point Corner Rectangle', disabled: true },
-    { id: SketchOperation.THREE_POINT_CENTER_RECTANGLE, icon: <BoundingBox size={16} weight="regular" />, label: '3 Point Center Rectangle', disabled: true },
-    { id: SketchOperation.PARALLELOGRAM, icon: <Parallelogram size={16} weight="regular" />, label: 'Parallelogram', disabled: true },
+    { id: SketchOperation.CENTER_RECTANGLE, icon: <Selection size={16} weight="regular" />, label: 'Center Rectangle' },
+    { id: SketchOperation.THREE_POINT_CORNER_RECTANGLE, icon: <Rectangle size={16} weight="regular" />, label: '3 Point Corner Rectangle' },
+    { id: SketchOperation.THREE_POINT_CENTER_RECTANGLE, icon: <BoundingBox size={16} weight="regular" />, label: '3 Point Center Rectangle' },
+    { id: SketchOperation.PARALLELOGRAM, icon: <Parallelogram size={16} weight="regular" />, label: 'Parallelogram' },
   ],
 };
 
@@ -164,11 +163,6 @@ export const ioOperations: { id: IOOperation; icon: React.ReactNode; label: stri
 
 // Operations that are not yet implemented (disabled in UI)
 export const disabledOperations: Operation[] = [
-  // Sketch line variants - not yet implemented
-  SketchOperation.CENTERLINE, SketchOperation.MIDPOINT_LINE,
-  // Sketch rectangle variants - not yet implemented
-  SketchOperation.CENTER_RECTANGLE, SketchOperation.THREE_POINT_CORNER_RECTANGLE,
-  SketchOperation.THREE_POINT_CENTER_RECTANGLE, SketchOperation.PARALLELOGRAM,
   // Sketch circle / arc variants - not yet implemented
   SketchOperation.PERIMETER_CIRCLE, SketchOperation.CENTERPOINT_ARC, SketchOperation.TANGENT_ARC,
   // 3D Operations - not yet implemented

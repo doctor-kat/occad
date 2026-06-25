@@ -53,7 +53,7 @@ describe("OperationGroupButton", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the line group with Centerline and Midpoint Line disabled", async () => {
+  it("renders the line group with all variants and activates Centerline", async () => {
     const onOperationSelect = vi.fn();
     renderWithProviders(
       <OperationGroupButton
@@ -70,12 +70,12 @@ describe("OperationGroupButton", () => {
     expect(within(menu).getByText("Centerline")).toBeInTheDocument();
     expect(within(menu).getByText("Midpoint Line")).toBeInTheDocument();
 
-    // Disabled options don't activate or change the shown body.
+    // Centerline is implemented now: picking it activates the operation.
     await userEvent.click(within(menu).getByText("Centerline"));
-    expect(onOperationSelect).not.toHaveBeenCalled();
+    expect(onOperationSelect).toHaveBeenCalledWith(SketchOperation.CENTERLINE);
   });
 
-  it("renders the rectangle group with only Corner Rectangle enabled", async () => {
+  it("renders the rectangle group and activates the Parallelogram variant", async () => {
     const onOperationSelect = vi.fn();
     renderWithProviders(
       <OperationGroupButton
@@ -85,7 +85,7 @@ describe("OperationGroupButton", () => {
       />,
     );
 
-    // The shown body is the Corner Rectangle (the implemented option).
+    // The shown body is the Corner Rectangle (the default first option).
     expect(screen.getByText("Corner Rectangle")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Corner Rectangle options" }));
@@ -96,9 +96,9 @@ describe("OperationGroupButton", () => {
     expect(within(menu).getByText("3 Point Center Rectangle")).toBeInTheDocument();
     expect(within(menu).getByText("Parallelogram")).toBeInTheDocument();
 
-    // The disabled variants don't activate.
+    // The variants are implemented now: picking one activates that operation.
     await userEvent.click(within(menu).getByText("Parallelogram"));
-    expect(onOperationSelect).not.toHaveBeenCalled();
+    expect(onOperationSelect).toHaveBeenCalledWith(SketchOperation.PARALLELOGRAM);
   });
 
   it("renders the circle group with Perimeter Circle disabled", async () => {
