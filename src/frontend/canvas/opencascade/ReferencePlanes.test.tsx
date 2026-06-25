@@ -1,4 +1,38 @@
-import { isPlaneVisible, buildReferenceVisibilityMap } from './ReferencePlanes';
+import { isPlaneVisible, buildReferenceVisibilityMap, createPlaneCrosshair } from './ReferencePlanes';
+
+describe('createPlaneCrosshair', () => {
+  it('connects opposite-edge midpoints through the origin', () => {
+    const geometry = createPlaneCrosshair(100);
+    const pos = Array.from(geometry.getAttribute('position').array);
+    expect(pos).toEqual([
+      // Horizontal: left midpoint -> right midpoint
+      -50, 0, 0, 50, 0, 0,
+      // Vertical: bottom midpoint -> top midpoint
+      0, -50, 0, 0, 50, 0,
+    ]);
+  });
+
+  it('both segments pass through the origin', () => {
+    const geometry = createPlaneCrosshair(100);
+    const pos = geometry.getAttribute('position').array;
+    // Each segment is symmetric about (0,0,0), so its midpoint is the origin.
+    const mid = (a: number, b: number) => (a + b) / 2;
+    expect([mid(pos[0], pos[3]), mid(pos[1], pos[4]), mid(pos[2], pos[5])]).toEqual([0, 0, 0]);
+    expect([mid(pos[6], pos[9]), mid(pos[7], pos[10]), mid(pos[8], pos[11])]).toEqual([0, 0, 0]);
+  });
+
+  it('precomputes lineDistance per segment so dashes render', () => {
+    const geometry = createPlaneCrosshair(100);
+    expect(Array.from(geometry.getAttribute('lineDistance').array)).toEqual([0, 100, 0, 100]);
+  });
+
+  it('scales with the plane size', () => {
+    const geometry = createPlaneCrosshair(40);
+    const pos = geometry.getAttribute('position').array;
+    expect(pos[0]).toBe(-20);
+    expect(pos[3]).toBe(20);
+  });
+});
 
 describe('buildReferenceVisibilityMap', () => {
   it('maps each reference id to its isVisible flag', () => {

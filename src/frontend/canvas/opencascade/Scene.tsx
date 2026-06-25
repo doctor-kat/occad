@@ -52,6 +52,7 @@ export function Scene({
   onUpdateSketch
 }: SceneProps) {
   const hoveredTreeItem = useViewportStore((state) => state.hoveredTreeItem);
+  const setHoveredTreeItem = useViewportStore((state) => state.setHoveredTreeItem);
   const hoveredPlaneId = hoveredTreeItem;
   const inSketchMode = !!activeSketch;
 
@@ -84,6 +85,7 @@ export function Scene({
           visibilityMap={visibilityMap}
           showAllPlanes={showAllPlanes}
           onPlaneClick={onPlaneClick}
+          onPlaneHover={setHoveredTreeItem}
         />
       )}
 

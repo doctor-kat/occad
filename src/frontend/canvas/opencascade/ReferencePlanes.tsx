@@ -9,6 +9,8 @@ export interface ReferencePlanesProps {
   /** Force all reference planes visible (e.g. while awaiting a sketch-plane pick) */
   showAllPlanes?: boolean;
   onPlaneClick?: (planeId: string) => void;
+  /** Called when the pointer enters (planeId) / leaves (null) a plane in the viewport */
+  onPlaneHover?: (planeId: string | null) => void;
 }
 
 /**
@@ -48,12 +50,49 @@ export function isPlaneVisible(
   );
 }
 
-export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap, showAllPlanes, onPlaneClick }: ReferencePlanesProps) {
-  const planeSize = 100;
+const PLANE_SIZE = 100;
+
+/**
+ * Build the dashed "crosshair" that connects the midpoints of opposite edges:
+ * a horizontal segment and a vertical segment that intersect at the plane origin.
+ * The `lineDistance` attribute is precomputed (as LineSegments.computeLineDistances
+ * would) so a dashed material renders correctly.
+ */
+export function createPlaneCrosshair(planeSize = PLANE_SIZE): THREE.BufferGeometry {
+  const half = planeSize / 2;
+  const geometry = new THREE.BufferGeometry();
+  const vertices = new Float32Array([
+    // Horizontal: left-edge midpoint -> right-edge midpoint
+    -half, 0, 0,
+    half, 0, 0,
+    // Vertical: bottom-edge midpoint -> top-edge midpoint
+    0, -half, 0,
+    0, half, 0,
+  ]);
+  // Per-vertex distance along each segment (resets at the start of each pair).
+  const lineDistances = new Float32Array([0, planeSize, 0, planeSize]);
+  geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
+  geometry.setAttribute("lineDistance", new THREE.BufferAttribute(lineDistances, 1));
+  return geometry;
+}
+
+export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap, showAllPlanes, onPlaneClick, onPlaneHover }: ReferencePlanesProps) {
+  const planeSize = PLANE_SIZE;
 
   const handlePlaneClick = (e: ThreeEvent<MouseEvent>, planeId: string) => {
     e.stopPropagation();
     onPlaneClick?.(planeId);
+  };
+
+  const handlePlaneOver = (e: ThreeEvent<PointerEvent>, planeId: string) => {
+    e.stopPropagation();
+    onPlaneHover?.(planeId);
+  };
+
+  const handlePlaneOut = (e: ThreeEvent<PointerEvent>, planeId: string) => {
+    e.stopPropagation();
+    // Only clear if we're still the hovered plane (avoids races between planes)
+    if (hoveredPlaneId === planeId) onPlaneHover?.(null);
   };
 
   // Get color for plane outline
@@ -62,6 +101,21 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
     if (hoveredPlaneId === planeId) return "#f97316"; // Orange when hovered
     return "#888888"; // Gray default
   };
+
+  // Crosshair is lower-contrast (dark grey) so it reads as a subtle origin guide,
+  // but still picks up the selected/hovered highlight.
+  const getCrosshairColor = (planeId: string) => {
+    if (selectedPlaneId === planeId) return "#3b82f6"; // Blue when selected
+    if (hoveredPlaneId === planeId) return "#f97316"; // Orange when hovered
+    return "#2a2a2a"; // Dark grey default
+  };
+
+  // The selected/hovered plane should always draw above the other planes, whose
+  // outlines and dashed crosshairs overlap along the shared axes at the origin.
+  const planeOnTop = (planeId: string) =>
+    selectedPlaneId === planeId || hoveredPlaneId === planeId;
+  // renderOrder breaks ties among the depthTest-disabled (on-top) lines.
+  const planeRenderOrder = (planeId: string) => (planeOnTop(planeId) ? 10 : 0);
 
   // Check if plane should be visible: toggled on, or selected/hovered from tree
   const planeVisible = (planeId: string) =>
@@ -95,23 +149,36 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
       {planeVisible('front-plane') && (
         <group>
           {/* Plane outline */}
-          <lineSegments geometry={createPlaneEdges()} position={[0, 0, 0]}>
+          <lineSegments geometry={createPlaneEdges()} position={[0, 0, 0]} renderOrder={planeRenderOrder('front-plane')}>
             <lineBasicMaterial
               color={getPlaneColor('front-plane')}
               linewidth={2}
               toneMapped={false}
+              depthTest={!planeOnTop('front-plane')}
+            />
+          </lineSegments>
+          {/* Dashed crosshair through the origin */}
+          <lineSegments geometry={createPlaneCrosshair()} position={[0, 0, 0]} renderOrder={planeRenderOrder('front-plane')}>
+            <lineDashedMaterial
+              color={getCrosshairColor('front-plane')}
+              dashSize={0.5}
+              gapSize={0.5}
+              toneMapped={false}
+              depthTest={!planeOnTop('front-plane')}
             />
           </lineSegments>
           {/* Invisible clickable plane for selection */}
           <mesh
             position={[0, 0, 0]}
             onClick={(e) => handlePlaneClick(e, 'front-plane')}
+            onPointerOver={(e) => handlePlaneOver(e, 'front-plane')}
+            onPointerOut={(e) => handlePlaneOut(e, 'front-plane')}
           >
             <planeGeometry args={[planeSize, planeSize]} />
             <meshBasicMaterial visible={false} side={THREE.DoubleSide} />
           </mesh>
           <Text3D
-            position={[-45, 45, 0.1]}
+            position={[-48, 48, 0.1]}
             fontSize={3}
             color={getPlaneColor('front-plane')}
             anchorX="left"
@@ -132,11 +199,28 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
             geometry={createPlaneEdges()}
             position={[0, 0, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={planeRenderOrder('top-plane')}
           >
             <lineBasicMaterial
               color={getPlaneColor('top-plane')}
               linewidth={2}
               toneMapped={false}
+              depthTest={!planeOnTop('top-plane')}
+            />
+          </lineSegments>
+          {/* Dashed crosshair through the origin */}
+          <lineSegments
+            geometry={createPlaneCrosshair()}
+            position={[0, 0, 0]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={planeRenderOrder('top-plane')}
+          >
+            <lineDashedMaterial
+              color={getCrosshairColor('top-plane')}
+              dashSize={0.5}
+              gapSize={0.5}
+              toneMapped={false}
+              depthTest={!planeOnTop('top-plane')}
             />
           </lineSegments>
           {/* Invisible clickable plane for selection */}
@@ -144,12 +228,14 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
             position={[0, 0, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
             onClick={(e) => handlePlaneClick(e, 'top-plane')}
+            onPointerOver={(e) => handlePlaneOver(e, 'top-plane')}
+            onPointerOut={(e) => handlePlaneOut(e, 'top-plane')}
           >
             <planeGeometry args={[planeSize, planeSize]} />
             <meshBasicMaterial visible={false} side={THREE.DoubleSide} />
           </mesh>
           <Text3D
-            position={[-45, 0.1, -45]}
+            position={[-48, 0.1, -48]}
             rotation={[-Math.PI / 2, 0, 0]}
             fontSize={3}
             color={getPlaneColor('top-plane')}
@@ -171,11 +257,28 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
             geometry={createPlaneEdges()}
             position={[0, 0, 0]}
             rotation={[0, Math.PI / 2, 0]}
+            renderOrder={planeRenderOrder('right-plane')}
           >
             <lineBasicMaterial
               color={getPlaneColor('right-plane')}
               linewidth={2}
               toneMapped={false}
+              depthTest={!planeOnTop('right-plane')}
+            />
+          </lineSegments>
+          {/* Dashed crosshair through the origin */}
+          <lineSegments
+            geometry={createPlaneCrosshair()}
+            position={[0, 0, 0]}
+            rotation={[0, Math.PI / 2, 0]}
+            renderOrder={planeRenderOrder('right-plane')}
+          >
+            <lineDashedMaterial
+              color={getCrosshairColor('right-plane')}
+              dashSize={0.5}
+              gapSize={0.5}
+              toneMapped={false}
+              depthTest={!planeOnTop('right-plane')}
             />
           </lineSegments>
           {/* Invisible clickable plane for selection */}
@@ -183,12 +286,14 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
             position={[0, 0, 0]}
             rotation={[0, Math.PI / 2, 0]}
             onClick={(e) => handlePlaneClick(e, 'right-plane')}
+            onPointerOver={(e) => handlePlaneOver(e, 'right-plane')}
+            onPointerOut={(e) => handlePlaneOut(e, 'right-plane')}
           >
             <planeGeometry args={[planeSize, planeSize]} />
             <meshBasicMaterial visible={false} side={THREE.DoubleSide} />
           </mesh>
           <Text3D
-            position={[0.1, 45, 45]}
+            position={[0.1, 48, 48]}
             rotation={[0, Math.PI / 2, 0]}
             fontSize={3}
             color={getPlaneColor('right-plane')}
