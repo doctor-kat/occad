@@ -8,6 +8,7 @@ import { OriginPoint } from "./OriginPoint";
 import { SketchWireframes } from "./SketchWireframes";
 import { ExtrudeArrows } from "./ExtrudeArrows";
 import { SketchOverlay } from "../sketch/SketchOverlay";
+import { SketchCameraOrient } from "../sketch/SketchCameraOrient";
 
 export interface SceneProps {
   mesh: MeshData | null;
@@ -135,6 +136,9 @@ export function Scene({
 
       {/* Camera controls */}
       <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
+
+      {/* Swing the view normal to the sketch plane when entering a sketch */}
+      <SketchCameraOrient activeSketch={activeSketch} />
 
       {/* View gizmo (top-right) */}
       <GizmoHelper alignment="top-right" margin={[72, 72]}>

@@ -340,6 +340,7 @@ Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `Opera
 | Multi-body / part management     | ❌      | single implicit `currentBody`                             |
 | Reference geometry (planes/axes) | 🟡     | types + reference planes render (visibility toggle fixed 2026-06-24; dashed midpoint crosshair through origin + viewport hover highlight added 2026-06-24); no custom-plane creation |
 | Measurement readout panel        | ❌      | —                                                         |
+| Sketch view auto-orient          | ✅      | entering a sketch swings the camera "normal to" the sketch plane (`SketchCameraOrient` in Scene, math in `sketchViewpoint.ts`); preserves the current zoom distance and stays on the camera's current side (no back-flip); reorients once per sketch id |
 
 ---
 
