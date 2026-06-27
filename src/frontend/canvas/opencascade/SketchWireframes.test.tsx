@@ -1,5 +1,5 @@
-import { render } from '@testing-library/react';
-import { Canvas } from '@react-three/fiber';
+import { describe, it, expect } from 'vitest';
+import ReactThreeTestRenderer from '@react-three/test-renderer';
 import * as THREE from 'three';
 import { SketchWireframes } from './SketchWireframes';
 import { computeEdgeSegments } from './edgeSegments';
@@ -52,35 +52,101 @@ describe('computeEdgeSegments', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Component-level rendering, inspected via the real THREE scene graph
+// (@react-three/test-renderer, no WebGL). The previous test only rendered
+// inside a jsdom <Canvas> and asserted "did not crash" — which never built a
+// scene graph, so the visibility filter, native-line tech, hit-areas and
+// selection colour were all effectively untested.
+// ---------------------------------------------------------------------------
+
+/** Two collinear-ish segments → 2 cylinder hit-areas. */
+const TWO_SEG = new Float32Array([0, 0, 0, 10, 0, 0, 10, 0, 0, 10, 10, 0]);
+
+function makeProject(sketches: Array<{ id: string; isVisible: boolean }>): CADProject {
+  return {
+    id: 'p1',
+    name: 'Test',
+    version: 1,
+    referenceGeometry: [],
+    sketches: sketches.map((s) => ({ id: s.id, name: s.id, isVisible: s.isVisible })),
+    features: [],
+    createdAt: 0,
+    updatedAt: 0,
+  } as unknown as CADProject;
+}
+
+async function renderWireframes(opts: {
+  sketches: Array<{ id: string; isVisible: boolean }>;
+  edges: Record<string, Float32Array>;
+  selectedSketchId?: string | null;
+}) {
+  const sketchEdges = Object.fromEntries(
+    Object.entries(opts.edges).map(([id, edgeVertices]) => [id, { edgeVertices }])
+  ) as unknown as Record<string, SketchEdgeData>;
+
+  return ReactThreeTestRenderer.create(
+    <SketchWireframes
+      project={makeProject(opts.sketches)}
+      sketchEdges={sketchEdges}
+      selectedSketchId={opts.selectedSketchId ?? null}
+      onSketchClick={() => {}}
+    />
+  );
+}
+
+const hexOf = (instance: { material: { color: THREE.Color } }) =>
+  instance.material.color.getHexString();
+
 describe('SketchWireframes', () => {
-  it('renders visible sketches with edge data without crashing', () => {
-    const project = {
-      id: 'p1',
-      name: 'Test',
-      version: 1,
-      referenceGeometry: [],
+  it('renders only visible sketches that have edge data', async () => {
+    const renderer = await renderWireframes({
       sketches: [
-        { id: 's1', name: 'Sketch 1', isVisible: true },
-        { id: 's2', name: 'Hidden', isVisible: false },
+        { id: 's1', isVisible: true }, // visible + has edges → rendered
+        { id: 's2', isVisible: false }, // hidden → skipped
+        { id: 's3', isVisible: true }, // visible but no edge data → skipped
       ],
-      features: [],
-      createdAt: 0,
-      updatedAt: 0,
-    } as unknown as CADProject;
+      edges: { s1: TWO_SEG },
+    });
 
-    const sketchEdges = {
-      s1: { edgeVertices: new Float32Array([0, 0, 0, 10, 0, 0, 10, 0, 0, 10, 10, 0]) },
-    } as unknown as Record<string, SketchEdgeData>;
+    // Exactly one sketch wireframe → one LineSegments object.
+    expect(renderer.scene.findAllByType('LineSegments')).toHaveLength(1);
+  });
 
-    render(
-      <Canvas>
-        <SketchWireframes
-          project={project}
-          sketchEdges={sketchEdges}
-          selectedSketchId="s1"
-          onSketchClick={() => {}}
-        />
-      </Canvas>
-    );
+  it('draws edges as a native LineSegments with LineBasicMaterial (not a fat Line2)', async () => {
+    const renderer = await renderWireframes({
+      sketches: [{ id: 's1', isVisible: true }],
+      edges: { s1: TWO_SEG },
+    });
+
+    const segs = renderer.scene.findAllByType('LineSegments');
+    expect(segs).toHaveLength(1);
+    expect(segs[0].instance.material.type).toBe('LineBasicMaterial');
+    expect(renderer.scene.findAllByType('Line2')).toHaveLength(0);
+  });
+
+  it('places one cylinder hit-area mesh per edge segment', async () => {
+    const renderer = await renderWireframes({
+      sketches: [{ id: 's1', isVisible: true }],
+      edges: { s1: TWO_SEG }, // 2 segments
+    });
+    // The only meshes in this subtree are the invisible hit-areas.
+    expect(renderer.scene.findAllByType('Mesh')).toHaveLength(2);
+  });
+
+  it('colours the selected sketch blue and an unselected one purple', async () => {
+    const selected = await renderWireframes({
+      sketches: [{ id: 's1', isVisible: true }],
+      edges: { s1: TWO_SEG },
+      selectedSketchId: 's1',
+    });
+    expect(hexOf(selected.scene.findByType('LineSegments').instance)).toBe('3b82f6'); // blue
+
+    const unselected = await renderWireframes({
+      sketches: [{ id: 's1', isVisible: true }],
+      edges: { s1: TWO_SEG },
+      selectedSketchId: null,
+    });
+    expect(hexOf(unselected.scene.findByType('LineSegments').instance)).toBe('a64dff'); // purple
   });
 });
