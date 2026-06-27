@@ -1,4 +1,10 @@
-import { isPlaneVisible, buildReferenceVisibilityMap, createPlaneCrosshair } from './ReferencePlanes';
+import { describe, it, expect, vi } from 'vitest';
+import ReactThreeTestRenderer from '@react-three/test-renderer';
+import { isPlaneVisible, buildReferenceVisibilityMap, createPlaneCrosshair, ReferencePlanes } from './ReferencePlanes';
+
+// drei's <Text> (troika) loads a font asynchronously and is irrelevant to the
+// plane geometry under test — stub it so the scene graph stays deterministic.
+vi.mock('@react-three/drei', () => ({ Text: () => null }));
 
 describe('createPlaneCrosshair', () => {
   it('connects opposite-edge midpoints through the origin', () => {
@@ -107,5 +113,68 @@ describe('isPlaneVisible', () => {
 
   it('does not force planes visible when showAllPlanes is false', () => {
     expect(isPlaneVisible('top-plane', { ...base, showAllPlanes: false })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Component-level rendering, via the real THREE scene graph
+// (@react-three/test-renderer, no WebGL). Previously only the pure helpers were
+// tested; this asserts the component actually emits geometry for the planes
+// `isPlaneVisible` reports as visible, with the right highlight colour. Each
+// visible plane renders 2 lineSegments: the square outline + the dashed
+// crosshair.
+// ---------------------------------------------------------------------------
+async function renderPlanes(props: Partial<Parameters<typeof ReferencePlanes>[0]>) {
+  return ReactThreeTestRenderer.create(
+    <ReferencePlanes
+      selectedPlaneId={null}
+      hoveredPlaneId={null}
+      visibilityMap={{}}
+      {...props}
+    />
+  );
+}
+
+/** The square outline is the lineSegments with a (solid) LineBasicMaterial. */
+const outlineColor = (renderer: Awaited<ReturnType<typeof renderPlanes>>): string | null => {
+  const outline = renderer.scene
+    .findAllByType('LineSegments')
+    .find((l) => l.instance.material.type === 'LineBasicMaterial');
+  return outline ? outline.instance.material.color.getHexString() : null;
+};
+
+describe('ReferencePlanes (rendering)', () => {
+  it('renders nothing when no plane is visible/selected/hovered', async () => {
+    const renderer = await renderPlanes({});
+    expect(renderer.scene.findAllByType('LineSegments')).toHaveLength(0);
+  });
+
+  it('renders only the planes toggled visible (2 lineSegments each)', async () => {
+    const renderer = await renderPlanes({ visibilityMap: { 'front-plane': true } });
+    // one plane → outline + crosshair
+    expect(renderer.scene.findAllByType('LineSegments')).toHaveLength(2);
+  });
+
+  it('renders all three planes when showAllPlanes is set', async () => {
+    const renderer = await renderPlanes({ showAllPlanes: true });
+    expect(renderer.scene.findAllByType('LineSegments')).toHaveLength(6); // 3 planes × 2
+  });
+
+  it('renders a selected plane even when not toggled visible', async () => {
+    const renderer = await renderPlanes({ selectedPlaneId: 'right-plane' });
+    expect(renderer.scene.findAllByType('LineSegments')).toHaveLength(2);
+  });
+
+  it('colours the outline blue when selected, grey by default', async () => {
+    expect(outlineColor(await renderPlanes({ visibilityMap: { 'front-plane': true } }))).toBe('888888');
+    expect(
+      outlineColor(await renderPlanes({ visibilityMap: { 'front-plane': true }, selectedPlaneId: 'front-plane' }))
+    ).toBe('3b82f6');
+  });
+
+  it('places one invisible clickable plane mesh per visible plane', async () => {
+    const renderer = await renderPlanes({ showAllPlanes: true });
+    // Text is stubbed out, so the only meshes are the 3 click targets.
+    expect(renderer.scene.findAllByType('Mesh')).toHaveLength(3);
   });
 });
