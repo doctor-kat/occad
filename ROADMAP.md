@@ -28,6 +28,7 @@ started
 | **Measurement / Analysis** | ❌      | —                                                   | Type only       | Measure, volume, area, CoM, bbox |
 | **Feature tree**           | ✅      | Tree, reorder (deterministic), suppress, visibility, edit | —         | Wire reorder to a drag handler   |
 | **Undo / Redo**            | ✅      | Snapshot history in `useCADState` (records per version change, ignores derived enrichments); Toolbar buttons + Ctrl/⌘+Z·Y wired; undo rebuilds | — | — |
+| **Selection / picking**    | 🟡     | Single-pick face/edge/vertex/sketch via R3F `onClick`; empty-click clears | — | SolidWorks mouse model: LMB=select-only, MMB=camera, RMB=menu; box/crossing select; multi-select sets — see §6 |
 | **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
 | **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history scaffold (`history.ts`) + sketch external-geom now fingerprint-stable (`findShapeByRef`, vertex fingerprints, lazy `sourceRef` capture). Step 4: snapshot undo/redo | — | Boolean exact-history resolution deferred (no payoff for current selection model) — see "Deterministic topology" section below |
 
@@ -61,6 +62,24 @@ rebuild).
 > surfacing downstream as "No closed sketches". `SketchOverlay` now keeps its pointer handlers
 > referentially stable (points read from a ref) and marks decorations non-raycastable. Covered
 > by `e2e/helpers.ts drawClosedRectangle` + the Top-Plane extrude e2e.
+>
+> **Fixed (2026-06-26):** sketch entities **and** the draw preview (e.g. the corner-rectangle
+> rubber-band) were **invisible on some GPUs** — users saw the green anchor dot, grid and origin
+> crosshair, but no line/circle/rectangle geometry or preview. Root cause: sketch geometry was
+> drawn with drei's `<Line>` (a `Line2`/`LineMaterial` *fat* line), whose shader renders nothing
+> on certain ANGLE/driver backends, while the native grid/crosshair (`LineBasicMaterial`) drew
+> fine. Both in-sketch renderers (`SketchElementRenderer3D` used by `SketchOverlay`, and
+> `SketchRenderer` used by `OpenCascadeViewport`) now render via a shared **native-line** helper
+> `NativePolyline` (`<line>` + `LineBasicMaterial`, dashed via a manual `lineDistance` attribute
+> for construction/external geometry) — the same reliable tech as the grid. Trade-off: native GL
+> lines are width-1 (the GPU ignores `linewidth > 1` on most platforms), so strokes are thinner;
+> hover/selection are conveyed by **color**, not width. **Why it wasn't caught:** the only
+> sketch-overlay e2e checked for THREE-namespace console errors, and the jsdom `<Canvas>` smoke
+> test never builds a scene graph (no WebGL), so an invisible-but-present fat line passed every
+> check. New regression guard `SketchElementRenderer3D.test.tsx` inspects the real THREE scene
+> graph via `@react-three/test-renderer` (no GPU) and fails if the renderer regresses to a fat
+> `Line2`. NB: click-move-click *was* the intended/only draw model (no drag-to-draw); the preview
+> logic itself was always correct — it was purely a rendering-visibility bug.
 
 ### 1.1 Sketch primitives
 
@@ -356,6 +375,100 @@ Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `Opera
 | Reference geometry (planes/axes) | 🟡     | types + reference planes render (visibility toggle fixed 2026-06-24; dashed midpoint crosshair through origin + viewport hover highlight added 2026-06-24); no custom-plane creation |
 | Measurement readout panel        | ❌      | —                                                         |
 | Sketch view auto-orient          | ✅      | entering a sketch swings the camera "normal to" the sketch plane (`SketchCameraOrient` in Scene, math in `sketchViewpoint.ts`); preserves the current zoom distance and stays on the camera's current side (no back-flip); reorients once per sketch id |
+
+---
+
+## 6. Selection (SolidWorks-style mouse model) — ❌ planned
+
+Goal: make viewport selection behave **exactly** like SolidWorks. Status ❌ (not started) — this section is a
+plan, not yet implemented.
+
+### Target behavior
+
+| Input                                   | SolidWorks behavior                                         | We want |
+|-----------------------------------------|------------------------------------------------------------|---------|
+| **Left click**                          | Selection only — never moves the camera                    | ✅ target |
+| **Left click + drag → right**           | **Window/box select**: only entities *fully enclosed* by the rectangle (solid blue box) | ✅ target |
+| **Left click + drag → left**            | **Crossing select**: any entity *touching* the rectangle (dashed box) | ✅ target |
+| **Middle click / drag**                 | Camera — rotate (orbit); pan with a modifier; wheel zooms  | ✅ target |
+| **Right click**                         | Context menu (no camera pan)                               | ✅ target |
+| **Ctrl/Shift + left click**             | Add/remove from the current selection set                  | ✅ target |
+
+### Current state (what's there today)
+
+- **Camera:** `<OrbitControls makeDefault enableDamping>` in `Scene.tsx` uses three's *default* button map —
+  **LEFT = rotate**, MIDDLE = dolly, RIGHT = pan. This is the core conflict: today the left button orbits the camera,
+  so it can't be "selection only".
+- **Selection:** single-pick only. R3F `onClick` handlers on each entity (`OCCModel` faces/edges/vertices,
+  `ReferencePlanes`, `SketchWireframes`) write **single nullable ids** into `viewportStore`
+  (`selectedFaceId` / `selectedEdgeIndex` / `selectedVertexIndex`, plus `selectedTreeItem` for planes/sketches).
+  No multi-select, no box select.
+- **Clear:** Canvas-level `onPointerMissed` in `OpenCascadeViewport` clears selection on an empty click (skipped in
+  sketch mode).
+- **Right click:** unused — no context menu anywhere; the browser default menu shows.
+- **Sketch mode:** `SketchOverlay` already owns the left button for drawing (rubber-band preview). The new mouse
+  rules below are scoped to **model/assembly selection (non-sketch mode)**; in sketch mode the active draw tool keeps
+  the left button. (Window/crossing select of *sketch entities* when no draw tool is active is a later follow-up.)
+
+### Implementation plan
+
+**Step 1 — Remap the camera off the left button (`Scene.tsx`).**
+Set `OrbitControls` `mouseButtons={{ LEFT: null, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: null }}` so the left button no
+longer orbits and the right button no longer pans (freeing RMB for the context menu). Keep wheel zoom. SolidWorks pans
+with **Ctrl + MMB** and rotates with plain MMB — OrbitControls only maps one action per button, so panning needs a
+small custom layer: either listen for the Ctrl modifier and swap `mouseButtons.MIDDLE` between `ROTATE`/`PAN` on
+keydown/keyup, or wrap with a thin custom controls component. Document the chosen approach. Verify touch/trackpad still
+zoom (`enableZoom`).
+
+**Step 2 — Multi-select state (`viewportStore.ts`).**
+Replace the three single-id selection fields with a **selection set** — e.g. `selection: SelectionItem[]` where
+`SelectionItem = { kind: 'face' | 'edge' | 'vertex' | 'sketch' | 'plane'; id: string | number }`. Add actions:
+`setSelection`, `addToSelection`, `toggleSelection`, `clearSelection`. Keep thin derived selectors
+(`selectedFaceIds`, etc.) so the highlight code in `OCCModel` / `SketchWireframes` / `ReferencePlanes` and the
+`SelectionDisplay` readout migrate with minimal churn. This refactor touches every consumer of the old single ids —
+do it first, behind the existing single-click flow, before adding box select.
+
+**Step 3 — Left-click semantics (click vs drag, modifiers).**
+On the Canvas, track pointer-down position and a small movement threshold (~4px). Below threshold on pointer-up =
+**click-select** (current single-pick path, but routed through the new set: plain click replaces the set; Ctrl/Shift
+toggles membership). Above threshold = **box select** (Step 4). Left-down must *not* start an orbit (guaranteed by
+Step 1).
+
+**Step 4 — Box / crossing rubber-band select.**
+Draw a 2D selection rectangle as a DOM overlay (absolute-positioned `Box` over the Canvas, like the sketch
+rubber-band but in screen space) between pointer-down and current position. Direction decides the mode:
+- **drag right (endX > startX): window mode** — select entities whose *full* projected extent lies inside the rect;
+  render a **solid** rectangle.
+- **drag left (endX < startX): crossing mode** — select entities whose projected geometry *intersects* the rect;
+  render a **dashed** rectangle.
+
+Hit-testing options to evaluate: three's `SelectionBox` + `SelectionHelper`
+(`three/examples/jsm/interactive/SelectionBox.js`) builds a frustum from the screen rect and selects objects whose
+bounding volume **intersects** it — that maps cleanly to **crossing**; **window** needs a stricter "fully contained"
+test (project each candidate's bbox/vertices and require all corners inside the rect, or test bbox ⊆ rect). Faces,
+edges, and vertices are separate object pools, so run the test per pool and union the results into the selection set.
+On release, write the result via `setSelection` (or merge when Ctrl/Shift held).
+
+**Step 5 — Right-click context menu.**
+Add `onContextMenu` (preventDefault) on the Canvas/container to suppress the browser menu and open a positioned DOM
+menu (Mantine `Menu`/`Popover` anchored at the cursor). Contents depend on what's under the cursor and the current
+selection — start minimal: *Create Sketch on Face*, *Hide/Show*, *Zoom to Selection*, *Clear Selection*; expand later.
+RMB must not pan (handled in Step 1).
+
+**Step 6 — Tests + verification.**
+- Unit: store selection-set actions; the window-vs-crossing direction predicate; the "fully contained" vs
+  "intersects" geometry tests (pure functions, no WebGL).
+- E2e (Playwright): left-drag right selects only enclosed entities; left-drag left selects touching entities;
+  middle-drag orbits without changing selection; right-click opens the menu; Ctrl-click toggles. Per CLAUDE.md,
+  viewport/selection changes require tests.
+
+### Notes / open questions
+
+- **Sketch entities:** window/crossing select of sketch geometry (when no draw tool is active) is deferred to a
+  follow-up; the same direction/threshold logic should be reusable.
+- **Pan binding:** confirm the exact SolidWorks-faithful pan gesture we want (Ctrl+MMB) vs. keeping drei's default,
+  since OrbitControls can't do modifier-conditional button actions without a custom layer.
+- **Highlight semantics:** decide hover-vs-selected precedence once selection is a set (multiple highlighted at once).
 
 ---
 
