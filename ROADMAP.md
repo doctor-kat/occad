@@ -275,6 +275,14 @@ Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `Opera
 
 ## 5. Application Features
 
+> **Fixed (2026-06-26):** Sketcher hotkeys panel (`SketchHotkeys.tsx`) appeared in the middle of the viewport
+> after maximizing the window. The panel uses drei's `<Html>`, which positions its wrapper at the projected
+> 3D point and applies a CSS `transform` to it; a transformed ancestor becomes the containing block for
+> `position: fixed` descendants, so the inner box's `bottom/right` resolved against that moving wrapper (the
+> sketch-plane origin's projection) instead of the viewport. Now overrides `calculatePosition` to return the
+> canvas bottom-right corner and anchors the box there via `translate(-100%, -100%)`, so it stays pinned
+> bottom-right regardless of camera/window size.
+>
 > **Added (2026-06-24):** `OperationsBar` now supports a **stacked compact-button layout** for selected operations.
 > New `CompactOperationButton.tsx` renders an icon + inline (horizontal) label at 116×34 instead of the 72×72
 > square `OperationButton`. `OperationsBar` renders a vertical `Stack` of these (`renderStackedColumn`) so two

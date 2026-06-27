@@ -22,11 +22,14 @@ export function SketchHotkeys({ activeOperation, currentPointsCount, snapToGrid 
   return (
     <Html
       position={[0, 0, 0]}
+      // Anchor to the canvas's bottom-right corner regardless of where the
+      // sketch-plane origin projects. Returning the canvas size (minus a 20px
+      // margin) places drei's transformed wrapper at that corner; the box below
+      // is then pulled fully inside via translate(-100%, -100%).
+      calculatePosition={(_el, _camera, size) => [size.width - 20, size.height - 20]}
       style={{
-        position: 'fixed',
-        bottom: 20,
-        right: 20,
-        transform: 'none',
+        position: 'absolute',
+        transform: 'translate(-100%, -100%)',
       }}
     >
       <div
