@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Line } from '@react-three/drei';
 import { SketchElement, SketchElementType } from '@/cad/types';
+import { NativePolyline } from './NativePolyline';
 
 /**
  * Renders a single sketch element in 3D space
@@ -112,26 +112,17 @@ export function SketchElementRenderer3D({
   const isConstruction =
     element.type === SketchElementType.LINE && Boolean(element.construction);
 
+  // `finalLineWidth` is retained above for intent, but native GL lines are width-1
+  // on most platforms; hover/selection are conveyed by `finalColor` instead.
+  void finalLineWidth;
+
   return (
-    <Line
+    <NativePolyline
       points={points}
       color={finalColor}
-      lineWidth={finalLineWidth}
       opacity={opacity}
-      transparent
       dashed={isConstruction}
-      dashSize={isConstruction ? 1.5 : undefined}
-      gapSize={isConstruction ? 1 : undefined}
       position={[0, 0, 0.05]}
-      // Decoration only: hover/selection is computed by 2D distance math in
-      // SketchOverlay, never by raycasting these lines. Leaving them raycastable
-      // lets a thick preview/element line sit under the cursor and swallow the
-      // click meant for the sketch plane (e.g. the preview rectangle's far
-      // corner is always under the pointer), so the next sketch point is lost.
-      raycast={NO_RAYCAST}
     />
   );
 }
-
-/** A no-op raycast so a mesh/line is visible but never an intersection target. */
-const NO_RAYCAST = () => null;

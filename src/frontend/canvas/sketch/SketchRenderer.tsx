@@ -1,8 +1,7 @@
-import { useRef } from 'react';
-import { Line, Sphere, Text } from '@react-three/drei';
-import { Vector3 } from 'three';
+import { Sphere, Text } from '@react-three/drei';
 import { Sketch, Point2D } from '@/cad/types';
 import { lift } from '@/cad/engine/sketch/coordinateSystem';
+import { NativePolyline } from './NativePolyline';
 
 /** planegcs uses `c_id` for a circle/arc center; unsolved data may use `center_id`. */
 const centerPointId = (data: any): string | undefined => data.c_id ?? data.center_id;
@@ -30,11 +29,10 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
         const end = lift({ x: p2Data.x, y: p2Data.y }, workplane);
 
         return (
-          <Line
+          <NativePolyline
             key={primitive.id}
             points={[[start.x, start.y, start.z], [end.x, end.y, end.z]]}
             color={color}
-            lineWidth={2}
             dashed={!!primitive.isExternal}
           />
         );
@@ -62,11 +60,10 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
         }
 
         return (
-          <Line
+          <NativePolyline
             key={primitive.id}
             points={points}
             color={color}
-            lineWidth={2}
             dashed={!!primitive.isExternal}
           />
         );
@@ -88,11 +85,10 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
         }
 
         return (
-          <Line
+          <NativePolyline
             key={primitive.id}
             points={points}
             color={color}
-            lineWidth={2}
             dashed={!!primitive.isExternal}
           />
         );
@@ -126,10 +122,9 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
       return (
         <group key={constraint.id}>
           {/* Dimension line */}
-          <Line 
-            points={[[p1.x, p1.y, p1.z], [labelPos.x, labelPos.y, labelPos.z], [p2.x, p2.y, p2.z]]} 
-            color={dimColor} 
-            lineWidth={1}
+          <NativePolyline
+            points={[[p1.x, p1.y, p1.z], [labelPos.x, labelPos.y, labelPos.z], [p2.x, p2.y, p2.z]]}
+            color={dimColor}
           />
           {/* Label */}
           <Text
