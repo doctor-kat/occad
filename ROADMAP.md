@@ -349,10 +349,87 @@ Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `Opera
 | Face → sketch workflow           | ✅      | `getFaceGeometry`                                         |
 | Sketch hover + select (viewport) | ✅      | `SketchWireframes` cylinder hit-areas; tree↔viewport sync |
 | **Undo / Redo**                  | ✅      | Snapshot history in `useCADState`; buttons + Ctrl/⌘+Z·Y   |
+| Sketch entity list (sidebar)     | ❌      | left-sidebar list of a sketch's entities — see §7         |
+| Sketch constraint list (sidebar) | 🟡     | `SketchConstraintList` exists; not yet in the left sidebar — see §7 |
+| History rollback bar (rewind/FF) | ❌      | SolidWorks-style rollback to build only up to a marker — see §8 |
 | Multi-body / part management     | ❌      | single implicit `currentBody`                             |
 | Reference geometry (planes/axes) | 🟡     | types + reference planes render (visibility toggle fixed 2026-06-24; dashed midpoint crosshair through origin + viewport hover highlight added 2026-06-24); no custom-plane creation |
 | Measurement readout panel        | ❌      | —                                                         |
 | Sketch view auto-orient          | ✅      | entering a sketch swings the camera "normal to" the sketch plane (`SketchCameraOrient` in Scene, math in `sketchViewpoint.ts`); preserves the current zoom distance and stays on the camera's current side (no back-flip); reorients once per sketch id |
+
+---
+
+## 7. Left sidebar: sketch entity & constraint lists — ❌/🟡 planned
+
+Goal: while editing a sketch, the **left sidebar** shows two live lists — every **entity** in the
+sketch and every **constraint** on it — like the SolidWorks PropertyManager / FeatureManager sketch
+view. Status: constraint list **🟡** (a `SketchConstraintList` component already exists for the
+in-sketch toolbar/overlay, see §1.2), entity list **❌** (not started). Neither is wired into the
+left sidebar yet.
+
+### Target behavior
+
+| Item                | Behavior                                                                                  |
+|---------------------|-------------------------------------------------------------------------------------------|
+| **Entity list**     | One row per `SketchElement` (Line, Circle, Arc, Rectangle→lines, etc.) with an icon + name + count |
+| **Constraint list** | One row per constraint with its kind icon (Horizontal, Coincident, …) + the entities it binds |
+| Hover row → viewport | Highlights the corresponding entity/constraint in `SketchOverlay` (two-way, like the feature-tree↔viewport sync) |
+| Click row           | Selects that entity/constraint (drives the constraint toolbar's "selected" state)          |
+| Delete row          | Removes the entity (`updateSketchElements`) or constraint (`removeConstraint`)             |
+| Construction badge  | Construction-geometry entities (e.g. centerlines, `construction: true`) flagged distinctly |
+
+### Implementation notes
+
+- The **left sidebar** today hosts the `FeatureTree` (`OperationCategory.FEATURES` tab). Add a sketch
+  context: when `startSketchEdit` is active, the sidebar should switch to (or add) **Sketch Entities**
+  + **Sketch Constraints** panels for the active sketch instead of (or above) the global feature tree.
+- **Entity list** is new: read `sketch.elements`; map each `SketchElement` to an icon + label. Reuse
+  the same hover/select store wiring as `SketchWireframes` (`hoveredTreeItem` / point-level selection
+  in `SketchOverlay`).
+- **Constraint list** reuses the existing `SketchConstraintList` (currently rendered near the
+  constraint toolbar) — relocate/embed it in the sidebar and connect its hover to the overlay.
+- Per CLAUDE.md, viewport/sketch changes require tests — cover list rendering, delete, and the
+  two-way hover/select sync.
+
+---
+
+## 8. History rollback bar — rewind / fast-forward — ❌ planned
+
+Goal: a **SolidWorks-style rollback bar** in the feature tree. The user drags a horizontal marker up
+and down the feature list to **rewind** history (the model rebuilds using only the features *above*
+the bar) and **fast-forward** it back. Crucially, new features can be inserted **at the bar's
+position** — they're added after the "present" line but before the rolled-back features below it — so
+you can edit earlier in the history without deleting later work. Status ❌ (not started).
+
+### Target behavior
+
+| Action                                   | Behavior                                                                       |
+|------------------------------------------|--------------------------------------------------------------------------------|
+| **Drag bar up (rewind)**                 | Rebuild using only features *above* the bar; features below are skipped (greyed) |
+| **Drag bar down (fast-forward)**         | Re-include features back down to the bar position; full FF = bar at the bottom |
+| **Insert feature while rolled back**     | New feature is sequenced **at the bar**, pushing rolled-back features after it  |
+| **Rolled-back features**                 | Shown greyed/below the bar, **not** deleted; still in the tree and persisted    |
+| Edit an upstream feature while rolled back | Rebuild stops at the bar so the edit is cheap and side-effect-scoped          |
+
+### Implementation notes
+
+- This is distinct from **undo/redo** (§ undo/redo / Deterministic topology): rollback is a
+  *non-destructive view into the existing feature order*, not a snapshot stack. Both can coexist.
+- **State:** add a `rollbackIndex` (or `rollbackBeforeFeatureId`) to `CADProject` (or to UI state if
+  it shouldn't persist — decide). It marks the boundary in the **deterministic build order**
+  (`buildOrder.ts` `compareBuildOrder`).
+- **Rebuild:** `handleRebuild` (`operations.ts`) already iterates features in deterministic order —
+  gate the loop to stop at `rollbackIndex` (treat features at/after the bar like `isSuppressed`, but
+  via the bar rather than per-feature suppression so the distinction is preserved).
+- **Insertion at the bar:** `addFeature` must assign a `sequence` slotted at the bar position (reuse
+  the between-neighbours slotting already in `reorderFeature`), then advance the bar past the new
+  feature so it becomes part of the "present".
+- **UI:** a draggable horizontal divider row in `FeatureTree.tsx`; features below render greyed. Wire
+  the drag to update `rollbackIndex` → trigger rebuild (bump `version`).
+- Interactions to design: rollback + reorder, rollback + suppress, rollback + undo/redo (does undo
+  capture the bar position?), and whether the bar position is persisted to localStorage.
+- Per CLAUDE.md, this touches the viewport/rebuild → requires unit tests (build-order gating, insert-
+  at-bar sequencing) + an e2e (rewind hides geometry, insert-at-bar lands a feature mid-history).
 
 ---
 
@@ -431,7 +508,9 @@ Each has a co-located `*.test.ts`.
 
 ---
 
-_Last updated: 2026-06-24 — completed the deterministic-topology effort (fingerprint-stable sketch
+_Last updated: 2026-06-26 — added planned §7 (left-sidebar sketch entity + constraint lists) and §8
+(SolidWorks-style history rollback bar: rewind/fast-forward with insert-at-the-bar), plus matching
+rows in the Application Features table. Earlier (2026-06-24): completed the deterministic-topology effort (fingerprint-stable sketch
 external geometry incl. vertex fingerprints + lazy `sourceRef` capture; OCC-history scaffold
 `history.ts`) and snapshot undo/redo (Toolbar + Ctrl/⌘+Z·Y), then folded the former `DETERMINISTIC.md`
 living doc into the "Deterministic topology & stable selections" section above. Boolean exact-history
