@@ -291,6 +291,10 @@ Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `Opera
 > `OperationsBar.test.tsx`. There is also an **icon-only** variant `IconOperationButton.tsx` (34×34, label exposed
 > via tooltip + `aria-label`, no visible text) for the densest layouts — `IconOperationButton.test.tsx`.
 >
+> **Fixed (2026-06-26):** `OperationDivider` vertical dividers in the operations bar were top-aligned (Mantine's
+> vertical `Divider` ignores the parent flex `align="center"`), leaving a 16px gap below and none above. Added
+> `alignSelf: 'center'` so they sit centered (8px above/below) within the 72px button row.
+>
 > **Added (2026-06-24):** **Operation groups / split buttons** (`OperationGroupButton.tsx`). A group renders the
 > currently-shown option as a normal operation button (usable directly without opening the menu) plus an attached
 > caret segment — styled as a button group: an outlined, `overflow:hidden` rounded container with a `Divider`
