@@ -28,7 +28,8 @@ started
 | **Measurement / Analysis** | ❌      | —                                                   | Type only       | Measure, volume, area, CoM, bbox |
 | **Feature tree**           | ✅      | Tree, reorder (deterministic), suppress, visibility, edit | —         | Wire reorder to a drag handler   |
 | **Undo / Redo**            | ✅      | Snapshot history in `useCADState` (records per version change, ignores derived enrichments); Toolbar buttons + Ctrl/⌘+Z·Y wired; undo rebuilds | — | — |
-| **Selection / picking**    | 🟡     | Single-pick face/edge/vertex/sketch via R3F `onClick`; empty-click clears | — | SolidWorks mouse model: LMB=select-only, MMB=camera, RMB=menu; box/crossing select; multi-select sets — see §6 |
+| **Mouse model (SolidWorks)** | 🟡     | Camera on MMB only (orbit; Ctrl+MMB pan; wheel zoom); LMB freed for selection, RMB freed for menu — see §6a | — | RMB context menu; confirm pan gesture |
+| **Selection / picking**    | 🟡     | Single-pick face/edge/vertex/sketch via R3F `onClick`; empty-click clears | — | Box/crossing select; multi-select sets — see §6b |
 | **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
 | **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history scaffold (`history.ts`) + sketch external-geom now fingerprint-stable (`findShapeByRef`, vertex fingerprints, lazy `sourceRef` capture). Step 4: snapshot undo/redo | — | Boolean exact-history resolution deferred (no payoff for current selection model) — see "Deterministic topology" section below |
 
@@ -378,47 +379,66 @@ Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `Opera
 
 ---
 
-## 6. Selection (SolidWorks-style mouse model) — ❌ planned
+## 6a. SolidWorks-style mouse model — 🟡 partial
 
-Goal: make viewport selection behave **exactly** like SolidWorks. Status ❌ (not started) — this section is a
-plan, not yet implemented.
+Goal: make the viewport **mouse model** behave exactly like SolidWorks — camera off the left button, left button is
+selection only, right button is free for a context menu.
+
+### Target behavior
+
+| Input                                   | SolidWorks behavior                                        | Status |
+|-----------------------------------------|-----------------------------------------------------------|--------|
+| **Left click**                          | Selection only — never moves the camera                   | ✅ done (LMB no longer orbits) |
+| **Middle click / drag**                 | Camera — rotate (orbit); pan with a modifier; wheel zooms | ✅ done (MMB rotate, Ctrl+MMB pan, wheel zoom) |
+| **Right click**                         | Context menu (no camera pan)                              | 🟡 RMB no longer pans; menu still TODO (see §6b Step 5) |
+
+### Done — camera remapped off the left button (`Scene.tsx`)
+
+`OrbitControls` now takes `mouseButtons={CAMERA_MOUSE_BUTTONS}` (`{ LEFT: null, MIDDLE: THREE.MOUSE.ROTATE,
+RIGHT: null }`, in `cameraMouseButtons.ts`): the left button no longer orbits (freed for selection) and the right
+button no longer pans (freed for the future context menu). Wheel zoom is unchanged. SolidWorks pans with **Ctrl+MMB**
+and rotates with plain MMB; since OrbitControls maps one action per button, a `keydown`/`keyup` effect in `Scene`
+swaps `controls.mouseButtons.MIDDLE` between `ROTATE`/`PAN` via the pure `middleButtonAction(ctrlKey)` helper. Unit
+tests cover the button map and the Ctrl swap (`cameraMouseButtons.test.ts`).
+
+- **Sketch mode:** `SketchOverlay` already owns the left button for drawing (rubber-band preview); disabling the
+  left-button orbit only helps it. Camera stays on MMB in sketch mode too.
+
+### Remaining
+
+- **RMB context menu** — see §6b Step 5 (the binding is freed here; the menu UI is still to build).
+- **Pan gesture** — currently Ctrl+MMB; confirm this is the SolidWorks-faithful gesture we want vs. drei's default
+  (see open questions in §6b). Verify touch/trackpad still zoom (`enableZoom`).
+
+---
+
+## 6b. Multi-select + box/crossing select — ❌ planned
+
+Goal: extend selection from single-pick to a **selection set** with SolidWorks window/crossing box select. Builds on
+the mouse model in §6a (camera is already off the left button). Status ❌ (not started).
 
 ### Target behavior
 
 | Input                                   | SolidWorks behavior                                         | We want |
 |-----------------------------------------|------------------------------------------------------------|---------|
-| **Left click**                          | Selection only — never moves the camera                    | ✅ target |
 | **Left click + drag → right**           | **Window/box select**: only entities *fully enclosed* by the rectangle (solid blue box) | ✅ target |
 | **Left click + drag → left**            | **Crossing select**: any entity *touching* the rectangle (dashed box) | ✅ target |
-| **Middle click / drag**                 | Camera — rotate (orbit); pan with a modifier; wheel zooms  | ✅ target |
-| **Right click**                         | Context menu (no camera pan)                               | ✅ target |
 | **Ctrl/Shift + left click**             | Add/remove from the current selection set                  | ✅ target |
 
 ### Current state (what's there today)
 
-- **Camera:** `<OrbitControls makeDefault enableDamping>` in `Scene.tsx` uses three's *default* button map —
-  **LEFT = rotate**, MIDDLE = dolly, RIGHT = pan. This is the core conflict: today the left button orbits the camera,
-  so it can't be "selection only".
 - **Selection:** single-pick only. R3F `onClick` handlers on each entity (`OCCModel` faces/edges/vertices,
   `ReferencePlanes`, `SketchWireframes`) write **single nullable ids** into `viewportStore`
   (`selectedFaceId` / `selectedEdgeIndex` / `selectedVertexIndex`, plus `selectedTreeItem` for planes/sketches).
   No multi-select, no box select.
 - **Clear:** Canvas-level `onPointerMissed` in `OpenCascadeViewport` clears selection on an empty click (skipped in
   sketch mode).
-- **Right click:** unused — no context menu anywhere; the browser default menu shows.
-- **Sketch mode:** `SketchOverlay` already owns the left button for drawing (rubber-band preview). The new mouse
-  rules below are scoped to **model/assembly selection (non-sketch mode)**; in sketch mode the active draw tool keeps
-  the left button. (Window/crossing select of *sketch entities* when no draw tool is active is a later follow-up.)
+- **Right click:** binding freed in §6a, but no context menu exists yet; the browser default menu shows.
+- **Sketch mode:** the new rules below are scoped to **model/assembly selection (non-sketch mode)**; in sketch mode
+  the active draw tool keeps the left button. (Window/crossing select of *sketch entities* when no draw tool is active
+  is a later follow-up.)
 
 ### Implementation plan
-
-**Step 1 — Remap the camera off the left button (`Scene.tsx`).**
-Set `OrbitControls` `mouseButtons={{ LEFT: null, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: null }}` so the left button no
-longer orbits and the right button no longer pans (freeing RMB for the context menu). Keep wheel zoom. SolidWorks pans
-with **Ctrl + MMB** and rotates with plain MMB — OrbitControls only maps one action per button, so panning needs a
-small custom layer: either listen for the Ctrl modifier and swap `mouseButtons.MIDDLE` between `ROTATE`/`PAN` on
-keydown/keyup, or wrap with a thin custom controls component. Document the chosen approach. Verify touch/trackpad still
-zoom (`enableZoom`).
 
 **Step 2 — Multi-select state (`viewportStore.ts`).**
 Replace the three single-id selection fields with a **selection set** — e.g. `selection: SelectionItem[]` where

@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Environment, OrbitControls, GizmoHelper, GizmoViewport } from "@react-three/drei";
+import { CAMERA_MOUSE_BUTTONS, middleButtonAction } from "./cameraMouseButtons";
 import type { MeshData, CADProject, Sketch, SketchEdgeData, SketchOperation } from "@/cad/types";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import { OCCModel } from "./OCCModel";
@@ -56,6 +57,22 @@ export function Scene({
   const setHoveredTreeItem = useViewportStore((state) => state.setHoveredTreeItem);
   const hoveredPlaneId = hoveredTreeItem;
   const inSketchMode = !!activeSketch;
+
+  // Camera lives on the middle button (SolidWorks-style). Ctrl swaps the
+  // middle button between orbit and pan on the live OrbitControls instance.
+  const controlsRef = useRef<any>(null);
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const controls = controlsRef.current;
+      if (controls) controls.mouseButtons.MIDDLE = middleButtonAction(e.ctrlKey);
+    };
+    window.addEventListener("keydown", handleKey);
+    window.addEventListener("keyup", handleKey);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      window.removeEventListener("keyup", handleKey);
+    };
+  }, []);
 
   // Build visibility map from project reference geometry
   const visibilityMap = useMemo(
@@ -134,8 +151,15 @@ export function Scene({
       {project && <ExtrudeArrows project={project} />}
 
 
-      {/* Camera controls */}
-      <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
+      {/* Camera controls — middle button only (LEFT freed for selection,
+          RIGHT for the future context menu). */}
+      <OrbitControls
+        ref={controlsRef}
+        makeDefault
+        enableDamping
+        dampingFactor={0.12}
+        mouseButtons={CAMERA_MOUSE_BUTTONS}
+      />
 
       {/* Swing the view normal to the sketch plane when entering a sketch */}
       <SketchCameraOrient activeSketch={activeSketch} />
