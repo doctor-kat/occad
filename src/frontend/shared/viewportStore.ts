@@ -14,6 +14,17 @@ interface ViewportState {
   /** Ids of sketch elements selected in sketch mode (for applying constraints). */
   selectedSketchElementIds: string[];
 
+  /** Sketch element currently hovered (from viewport OR the sidebar entity list). */
+  hoveredSketchElementId: string | null;
+
+  /**
+   * Live rubber-band rectangle for sketch box-select, in canvas-local CSS px.
+   * `mode` is 'window' (drag right → fully enclosed) or 'crossing' (drag left →
+   * touching). Null when no drag is in progress. Drawn as a DOM overlay over the
+   * canvas by OpenCascadeViewport.
+   */
+  sketchSelectionBox: { x: number; y: number; w: number; h: number; mode: 'window' | 'crossing' } | null;
+
   // Sketch-on-face pending state
   pendingSketchOnFace: number | null;
 
@@ -37,6 +48,8 @@ interface ViewportState {
   toggleSketchElementSelection: (id: string) => void;
   setSketchElementSelection: (ids: string[]) => void;
   clearSketchSelection: () => void;
+  setHoveredSketchElementId: (id: string | null) => void;
+  setSketchSelectionBox: (box: ViewportState['sketchSelectionBox']) => void;
   clearSelection: () => void;
   clearHover: () => void;
 }
@@ -50,6 +63,8 @@ export const useViewportStore = create<ViewportState>((set) => ({
   selectedEdgeIndex: null,
   selectedVertexIndex: null,
   selectedSketchElementIds: [],
+  hoveredSketchElementId: null,
+  sketchSelectionBox: null,
   pendingSketchOnFace: null,
   extrudePreview: null,
 
@@ -70,12 +85,15 @@ export const useViewportStore = create<ViewportState>((set) => ({
   })),
   setSketchElementSelection: (ids) => set({ selectedSketchElementIds: ids }),
   clearSketchSelection: () => set({ selectedSketchElementIds: [] }),
+  setHoveredSketchElementId: (id) => set({ hoveredSketchElementId: id }),
+  setSketchSelectionBox: (box) => set({ sketchSelectionBox: box }),
 
   clearSelection: () => set({
     selectedFaceId: null,
     selectedEdgeIndex: null,
     selectedVertexIndex: null,
     selectedSketchElementIds: [],
+    hoveredSketchElementId: null,
   }),
 
   clearHover: () => set({

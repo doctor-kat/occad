@@ -86,6 +86,8 @@ export function OpenCascadeViewport({
   const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
   const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
   const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
+  // Live rubber-band rectangle for sketch box/crossing select (screen-space px).
+  const sketchSelectionBox = useViewportStore((state) => state.sketchSelectionBox);
   // Sketch constraints state
   type ConstraintType = 'none' | 'point' | 'edge' | 'midpoint' | 'center';
   const [activeConstraint, setActiveConstraint] = useState<ConstraintType>('none');
@@ -148,6 +150,29 @@ export function OpenCascadeViewport({
           )} {/* Render SketchRenderer when activeSketch is present */}
         </Suspense>
       </Canvas>
+
+      {/* Box / crossing selection rubber-band (sketch mode). Solid cyan = window
+          (drag right, fully enclosed); dashed green = crossing (drag left,
+          touching). Non-interactive so it never steals pointer events. */}
+      {sketchSelectionBox && (
+        <Box
+          pos="absolute"
+          style={{
+            left: sketchSelectionBox.x,
+            top: sketchSelectionBox.y,
+            width: sketchSelectionBox.w,
+            height: sketchSelectionBox.h,
+            zIndex: 20,
+            pointerEvents: 'none',
+            border: sketchSelectionBox.mode === 'window'
+              ? `1px solid ${theme.colors.cyan[4]}`
+              : `1px dashed ${theme.colors.green[4]}`,
+            backgroundColor: sketchSelectionBox.mode === 'window'
+              ? `${theme.colors.cyan[4]}1a`
+              : `${theme.colors.green[4]}1a`,
+          }}
+        />
+      )}
 
       {/* Sketch Controls Overlay (when in sketch mode) */}
       {activeSketch && (

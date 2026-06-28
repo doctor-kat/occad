@@ -29,7 +29,7 @@ started
 | **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
 | **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
-| **Selection / picking**      | 🟡     | Single-pick face/edge/vertex/sketch; empty-click clears   | —               | Box/crossing + multi-select — §6b                   |
+| **Selection / picking**      | 🟡     | Single-pick model entities; **sketch box/crossing + multi-select done** — §6b | —     | Box/crossing for *model* entities — §6b             |
 | **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans           | —               | All non-wired feature types                         |
 | **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
 
@@ -387,7 +387,7 @@ Polygon, Ellipse, Bezier are plain compact buttons (no variants). `OperationGrou
 | Face → sketch workflow           | ✅      | `getFaceGeometry`                                         |
 | Sketch hover + select (viewport) | ✅      | `SketchWireframes` cylinder hit-areas; tree↔viewport sync |
 | **Undo / Redo**                  | ✅      | Snapshot history in `useCADState`; buttons + Ctrl/⌘+Z·Y   |
-| Sketch entity list (sidebar)     | ❌      | left-sidebar list of a sketch's entities — see §7         |
+| Sketch entity list (sidebar)     | ✅      | `SketchEntitiesPanel` in the Entities tab while sketching — see §7 |
 | Sketch constraint list (sidebar) | 🟡     | `SketchConstraintList` exists; not yet in the left sidebar — see §7 |
 | History rollback bar (rewind/FF) | ❌      | SolidWorks-style rollback to build only up to a marker — see §8 |
 | Multi-body / part management     | ❌      | single implicit `currentBody`                             |
@@ -430,10 +430,23 @@ tests cover the button map and the Ctrl swap (`cameraMouseButtons.test.ts`).
 
 ---
 
-## 6b. Multi-select + box/crossing select — ❌ planned
+## 6b. Multi-select + box/crossing select — 🟡 sketch done, model planned
 
 Goal: extend selection from single-pick to a **selection set** with SolidWorks window/crossing box select. Builds on
-the mouse model in §6a (camera is already off the left button). Status ❌ (not started).
+the mouse model in §6a (camera is already off the left button).
+
+> **Done (2026-06-27) — sketch-mode box/crossing select.** The deferred "sketch entities" follow-up below shipped
+> first (the sketch already had a selection *array*, `selectedSketchElementIds`, so it didn't need the model-side
+> selection-set refactor). In sketch **selection mode** (no draw tool active) the left button now drives a rubber-band:
+> drag right → **window** (only fully-enclosed entities, solid cyan box), drag left → **crossing** (anything touched,
+> dashed green box); Ctrl/Shift merges/toggles into the set. Hit-testing is the pure `selectElementsInBox`
+> (`src/cad/engine/sketch/sketchBoxSelection.ts`): each entity is sampled to plane-space points/segments, projected to
+> screen px via the live camera, then tested (window = all points inside; crossing = any point inside **or** any edge
+> crosses the rect). Listeners live on `gl.domElement` (raw screen px, no plane raycast); a `suppressClickRef` stops the
+> trailing plane `onClick` from also toggling. The rubber-band is a DOM overlay in `OpenCascadeViewport` fed by
+> `viewportStore.sketchSelectionBox`. Tests: `sketchBoxSelection.test.ts` (12, window/crossing math) +
+> `e2e/sketch-selection.spec.ts` (4, real drags incl. window-vs-crossing discrimination on the same region).
+> **Still planned:** the same gesture for **model** faces/edges/vertices (needs the Step-2 selection-set refactor).
 
 ### Target behavior
 
@@ -510,13 +523,21 @@ RMB must not pan (handled in Step 1).
 
 ---
 
-## 7. Left sidebar: sketch entity & constraint lists — ❌/🟡 planned
+## 7. Left sidebar: sketch entity & constraint lists — 🟡 entity list done
 
 Goal: while editing a sketch, the **left sidebar** shows two live lists — every **entity** in the
 sketch and every **constraint** on it — like the SolidWorks PropertyManager / FeatureManager sketch
-view. Status: constraint list **🟡** (a `SketchConstraintList` component already exists for the
-in-sketch toolbar/overlay, see §1.2), entity list **❌** (not started). Neither is wired into the
-left sidebar yet.
+view. Status: **entity list ✅** (`SketchEntitiesPanel`), constraint list **🟡** (a `SketchConstraintList`
+component exists for the in-sketch toolbar/overlay, see §1.2, but is not yet relocated into the sidebar).
+
+> **Done (2026-06-27) — entity list.** Entering a sketch auto-switches the left sidebar to the **Entities**
+> tab, which renders `SketchEntitiesPanel` (the active sketch's elements) instead of the model faces/edges
+> panel. One row per `SketchElement` with a per-type icon + label ("Line 1", "Circle 1", …), a construction
+> badge, and a delete (X). Rows are two-way wired to the viewport via `viewportStore`: clicking toggles the
+> entity in `selectedSketchElementIds` (so the box/crossing selection shows here too); hovering sets the new
+> shared `hoveredSketchElementId`, which `SketchOverlay` now reads for its hover highlight (replacing local
+> hover state). Tests: `SketchEntitiesPanel.test.tsx` (7). **Still planned:** relocate the constraint list
+> into the sidebar and wire its hover to the overlay.
 
 ### Target behavior
 

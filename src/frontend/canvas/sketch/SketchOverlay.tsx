@@ -1,5 +1,5 @@
 import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
-import { ThreeEvent } from '@react-three/fiber';
+import { ThreeEvent, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D } from '@/cad/types';
 import { SketchOperation, SketchElementType } from '@/cad/types';
@@ -21,6 +21,11 @@ import {
 import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
+import {
+  boxMode,
+  rectFromCorners,
+  selectElementsInBox,
+} from '@/cad/engine/sketch/sketchBoxSelection';
 
 /**
  * No-op raycast: makes a mesh/line render but never be an intersection target.
@@ -197,15 +202,37 @@ export function SketchOverlay({
   const [previewElement, setPreviewElement] = useState<SketchElement | null>(null);
   const [hoverPoint, setHoverPoint] = useState<Point2D | null>(null);
   const [snapPoint2D, setSnapPoint2D] = useState<Point2D | null>(null);
-  const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
-  // Sketch element selection lives in the shared viewport store so the constraint
-  // toolbar (rendered outside the R3F canvas) can read it.
+  // Sketch element selection + hover live in the shared viewport store so the
+  // constraint toolbar and the sidebar entity list (both rendered outside the R3F
+  // canvas) can read and drive them.
   const selectedSketchElementIds = useViewportStore((s) => s.selectedSketchElementIds);
+  const hoveredElementId = useViewportStore((s) => s.hoveredSketchElementId);
+  const setHoveredElementId = useViewportStore((s) => s.setHoveredSketchElementId);
   const toggleSketchElementSelection = useViewportStore((s) => s.toggleSketchElementSelection);
+  const setSketchElementSelection = useViewportStore((s) => s.setSketchElementSelection);
   const clearSketchSelection = useViewportStore((s) => s.clearSketchSelection);
+  const setSketchSelectionBox = useViewportStore((s) => s.setSketchSelectionBox);
   const selectedElementIds = useMemo(() => new Set(selectedSketchElementIds), [selectedSketchElementIds]);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const planeRef = useRef<THREE.Mesh>(null);
+
+  // R3F context for box-select: project plane points to screen px via the live
+  // camera, and attach the rubber-band drag listeners to the canvas element.
+  const { camera, gl, size } = useThree();
+
+  // Mutable mirrors read by the gl.domElement listeners (registered once). Reading
+  // these from refs keeps the listener effect from re-binding on every elements/
+  // camera/size change mid-drag.
+  const cameraRef = useRef(camera);
+  const sizeRef = useRef(size);
+  const elementsRef = useRef(sketch.elements);
+  const planeTransformRef = useRef<THREE.Matrix4>(new THREE.Matrix4());
+  const activeOperationRef = useRef(activeOperation);
+  const selectedRef = useRef(selectedSketchElementIds);
+  // Set true the moment a box drag passes the movement threshold, so the plane's
+  // onClick (which still fires on pointer-up after a drag) skips its single-pick
+  // toggle. The click handler resets it.
+  const suppressClickRef = useRef(false);
 
   const gridSize = 10;
   const snapDistance = 5; // Distance threshold for snapping to points/edges
@@ -213,6 +240,14 @@ export function SketchOverlay({
 
   // Calculate plane transformation
   const planeTransform = useMemo(() => getWorkplaneTransform(sketch.workplane), [sketch.workplane]);
+
+  // Keep the listener-facing mirrors current (cheap, runs every render).
+  cameraRef.current = camera;
+  sizeRef.current = size;
+  elementsRef.current = sketch.elements;
+  planeTransformRef.current = planeTransform;
+  activeOperationRef.current = activeOperation;
+  selectedRef.current = selectedSketchElementIds;
 
   // Clear selection when switching INTO a drawing tool (selection is only meaningful in
   // selection mode). Guarding on activeOperation avoids wiping a deliberate selection on
@@ -288,6 +323,102 @@ export function SketchOverlay({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints]);
+
+  // Left-button rubber-band box / crossing selection of sketch entities — active
+  // only in selection mode (no draw tool). The camera is on the middle button, so
+  // the left button is free here. Listeners live on the canvas element (not the
+  // R3F plane mesh) so the gesture works in raw screen px and doesn't depend on the
+  // plane's move-only raycasting. Drag right → window (fully enclosed); drag left →
+  // crossing (touching). See sketchBoxSelection.ts for the hit math.
+  useEffect(() => {
+    const dom = gl.domElement;
+    const DRAG_THRESHOLD = 4; // px before a press counts as a drag, not a click
+
+    let startX = 0, startY = 0; // canvas-local px at press
+    let curX = 0, curY = 0;
+    let pressed = false;
+    let dragging = false;
+    let additive = false; // Ctrl/Shift held → merge/toggle into the current set
+
+    const toLocal = (e: PointerEvent) => {
+      const r = dom.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    // Plane point → screen px, via the live camera (matches the rubber-band space).
+    const project = (p: { x: number; y: number }) => {
+      const v = new THREE.Vector3(p.x, p.y, 0).applyMatrix4(planeTransformRef.current);
+      v.project(cameraRef.current as THREE.Camera);
+      const { width, height } = sizeRef.current;
+      return { x: (v.x * 0.5 + 0.5) * width, y: (-v.y * 0.5 + 0.5) * height };
+    };
+
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;            // left button only
+      if (activeOperationRef.current) return; // a draw tool owns the left button
+      pressed = true;
+      dragging = false;
+      additive = e.ctrlKey || e.metaKey || e.shiftKey;
+      const p = toLocal(e);
+      startX = curX = p.x;
+      startY = curY = p.y;
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!pressed) return;
+      const p = toLocal(e);
+      curX = p.x;
+      curY = p.y;
+      if (!dragging && Math.hypot(curX - startX, curY - startY) > DRAG_THRESHOLD) {
+        dragging = true;
+        suppressClickRef.current = true; // swallow the trailing plane onClick
+      }
+      if (dragging) {
+        setSketchSelectionBox({
+          x: Math.min(startX, curX),
+          y: Math.min(startY, curY),
+          w: Math.abs(curX - startX),
+          h: Math.abs(curY - startY),
+          mode: boxMode(startX, curX),
+        });
+      }
+    };
+
+    const onUp = () => {
+      if (!pressed) return;
+      pressed = false;
+      if (!dragging) return;
+      dragging = false;
+      const mode = boxMode(startX, curX);
+      const rect = rectFromCorners(startX, startY, curX, curY);
+      const hits = selectElementsInBox(elementsRef.current, rect, mode, project);
+      if (additive) {
+        const set = new Set(selectedRef.current);
+        for (const id of hits) set.has(id) ? set.delete(id) : set.add(id);
+        setSketchElementSelection(Array.from(set));
+      } else {
+        setSketchElementSelection(hits);
+      }
+      setSketchSelectionBox(null);
+    };
+
+    const onCancel = () => {
+      pressed = false;
+      dragging = false;
+      setSketchSelectionBox(null);
+    };
+
+    dom.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
+    return () => {
+      dom.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
+    };
+  }, [gl, setSketchSelectionBox, setSketchElementSelection]);
 
   // Origin crosshair geometries (memoised to avoid per-render allocation)
   const xAxisGeo = useMemo(() => {
@@ -487,9 +618,26 @@ export function SketchOverlay({
 
       // If no operation is active, handle selection
       if (!activeOperation) {
-        if (hoveredElementId) {
-          // Toggle the hovered element in the selection (multi-select for constraints)
-          toggleSketchElementSelection(hoveredElementId);
+        // A box drag just completed — its pointer-up already set the selection, so
+        // skip the single-pick toggle this trailing click would otherwise do.
+        if (suppressClickRef.current) {
+          suppressClickRef.current = false;
+          return;
+        }
+        // Single-pick: toggle the nearest element within the hover threshold
+        // (multi-select for constraints). Recomputed here rather than read from
+        // hover state so this handler stays referentially stable.
+        let nearestId: string | null = null;
+        let minDistance = hoverThreshold;
+        for (const el of sketch.elements) {
+          const d = getDistanceToElement(point2D, el);
+          if (d < minDistance) {
+            minDistance = d;
+            nearestId = el.id;
+          }
+        }
+        if (nearestId) {
+          toggleSketchElementSelection(nearestId);
         } else {
           // Clear selection on empty click
           clearSketchSelection();
@@ -708,7 +856,7 @@ export function SketchOverlay({
           console.warn(`Operation ${activeOperation} not yet implemented`);
       }
     },
-    [activeOperation, sketch, onElementsChange, snapPoint, planeTransform, hoveredElementId, toggleSketchElementSelection, clearSketchSelection, setPoints]
+    [activeOperation, sketch, onElementsChange, snapPoint, planeTransform, toggleSketchElementSelection, clearSketchSelection, setPoints]
   );
 
   // Handle mouse move for preview

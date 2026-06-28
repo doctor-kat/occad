@@ -5,6 +5,7 @@ import { FeatureTree } from './FeatureTree/FeatureTree';
 import { CADViewport } from '@/frontend/canvas/CADViewport';
 import { OperationPanel } from './operations/OperationPanel';
 import { EntitiesPanel } from './EntitiesPanel';
+import { SketchEntitiesPanel } from './SketchEntitiesPanel';
 import { useCADState } from '@/frontend/shared/useCADState';
 import { useOpenCascade } from '@/worker/bridge/useOpenCascade';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
@@ -448,6 +449,21 @@ export function CADLayout() {
       });
     }
   };
+
+  // Delete a single entity from the active sketch (from the sidebar entity list).
+  const handleRemoveSketchElement = (elementId: string) => {
+    if (!activeSketchId) return;
+    const sketch = project.sketches.find((s) => s.id === activeSketchId);
+    if (!sketch) return;
+    handleUpdateSketch(activeSketchId, sketch.elements.filter((el) => el.id !== elementId));
+  };
+
+  // While editing a sketch, surface its entity list in the left sidebar so the
+  // selection (incl. box/crossing select) is visible. Switch to the Entities tab
+  // on entering sketch mode and back to the feature tree on exit.
+  useEffect(() => {
+    setActiveSidebarTab(activeSketchId ? 'entities' : OperationCategory.FEATURES);
+  }, [activeSketchId]);
 
   // Handle finish sketch
   const handleFinishSketch = () => {
@@ -909,6 +925,16 @@ export function CADLayout() {
                             </ActionIcon>
                           </Tooltip>
                         </Stack>
+                      ) : activeSketchId ? (
+                        (() => {
+                          const activeSketch = project.sketches.find((s) => s.id === activeSketchId);
+                          return activeSketch ? (
+                            <SketchEntitiesPanel
+                              sketch={activeSketch}
+                              onRemoveElement={handleRemoveSketchElement}
+                            />
+                          ) : null;
+                        })()
                       ) : (
                         <EntitiesPanel
                           mesh={occMesh}
