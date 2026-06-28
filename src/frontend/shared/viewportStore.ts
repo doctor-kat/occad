@@ -17,6 +17,9 @@ interface ViewportState {
   /** Sketch element currently hovered (from viewport OR the sidebar entity list). */
   hoveredSketchElementId: string | null;
 
+  /** Sketch constraint currently selected (via its viewport icon or list row). */
+  selectedConstraintId: string | null;
+
   /**
    * Live rubber-band rectangle for sketch box-select, in canvas-local CSS px.
    * `mode` is 'window' (drag right → fully enclosed) or 'crossing' (drag left →
@@ -50,6 +53,7 @@ interface ViewportState {
   clearSketchSelection: () => void;
   setHoveredSketchElementId: (id: string | null) => void;
   setSketchSelectionBox: (box: ViewportState['sketchSelectionBox']) => void;
+  setSelectedConstraintId: (id: string | null) => void;
   clearSelection: () => void;
   clearHover: () => void;
 }
@@ -64,6 +68,7 @@ export const useViewportStore = create<ViewportState>((set) => ({
   selectedVertexIndex: null,
   selectedSketchElementIds: [],
   hoveredSketchElementId: null,
+  selectedConstraintId: null,
   sketchSelectionBox: null,
   pendingSketchOnFace: null,
   extrudePreview: null,
@@ -84,9 +89,10 @@ export const useViewportStore = create<ViewportState>((set) => ({
       : [...state.selectedSketchElementIds, id],
   })),
   setSketchElementSelection: (ids) => set({ selectedSketchElementIds: ids }),
-  clearSketchSelection: () => set({ selectedSketchElementIds: [] }),
+  clearSketchSelection: () => set({ selectedSketchElementIds: [], selectedConstraintId: null }),
   setHoveredSketchElementId: (id) => set({ hoveredSketchElementId: id }),
   setSketchSelectionBox: (box) => set({ sketchSelectionBox: box }),
+  setSelectedConstraintId: (id) => set({ selectedConstraintId: id }),
 
   clearSelection: () => set({
     selectedFaceId: null,
@@ -94,6 +100,7 @@ export const useViewportStore = create<ViewportState>((set) => ({
     selectedVertexIndex: null,
     selectedSketchElementIds: [],
     hoveredSketchElementId: null,
+    selectedConstraintId: null,
   }),
 
   clearHover: () => set({

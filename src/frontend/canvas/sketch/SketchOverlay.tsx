@@ -26,6 +26,7 @@ import {
   rectFromCorners,
   selectElementsInBox,
 } from '@/cad/engine/sketch/sketchBoxSelection';
+import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors';
 
 /**
  * No-op raycast: makes a mesh/line render but never be an intersection target.
@@ -212,7 +213,15 @@ export function SketchOverlay({
   const setSketchElementSelection = useViewportStore((s) => s.setSketchElementSelection);
   const clearSketchSelection = useViewportStore((s) => s.clearSketchSelection);
   const setSketchSelectionBox = useViewportStore((s) => s.setSketchSelectionBox);
+  const selectedConstraintId = useViewportStore((s) => s.selectedConstraintId);
+  const setSelectedConstraintId = useViewportStore((s) => s.setSelectedConstraintId);
   const selectedElementIds = useMemo(() => new Set(selectedSketchElementIds), [selectedSketchElementIds]);
+  // Badge placement for each constraint: a tiny square just above the constrained
+  // entity's midpoint. Clicking a badge selects that constraint.
+  const constraintIcons = useMemo(
+    () => constraintIconPlacements(sketch.constraints || [], sketch.elements),
+    [sketch.constraints, sketch.elements]
+  );
   const [snapToGrid, setSnapToGrid] = useState(true);
   // Grid *visibility* — independent of snapping (you can snap to a hidden grid,
   // or show the grid without snapping). Toggled with 'H'.
@@ -1160,6 +1169,34 @@ export function SketchOverlay({
             </mesh>
           );
         })}
+
+      {/* Constraint badges: a tiny square just above each constrained entity's
+          midpoint. Clicking one selects (toggles) that constraint. Selection mode
+          only, so the squares don't intercept drawing clicks. */}
+      {!activeOperation && constraintIcons.map((icon) => {
+        const isSel = selectedConstraintId === icon.id;
+        const size = isSel ? 2.6 : 1.8;
+        return (
+          <mesh
+            key={`constraint-${icon.id}`}
+            position={[icon.x, icon.y, 0.25]}
+            renderOrder={1003}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedConstraintId(isSel ? null : icon.id);
+            }}
+          >
+            <planeGeometry args={[size, size]} />
+            <meshBasicMaterial
+              color={isSel ? '#f97316' : '#22d3ee'}
+              transparent
+              opacity={isSel ? 0.95 : 0.85}
+              depthTest={false}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        );
+      })}
 
       {/* Render preview element */}
       {previewElement && (

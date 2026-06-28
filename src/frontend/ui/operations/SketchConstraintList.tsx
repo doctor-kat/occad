@@ -1,6 +1,7 @@
 import { Box, Group, Text, ActionIcon, Tooltip, Stack, useMantineTheme } from '@mantine/core';
 import { X } from '@phosphor-icons/react';
 import type { Sketch } from '@/cad/types';
+import { useViewportStore } from '@/frontend/shared/viewportStore';
 
 interface SketchConstraintListProps {
   sketch: Sketch;
@@ -31,6 +32,8 @@ function constraintLabel(c: any): string {
  */
 export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListProps) {
   const theme = useMantineTheme();
+  const selectedConstraintId = useViewportStore((s) => s.selectedConstraintId);
+  const setSelectedConstraintId = useViewportStore((s) => s.setSelectedConstraintId);
   const constraints = sketch.constraints || [];
   if (constraints.length === 0) return null;
 
@@ -58,8 +61,25 @@ export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListP
         Constraints ({constraints.length})
       </Text>
       <Stack gap={2}>
-        {constraints.map((c: any) => (
-          <Group key={c.id} justify="space-between" gap={6} wrap="nowrap" data-testid={`constraint-row-${c.id}`}>
+        {constraints.map((c: any) => {
+          const isSel = selectedConstraintId === c.id;
+          return (
+          <Group
+            key={c.id}
+            justify="space-between"
+            gap={6}
+            wrap="nowrap"
+            data-testid={`constraint-row-${c.id}`}
+            data-selected={isSel}
+            onClick={() => setSelectedConstraintId(isSel ? null : c.id)}
+            style={{
+              cursor: 'pointer',
+              borderRadius: theme.radius.sm,
+              padding: '2px 4px',
+              backgroundColor: isSel ? `${theme.colors.orange[5]}26` : 'transparent',
+              border: `1px solid ${isSel ? `${theme.colors.orange[5]}66` : 'transparent'}`,
+            }}
+          >
             <Text size="xs" c={theme.other.colors.foreground} truncate>
               {constraintLabel(c)}
             </Text>
@@ -70,13 +90,17 @@ export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListP
                 color="red"
                 data-testid={`constraint-delete-${c.id}`}
                 aria-label={`Delete ${constraintLabel(c)}`}
-                onClick={() => onRemove(c.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(c.id);
+                }}
               >
                 <X size={12} />
               </ActionIcon>
             </Tooltip>
           </Group>
-        ))}
+          );
+        })}
       </Stack>
     </Box>
   );
