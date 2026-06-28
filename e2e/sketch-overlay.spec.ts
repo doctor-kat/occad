@@ -36,8 +36,10 @@ test.describe('SketchOverlay', () => {
     const rectangleOperation = page.locator('button').filter({ hasText: /^Corner Rectangle$/ });
     await rectangleOperation.click();
 
-    // Verify Sketch 1 appears in Feature Tree
-    await expect(page.getByText('Sketch 1').first()).toBeVisible({ timeout: 20000 });
+    // Verify sketch mode is active. (We assert on the "Finish Sketch" control
+    // rather than the feature tree's "Sketch 1" row, because entering a sketch
+    // auto-switches the sidebar to the entity list, hiding the feature tree.)
+    await expect(page.getByText('Finish Sketch')).toBeVisible({ timeout: 20000 });
 
     // Wait for SketchOverlay to render
     await page.waitForTimeout(2000);
