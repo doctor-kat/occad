@@ -3,8 +3,8 @@ import * as THREE from "three";
 /**
  * SolidWorks-style mouse model: the camera lives on the MIDDLE button only.
  *
- * LEFT is freed for selection (single-pick / future box-select) and RIGHT is
- * freed for the future context menu. three's OrbitControls treats any button
+ * LEFT is freed for selection (model single-pick; sketch box/crossing select)
+ * and RIGHT is freed for the future context menu. three's OrbitControls treats any button
  * whose value is not a `THREE.MOUSE` action as disabled (`STATE.NONE`), so the
  * `null` entries below switch LEFT/RIGHT off entirely.
  */

@@ -29,7 +29,7 @@ started
 | **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
 | **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
-| **Selection / picking**      | 🟡     | Single-pick model entities; **sketch box/crossing + multi-select done** — §6b | —     | Box/crossing for *model* entities — §6b             |
+| **Selection / picking**      | ✅     | Single-pick model entities; **sketch box/crossing + multi-select** — §6b | —          | Model box/crossing intentionally out of scope — §6b |
 | **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans           | —               | All non-wired feature types                         |
 | **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
 
@@ -416,7 +416,7 @@ selection only, right button is free for a context menu.
 |-----------------------------------------|-----------------------------------------------------------|--------|
 | **Left click**                          | Selection only — never moves the camera                   | ✅ done (LMB no longer orbits) |
 | **Middle click / drag**                 | Camera — rotate (orbit); pan with a modifier; wheel zooms | ✅ done (MMB rotate, Ctrl+MMB pan, wheel zoom) |
-| **Right click**                         | Context menu (no camera pan)                              | 🟡 RMB no longer pans; menu still TODO (see §6b Step 5) |
+| **Right click**                         | Context menu (no camera pan)                              | 🟡 RMB no longer pans; menu still TODO (see §6b Remaining) |
 
 ### Done — camera remapped off the left button (`Scene.tsx`)
 
@@ -432,102 +432,52 @@ tests cover the button map and the Ctrl swap (`cameraMouseButtons.test.ts`).
 
 ### Remaining
 
-- **RMB context menu** — see §6b Step 5 (the binding is freed here; the menu UI is still to build).
+- **RMB context menu** — see §6b Remaining (the binding is freed here; the menu UI is still to build).
 - **Pan gesture** — currently Ctrl+MMB; confirm this is the SolidWorks-faithful gesture we want vs. drei's default
   (see open questions in §6b). Verify touch/trackpad still zoom (`enableZoom`).
 
 ---
 
-## 6b. Multi-select + box/crossing select — 🟡 sketch done, model planned
+## 6b. Box/crossing select — ✅ sketch done; model ❌ won't do
 
-Goal: extend selection from single-pick to a **selection set** with SolidWorks window/crossing box select. Builds on
-the mouse model in §6a (camera is already off the left button).
+Scope: SolidWorks window/crossing box select for **sketch entities** only. Box/crossing for **model**
+faces/edges/vertices is **explicitly out of scope** (decided 2026-06-28) — model selection stays single-pick.
 
-> **Done (2026-06-27) — sketch-mode box/crossing select.** The deferred "sketch entities" follow-up below shipped
-> first (the sketch already had a selection *array*, `selectedSketchElementIds`, so it didn't need the model-side
-> selection-set refactor). In sketch **selection mode** (no draw tool active) the left button now drives a rubber-band:
-> drag right → **window** (only fully-enclosed entities, solid cyan box), drag left → **crossing** (anything touched,
-> dashed green box); Ctrl/Shift merges/toggles into the set. Hit-testing is the pure `selectElementsInBox`
-> (`src/cad/engine/sketch/sketchBoxSelection.ts`): each entity is sampled to plane-space points/segments, projected to
-> screen px via the live camera, then tested (window = all points inside; crossing = any point inside **or** any edge
-> crosses the rect). Listeners live on `gl.domElement` (raw screen px, no plane raycast); a `suppressClickRef` stops the
-> trailing plane `onClick` from also toggling. The rubber-band is a DOM overlay in `OpenCascadeViewport` fed by
-> `viewportStore.sketchSelectionBox`. Tests: `sketchBoxSelection.test.ts` (12, window/crossing math) +
-> `e2e/sketch-selection.spec.ts` (4, real drags incl. window-vs-crossing discrimination on the same region).
-> **Still planned:** the same gesture for **model** faces/edges/vertices (needs the Step-2 selection-set refactor).
+> **Done (2026-06-27) — sketch-mode box/crossing select.** In sketch **selection mode** (no draw tool active) the
+> left button drives a rubber-band: drag right → **window** (only fully-enclosed entities, solid cyan box), drag left →
+> **crossing** (anything touched, dashed green box); Ctrl/Shift merges/toggles into `selectedSketchElementIds`.
+> Hit-testing is the pure `selectElementsInBox` (`src/cad/engine/sketch/sketchBoxSelection.ts`): each entity is sampled
+> to plane-space points/segments, projected to screen px via the live camera, then tested (window = all points inside;
+> crossing = any point inside **or** any edge crosses the rect). Listeners live on `gl.domElement` (raw screen px, no
+> plane raycast); a `suppressClickRef` stops the trailing plane `onClick` from also toggling. The rubber-band is a DOM
+> overlay in `OpenCascadeViewport` fed by `viewportStore.sketchSelectionBox`. Tests: `sketchBoxSelection.test.ts` (12,
+> window/crossing math) + `e2e/sketch-selection.spec.ts` (4, real drags incl. window-vs-crossing discrimination).
 
-### Target behavior
+> **Won't do (2026-06-28) — model box/crossing select.** Box/crossing for model faces/edges/vertices (and the
+> associated multi-select selection-set refactor of `viewportStore`) will **not** be built. Model entities remain
+> single-pick. No partial model implementation exists to remove — all box/crossing code is sketch-scoped.
 
-| Input                                   | SolidWorks behavior                                         | We want |
-|-----------------------------------------|------------------------------------------------------------|---------|
-| **Left click + drag → right**           | **Window/box select**: only entities *fully enclosed* by the rectangle (solid blue box) | ✅ target |
-| **Left click + drag → left**            | **Crossing select**: any entity *touching* the rectangle (dashed box) | ✅ target |
-| **Ctrl/Shift + left click**             | Add/remove from the current selection set                  | ✅ target |
+### Sketch box/crossing — target behavior (implemented)
 
-### Current state (what's there today)
+| Input                          | Behavior                                                                        |
+|--------------------------------|---------------------------------------------------------------------------------|
+| **Left drag → right**          | **Window**: only sketch entities *fully enclosed* by the rectangle (solid cyan) |
+| **Left drag → left**           | **Crossing**: any sketch entity *touching* the rectangle (dashed green)         |
+| **Ctrl/Shift + the above**     | Merge/toggle the hit set into the current `selectedSketchElementIds`             |
 
-- **Selection:** single-pick only. R3F `onClick` handlers on each entity (`OCCModel` faces/edges/vertices,
-  `ReferencePlanes`, `SketchWireframes`) write **single nullable ids** into `viewportStore`
-  (`selectedFaceId` / `selectedEdgeIndex` / `selectedVertexIndex`, plus `selectedTreeItem` for planes/sketches).
-  No multi-select, no box select.
-- **Clear:** Canvas-level `onPointerMissed` in `OpenCascadeViewport` clears selection on an empty click (skipped in
-  sketch mode).
-- **Right click:** binding freed in §6a, but no context menu exists yet; the browser default menu shows.
-- **Sketch mode:** the new rules below are scoped to **model/assembly selection (non-sketch mode)**; in sketch mode
-  the active draw tool keeps the left button. (Window/crossing select of *sketch entities* when no draw tool is active
-  is a later follow-up.)
+### Model selection (unchanged, single-pick)
 
-### Implementation plan
+R3F `onClick` handlers on each entity (`OCCModel` faces/edges/vertices, `ReferencePlanes`, `SketchWireframes`) write
+**single nullable ids** into `viewportStore` (`selectedFaceId` / `selectedEdgeIndex` / `selectedVertexIndex`, plus
+`selectedTreeItem` for planes/sketches). Canvas-level `onPointerMissed` clears on an empty click. This stays as-is —
+no selection-set refactor, no model box/crossing.
 
-**Step 2 — Multi-select state (`viewportStore.ts`).**
-Replace the three single-id selection fields with a **selection set** — e.g. `selection: SelectionItem[]` where
-`SelectionItem = { kind: 'face' | 'edge' | 'vertex' | 'sketch' | 'plane'; id: string | number }`. Add actions:
-`setSelection`, `addToSelection`, `toggleSelection`, `clearSelection`. Keep thin derived selectors
-(`selectedFaceIds`, etc.) so the highlight code in `OCCModel` / `SketchWireframes` / `ReferencePlanes` and the
-`SelectionDisplay` readout migrate with minimal churn. This refactor touches every consumer of the old single ids —
-do it first, behind the existing single-click flow, before adding box select.
+### Remaining (unrelated to selection)
 
-**Step 3 — Left-click semantics (click vs drag, modifiers).**
-On the Canvas, track pointer-down position and a small movement threshold (~4px). Below threshold on pointer-up =
-**click-select** (current single-pick path, but routed through the new set: plain click replaces the set; Ctrl/Shift
-toggles membership). Above threshold = **box select** (Step 4). Left-down must *not* start an orbit (guaranteed by
-Step 1).
-
-**Step 4 — Box / crossing rubber-band select.**
-Draw a 2D selection rectangle as a DOM overlay (absolute-positioned `Box` over the Canvas, like the sketch
-rubber-band but in screen space) between pointer-down and current position. Direction decides the mode:
-- **drag right (endX > startX): window mode** — select entities whose *full* projected extent lies inside the rect;
-  render a **solid** rectangle.
-- **drag left (endX < startX): crossing mode** — select entities whose projected geometry *intersects* the rect;
-  render a **dashed** rectangle.
-
-Hit-testing options to evaluate: three's `SelectionBox` + `SelectionHelper`
-(`three/examples/jsm/interactive/SelectionBox.js`) builds a frustum from the screen rect and selects objects whose
-bounding volume **intersects** it — that maps cleanly to **crossing**; **window** needs a stricter "fully contained"
-test (project each candidate's bbox/vertices and require all corners inside the rect, or test bbox ⊆ rect). Faces,
-edges, and vertices are separate object pools, so run the test per pool and union the results into the selection set.
-On release, write the result via `setSelection` (or merge when Ctrl/Shift held).
-
-**Step 5 — Right-click context menu.**
-Add `onContextMenu` (preventDefault) on the Canvas/container to suppress the browser menu and open a positioned DOM
-menu (Mantine `Menu`/`Popover` anchored at the cursor). Contents depend on what's under the cursor and the current
-selection — start minimal: *Create Sketch on Face*, *Hide/Show*, *Zoom to Selection*, *Clear Selection*; expand later.
-RMB must not pan (handled in Step 1).
-
-**Step 6 — Tests + verification.**
-- Unit: store selection-set actions; the window-vs-crossing direction predicate; the "fully contained" vs
-  "intersects" geometry tests (pure functions, no WebGL).
-- E2e (Playwright): left-drag right selects only enclosed entities; left-drag left selects touching entities;
-  middle-drag orbits without changing selection; right-click opens the menu; Ctrl-click toggles. Per CLAUDE.md,
-  viewport/selection changes require tests.
-
-### Notes / open questions
-
-- **Sketch entities:** window/crossing select of sketch geometry (when no draw tool is active) is deferred to a
-  follow-up; the same direction/threshold logic should be reusable.
-- **Pan binding:** confirm the exact SolidWorks-faithful pan gesture we want (Ctrl+MMB) vs. keeping drei's default,
-  since OrbitControls can't do modifier-conditional button actions without a custom layer.
-- **Highlight semantics:** decide hover-vs-selected precedence once selection is a set (multiple highlighted at once).
+- **RMB context menu** — the right-button binding is freed (§6a) but no menu exists; the browser default still shows.
+  Build an `onContextMenu` (preventDefault) → positioned Mantine `Menu` anchored at the cursor (e.g. *Create Sketch on
+  Face*, *Hide/Show*, *Zoom to Selection*, *Clear Selection*). Independent of box/crossing.
+- **Pan binding** — confirm Ctrl+MMB is the SolidWorks-faithful pan we want vs. drei's default.
 
 ---
 
