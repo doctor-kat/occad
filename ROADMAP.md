@@ -16,7 +16,7 @@ started
 
 | Area                         | Status | Done                                                      | Partial         | Todo                                                |
 |------------------------------|--------|-----------------------------------------------------------|-----------------|-----------------------------------------------------|
-| **Sketch primitives**        | ✅     | Line, Rectangle, Circle (+Perimeter), Polygon, Arc (3pt/Centerpoint/Tangent), Ellipse | —               | Bezier (won't implement); Spline removed            |
+| **Sketch primitives**        | ✅     | Line, Rectangle, Circle, Arc, Ellipse, Polygon (+ variants) | —               | — (Bezier won't implement — see §1.1.1)             |
 | **Sketch constraints**       | ✅     | 10 constraints end-to-end (UI+solver+e2e)                 | —               | Midpoint, Symmetric                                 |
 | **Sketch-based features**    | ✅     | Extrude Boss/Cut, Revolve Boss/Cut                        | —               | —                                                   |
 | **Primitives**               | 🟡     | Box, Cylinder                                             | —               | Sphere, Cone, Torus, Wedge                          |
@@ -96,31 +96,14 @@ rebuild).
 | Centerpoint Arc   | ✅            | ✅ `centerpointArc` → `arc`    | ✅          | ✅      |
 | Tangent Arc       | ✅            | ✅ `tangentArc` → `arc`        | ✅          | ✅      |
 | Ellipse           | ✅            | ✅ `ellipse`                   | ✅          | ✅      |
-| Bezier            | 🟡 type only | ❌                             | ✅ (button) | 🚫 won't implement |
 
-> **Spline removed (2026-06-27):** the half-implemented Spline tool (no OCC
-> translation case, no overlay drawing) was deleted — `SketchSpline` type, the
-> `SPLINE` enum members, the toolbar button and the `SKETCH_TOOL_OPERATIONS`
-> entry. Bezier stays a known dead button (won't implement). The OCC B-spline
-> *surface/curve* fingerprint names in `fingerprint.ts` are unrelated and untouched.
->
-> **Circle/arc variants finished (2026-06-27, TDD):** Perimeter (3-point) Circle,
-> Centerpoint Arc and Tangent Arc are wired end-to-end. Pure geometry lives in
-> `src/cad/engine/sketch/arcGeometry.ts` (`circleFromThreePoints`,
-> `arcFromThreePoints`, `centerpointArc`, `tangentArc`, `endTangentDirection`) with
-> 14 unit tests written first. Perimeter Circle emits a normal `SketchCircle`
-> (reuses the proven circle path). Centerpoint/Tangent arcs emit a center-based
-> `SketchArc` (center + radius + start/end angle, CCW-normalized); `SketchOverlay`
-> collects clicks + previews (Tangent Arc continues tangent to the previously drawn
-> entity's end, falling back to +X), `SketchElementRenderer3D` samples the sweep as
-> a native polyline, and `elementsToPrimitives` forwards the real angles.
-> `sketchBuilders` now pins the arc's `gp_Ax2` reference X to the workplane X
-> (`gp_Ax2_3(center, normal, xDir)`) so `BRepBuilderAPI_MakeEdge_9`'s start/end
-> angles are measured in the sketch frame (the old 2-arg form let OCC pick an
-> arbitrary X, rotating the arc). e2e: `e2e/sketch-primitives.spec.ts` draws each
-> tool through the real UI and asserts the committed element. ⚠️ Per the
-> worker-is-mocked note, arc *solid* geometry validity is e2e-only (a lone arc isn't
-> a closed profile); the angle/center math is covered by the unit tests.
+> **Circle/arc variants finished (2026-06-27, TDD):** Perimeter (3-point) Circle, Centerpoint Arc and
+> Tangent Arc are wired end-to-end. Pure geometry in `src/cad/engine/sketch/arcGeometry.ts`
+> (`circleFromThreePoints`/`arcFromThreePoints`/`centerpointArc`/`tangentArc`, 14 unit tests first):
+> Perimeter Circle emits a `SketchCircle`; the arcs emit center-based `SketchArc`s (CCW-normalized
+> angles, rendered by sampling the sweep). `sketchBuilders` pins the arc's `gp_Ax2` X to the workplane
+> X so `MakeEdge_9`'s angles are in the sketch frame. e2e: `e2e/sketch-primitives.spec.ts`. (Arc
+> *solid* validity is e2e-only — a lone arc isn't a closed profile.)
 
 **Sketch toolbar groups (UI-only, 2026-06-24):** in the sketch tab every tool except the big **Sketch** button is
 rendered small (compact), flowing into **columns of 2, left to right** (CSS grid, `renderSketchTools`). Tools with
@@ -142,8 +125,17 @@ previews. **Centerline** is a `SketchLine` with `construction: true` — rendere
 variants (**3 Point Corner/Center Rectangle**, **Parallelogram**) can't be an axis-aligned `SketchRectangle`, so
 they're emitted as 4-point **polygons**.
 
-Polygon, Ellipse, Spline, Bezier are plain compact buttons (no variants). `OperationGroupButton` still supports
+Polygon, Ellipse, Bezier are plain compact buttons (no variants). `OperationGroupButton` still supports
 `full` (big, caret-on-bottom) and `icon` variants for other toolbars.
+
+### 1.1.1 Removed / won't implement
+
+- **Spline** — removed (2026-06-27). The tool was half-implemented (no OCC translation case, no overlay
+  drawing), so `SketchSpline`, the `SPLINE` enum members, the toolbar button and the
+  `SKETCH_TOOL_OPERATIONS` entry were deleted. (The OCC B-spline *surface/curve* names in
+  `fingerprint.ts` are unrelated and untouched.)
+- **Bezier** — 🚫 won't implement. The `SketchBezier` type + toolbar button still exist but there is no
+  builder; it remains a known dead button.
 
 ### 1.2 Sketch constraint solver
 
@@ -667,11 +659,8 @@ Each has a co-located `*.test.ts`.
 
 ---
 
-_Last updated: 2026-06-27 — finished the remaining sketch primitives: Perimeter (3-point) Circle,
-Centerpoint Arc and Tangent Arc, all TDD with a real e2e (`e2e/sketch-primitives.spec.ts`); added the
-pure `arcGeometry.ts` module + 14 unit tests; fixed the arc OCC frame (`gp_Ax2` reference X) and arc
-rendering; removed the half-implemented Spline tool; fixed stale "Rectangle"→"Corner Rectangle" e2e
-locators in `box-sketch-flow`/`sketch-overlay`. Earlier (2026-06-26): added planned §7 (left-sidebar sketch entity + constraint lists) and §8
+_Last updated: 2026-06-27 — finished the remaining sketch primitives (Perimeter Circle, Centerpoint
+Arc, Tangent Arc) TDD with a real e2e; removed Spline (§1.1.1). Earlier (2026-06-26): added planned §7 (left-sidebar sketch entity + constraint lists) and §8
 (SolidWorks-style history rollback bar: rewind/fast-forward with insert-at-the-bar), plus matching
 rows in the Application Features table. Earlier (2026-06-24): completed the deterministic-topology effort (fingerprint-stable sketch
 external geometry incl. vertex fingerprints + lazy `sourceRef` capture; OCC-history scaffold
