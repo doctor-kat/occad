@@ -1,6 +1,19 @@
-import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
+import { useRef, useMemo, useCallback, useState, useEffect, type ComponentType } from 'react';
 import { ThreeEvent, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
+import {
+  ArrowsHorizontal,
+  ArrowsVertical,
+  ArrowsOutLineHorizontal,
+  Angle,
+  Equals,
+  Triangle,
+  Dot,
+  Ruler,
+  Circle as CircleIcon,
+  Intersect,
+  DotsThree,
+} from '@phosphor-icons/react';
 import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D } from '@/cad/types';
 import { SketchOperation, SketchElementType } from '@/cad/types';
@@ -40,23 +53,23 @@ import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors'
  */
 const NO_RAYCAST = () => null;
 
-/** Short glyph shown inside a constraint badge, per planegcs constraint type. */
-function constraintGlyph(type: string): string {
-  switch (type) {
-    case 'horizontal_l': return 'H';
-    case 'vertical_l': return 'V';
-    case 'parallel': return '∥';
-    case 'perpendicular_ll': return '⊥';
-    case 'equal_length': return '=';
-    case 'l2l_angle_ll': return '∠';
-    case 'p2p_coincident': return '◎';
-    case 'p2p_distance': return '↔';
-    case 'circle_radius':
-    case 'arc_radius': return 'R';
-    case 'tangent_lc': return 'T';
-    default: return '•';
-  }
-}
+/**
+ * Icon shown inside a constraint badge, keyed by planegcs constraint type —
+ * mirrors the icons used to *create* each constraint in `SketchConstraintToolbar`.
+ */
+const CONSTRAINT_ICONS: Record<string, ComponentType<{ size?: number; weight?: any; color?: string }>> = {
+  horizontal_l: ArrowsHorizontal,
+  vertical_l: ArrowsVertical,
+  parallel: ArrowsOutLineHorizontal,
+  perpendicular_ll: Angle,
+  equal_length: Equals,
+  l2l_angle_ll: Triangle,
+  p2p_coincident: Dot,
+  p2p_distance: Ruler,
+  circle_radius: CircleIcon,
+  arc_radius: CircleIcon,
+  tangent_lc: Intersect,
+};
 
 /** Build an ARC sketch element from solved arc geometry (center + angle sweep). */
 function arcElementFrom(g: ArcGeometry): SketchElement {
@@ -1195,6 +1208,7 @@ export function SketchOverlay({
           constraint. Selection mode only, so they don't interfere with drawing. */}
       {!activeOperation && constraintIcons.map((icon) => {
         const isSel = selectedConstraintId === icon.id;
+        const Icon = CONSTRAINT_ICONS[icon.type] ?? DotsThree;
         return (
           <Html
             key={`constraint-${icon.id}`}
@@ -1216,11 +1230,6 @@ export function SketchOverlay({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 11,
-                fontWeight: 700,
-                lineHeight: 1,
-                fontFamily: 'system-ui, sans-serif',
-                color: isSel ? '#0a0a0f' : '#0a0a0f',
                 background: isSel ? '#f97316' : '#22d3ee',
                 border: `1.5px solid ${isSel ? '#fdba74' : '#0e7490'}`,
                 borderRadius: 4,
@@ -1229,7 +1238,7 @@ export function SketchOverlay({
                 userSelect: 'none',
               }}
             >
-              {constraintGlyph(icon.type)}
+              <Icon size={12} weight="bold" color="#0a0a0f" />
             </div>
           </Html>
         );
