@@ -196,6 +196,13 @@ Polygon, Ellipse, Bezier are plain compact buttons (no variants). `OperationGrou
    through the solver onto the sketch. Tests: `autoConstraints.test.ts` (4, incl. real-solver skew→axis-aligned) +
    `e2e/auto-constraints.spec.ts`. **Deferred:** line (coincident-on-snap, near-axis H/V), 3-pt rectangle/parallelogram
    (perpendicular/parallel), and a distinct list badge for auto vs manual. See `TODO.md` Phase 5.
+6. ✅ **Constraint badges in the viewport (2026-06-28).** Each constraint shows as a tiny square just above the
+   midpoint of its entity; clicking a badge selects (toggles) that constraint. Pure `constraintAnchors.ts` maps a
+   planegcs constraint's primitive ids back to a point on the source `SketchElement` (inverse of
+   `mapElementsToPrimitives`), averages multi-entity anchors, and stacks badges sharing an anchor. Selection lives in
+   `viewportStore.selectedConstraintId`, wired two-way with `SketchConstraintList` (badge ↔ row highlight). Badges
+   render in selection mode only (so they never intercept drawing clicks). Tests: `constraintAnchors.test.ts` (12) +
+   `SketchConstraintList.test.tsx` (4).
 
 ---
 
