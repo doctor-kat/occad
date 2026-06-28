@@ -1,5 +1,6 @@
 import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
 import { ThreeEvent, useThree } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D } from '@/cad/types';
 import { SketchOperation, SketchElementType } from '@/cad/types';
@@ -38,6 +39,24 @@ import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors'
  * handles remain real pointer targets.
  */
 const NO_RAYCAST = () => null;
+
+/** Short glyph shown inside a constraint badge, per planegcs constraint type. */
+function constraintGlyph(type: string): string {
+  switch (type) {
+    case 'horizontal_l': return 'H';
+    case 'vertical_l': return 'V';
+    case 'parallel': return '∥';
+    case 'perpendicular_ll': return '⊥';
+    case 'equal_length': return '=';
+    case 'l2l_angle_ll': return '∠';
+    case 'p2p_coincident': return '◎';
+    case 'p2p_distance': return '↔';
+    case 'circle_radius':
+    case 'arc_radius': return 'R';
+    case 'tangent_lc': return 'T';
+    default: return '•';
+  }
+}
 
 /** Build an ARC sketch element from solved arc geometry (center + angle sweep). */
 function arcElementFrom(g: ArcGeometry): SketchElement {
@@ -1170,31 +1189,49 @@ export function SketchOverlay({
           );
         })}
 
-      {/* Constraint badges: a tiny square just above each constrained entity's
-          midpoint. Clicking one selects (toggles) that constraint. Selection mode
-          only, so the squares don't intercept drawing clicks. */}
+      {/* Constraint badges: a small labelled square just above each constrained
+          entity's midpoint, drawn as a crisp DOM overlay (screen-constant size, so
+          it's readable at any zoom). Clicking one selects (toggles) that
+          constraint. Selection mode only, so they don't interfere with drawing. */}
       {!activeOperation && constraintIcons.map((icon) => {
         const isSel = selectedConstraintId === icon.id;
-        const size = isSel ? 2.6 : 1.8;
         return (
-          <mesh
+          <Html
             key={`constraint-${icon.id}`}
             position={[icon.x, icon.y, 0.25]}
-            renderOrder={1003}
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedConstraintId(isSel ? null : icon.id);
-            }}
+            center
+            zIndexRange={[30, 10]}
+            style={{ pointerEvents: 'auto' }}
           >
-            <planeGeometry args={[size, size]} />
-            <meshBasicMaterial
-              color={isSel ? '#f97316' : '#22d3ee'}
-              transparent
-              opacity={isSel ? 0.95 : 0.85}
-              depthTest={false}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
+            <div
+              data-testid={`constraint-badge-${icon.id}`}
+              title={icon.type}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedConstraintId(isSel ? null : icon.id);
+              }}
+              style={{
+                width: 18,
+                height: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                fontWeight: 700,
+                lineHeight: 1,
+                fontFamily: 'system-ui, sans-serif',
+                color: isSel ? '#0a0a0f' : '#0a0a0f',
+                background: isSel ? '#f97316' : '#22d3ee',
+                border: `1.5px solid ${isSel ? '#fdba74' : '#0e7490'}`,
+                borderRadius: 4,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              {constraintGlyph(icon.type)}
+            </div>
+          </Html>
         );
       })}
 
