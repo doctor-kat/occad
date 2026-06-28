@@ -88,21 +88,10 @@ test.describe('Primitive Shapes', () => {
         await page.getByRole('tab', { name: 'Feature Tree' }).click();
         await expect(page.locator('.tree-item-row').getByText(/Sketch\s*\d+/)).toBeVisible({ timeout: 20000 });
 
-        // 4. Draw a Rectangle
-        const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
+        // 4. Draw a Rectangle (robust against R3F pointer-event timing).
+        const rectangleTool = page.locator('button').filter({ hasText: /^Corner Rectangle$/ });
         await rectangleTool.click();
-        
-        const canvas = page.locator('canvas').first();
-        const b = await canvas.boundingBox();
-        if (b) {
-            const centerX = b.x + b.width / 2;
-            const centerY = b.y + b.height / 2;
-            // Draw a rectangle using two clicks
-            await page.mouse.click(centerX - 15, centerY - 15);
-            await page.waitForTimeout(200);
-            await page.mouse.click(centerX + 15, centerY + 15);
-            await page.waitForTimeout(500);
-        }
+        await drawClosedRectangle(page);
         await page.getByRole('button', { name: 'Finish Sketch' }).click();
         await expect(page.locator('text=Sketch completed')).toBeVisible({ timeout: 15000 });
 
@@ -142,7 +131,7 @@ test.describe('Primitive Shapes', () => {
         await expect(page.locator('.tree-item-row').getByText(/Sketch\s*\d+/)).toBeVisible({ timeout: 20000 });
 
         // 2. Draw a rectangle (robust against R3F pointer-event timing)
-        const rectangleTool = page.locator('button').filter({ hasText: /^Rectangle$/ });
+        const rectangleTool = page.locator('button').filter({ hasText: /^Corner Rectangle$/ });
         await rectangleTool.click();
         await drawClosedRectangle(page);
         await page.getByRole('button', { name: 'Finish Sketch' }).click();

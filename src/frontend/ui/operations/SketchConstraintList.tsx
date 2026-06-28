@@ -39,8 +39,11 @@ export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListP
       pos="absolute"
       data-testid="constraint-list"
       style={{
+        // Top-left: the top-right corner holds the sketch Cancel/Finish controls,
+        // and rectangles now auto-generate constraints, so a right-aligned list
+        // would overlap and swallow clicks on "Finish Sketch".
         top: 64,
-        right: 16,
+        left: 16,
         zIndex: 10,
         minWidth: 168,
         borderRadius: theme.radius.lg,
