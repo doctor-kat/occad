@@ -5,9 +5,10 @@ interface SketchHotkeysProps {
   activeOperation: SketchOperation | null;
   currentPointsCount: number;
   snapToGrid: boolean;
+  showGrid: boolean;
 }
 
-export function SketchHotkeys({ activeOperation, currentPointsCount, snapToGrid }: SketchHotkeysProps) {
+export function SketchHotkeys({ activeOperation, currentPointsCount, snapToGrid, showGrid }: SketchHotkeysProps) {
   const kbdStyle = {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
     padding: '2px 8px',
@@ -70,6 +71,13 @@ export function SketchHotkeys({ activeOperation, currentPointsCount, snapToGrid 
               <kbd style={kbdStyle}>G</kbd>
             </div>
             <span style={{ color: snapToGrid ? '#22c55e' : '#94a3b8' }}>Grid Snap: {snapToGrid ? 'ON' : 'OFF'}</span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6, minWidth: 80 }}>
+              <kbd style={kbdStyle}>H</kbd>
+            </div>
+            <span style={{ color: showGrid ? '#22c55e' : '#94a3b8' }}>Show Grid: {showGrid ? 'ON' : 'OFF'}</span>
           </div>
 
           {activeOperation === SketchOperation.POLYGON && currentPointsCount >= 3 && (

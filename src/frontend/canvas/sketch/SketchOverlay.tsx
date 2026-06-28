@@ -214,6 +214,9 @@ export function SketchOverlay({
   const setSketchSelectionBox = useViewportStore((s) => s.setSketchSelectionBox);
   const selectedElementIds = useMemo(() => new Set(selectedSketchElementIds), [selectedSketchElementIds]);
   const [snapToGrid, setSnapToGrid] = useState(true);
+  // Grid *visibility* — independent of snapping (you can snap to a hidden grid,
+  // or show the grid without snapping). Toggled with 'H'.
+  const [showGrid, setShowGrid] = useState(true);
   const planeRef = useRef<THREE.Mesh>(null);
 
   // R3F context for box-select: project plane points to screen px via the live
@@ -280,6 +283,12 @@ export function SketchOverlay({
       // Toggle grid snap
       if (e.key === 'g' || e.key === 'G') {
         setSnapToGrid((prev) => !prev);
+        return;
+      }
+
+      // Toggle grid visibility (independent of snapping)
+      if (e.key === 'h' || e.key === 'H') {
+        setShowGrid((prev) => !prev);
         return;
       }
 
@@ -1070,6 +1079,7 @@ export function SketchOverlay({
         activeOperation={activeOperation}
         currentPointsCount={currentPoints.length}
         snapToGrid={snapToGrid}
+        showGrid={showGrid}
       />
 
       {/* Semi-transparent sketch plane */}
@@ -1090,13 +1100,15 @@ export function SketchOverlay({
         />
       </mesh>
 
-      {/* Grid on sketch plane */}
-      <gridHelper
-        args={[200, 200 / gridSize, '#6366f1', '#444466']}
-        rotation={[Math.PI / 2, 0, 0]}
-        position={[0, 0, 0.01]}
-        raycast={NO_RAYCAST}
-      />
+      {/* Grid on sketch plane (visibility toggled with 'H', independent of snap) */}
+      {showGrid && (
+        <gridHelper
+          args={[200, 200 / gridSize, '#6366f1', '#444466']}
+          rotation={[Math.PI / 2, 0, 0]}
+          position={[0, 0, 0.01]}
+          raycast={NO_RAYCAST}
+        />
+      )}
 
       {/* Origin crosshair — red X, green Y */}
       <line geometry={xAxisGeo} position={[0, 0, 0.02]} renderOrder={1000} raycast={NO_RAYCAST}>

@@ -56,4 +56,32 @@ test.describe('SketchOverlay', () => {
       console.log('Console errors found:', consoleErrors);
     }
   });
+
+  test('H toggles grid visibility independent of G grid-snap', async ({ page }) => {
+    // Enter sketch mode on the Front Plane.
+    await page.waitForSelector('text=Front Plane', { timeout: 10000 });
+    await page.getByText('Front Plane').click();
+    await page.getByRole('tab', { name: 'Sketch' }).click();
+    await page.locator('button').filter({ hasText: /^Corner Rectangle$/ }).click();
+    await expect(page.getByText('Finish Sketch')).toBeVisible({ timeout: 20000 });
+
+    // The sketcher hotkeys panel reflects the live state of both toggles.
+    await expect(page.getByText(/Show Grid: ON/)).toBeVisible();
+    await expect(page.getByText(/Grid Snap: ON/)).toBeVisible();
+
+    // H hides the grid but must NOT touch snapping.
+    await page.keyboard.press('h');
+    await expect(page.getByText(/Show Grid: OFF/)).toBeVisible();
+    await expect(page.getByText(/Grid Snap: ON/)).toBeVisible();
+
+    // G toggles snapping but must NOT touch grid visibility.
+    await page.keyboard.press('g');
+    await expect(page.getByText(/Grid Snap: OFF/)).toBeVisible();
+    await expect(page.getByText(/Show Grid: OFF/)).toBeVisible();
+
+    // H again restores the grid, snapping still off — fully independent.
+    await page.keyboard.press('h');
+    await expect(page.getByText(/Show Grid: ON/)).toBeVisible();
+    await expect(page.getByText(/Grid Snap: OFF/)).toBeVisible();
+  });
 });
