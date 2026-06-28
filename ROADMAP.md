@@ -188,6 +188,14 @@ Polygon, Ellipse, Bezier are plain compact buttons (no variants). `OperationGrou
    coincident/distance read the selected point-primitive ids. Selection now persists across incidental remounts
    (only cleared when switching into a drawing tool).
 4. ❌ **Midpoint / Symmetric** — no single planegcs primitive; require composing multiple constraints. Deferred.
+5. 🟡 **Auto-constraints on draw (SolidWorks "sketch relations").** **Rectangle done (2026-06-27):**
+   `inferAutoConstraints(elements)` (`engine/sketch/autoConstraints.ts`) emits 2 Horizontal (top/bottom) + 2 Vertical
+   (sides) for every `RECTANGLE` (covers corner **and** center rectangle); corners are coincident by construction
+   (shared point ids) so none are emitted. Regenerated every edit in `CADLayout.handleUpdateSketch` with deterministic
+   `${id}_auto_*` ids (idempotent) and tagged `auto: true`, merged with the user's manual constraints, then round-tripped
+   through the solver onto the sketch. Tests: `autoConstraints.test.ts` (4, incl. real-solver skew→axis-aligned) +
+   `e2e/auto-constraints.spec.ts`. **Deferred:** line (coincident-on-snap, near-axis H/V), 3-pt rectangle/parallelogram
+   (perpendicular/parallel), and a distinct list badge for auto vs manual. See `TODO.md` Phase 5.
 
 ---
 

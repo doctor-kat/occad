@@ -16,6 +16,7 @@ import { Cube, Polygon } from '@phosphor-icons/react';
 import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
+import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
 import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 import { SketchConstraintToolbar } from './operations/SketchConstraintToolbar';
 import { SketchConstraintList } from './operations/SketchConstraintList';
@@ -441,11 +442,18 @@ export function CADLayout() {
       // Merge mapped primitives with existing ones (to keep external geometry)
       const newPrimitives = mapElementsToPrimitives(elements);
       const externalPrims = sketch.primitives.filter(p => p.isExternal);
-      
-      buildSketch({ 
-        ...sketch, 
-        elements, 
-        primitives: [...newPrimitives, ...externalPrims] 
+
+      // Regenerate auto-constraints (e.g. a rectangle's H/V relations) from the
+      // current elements every edit — deterministic ids make this idempotent.
+      // Keep the user's manual constraints (untagged) and replace the inferred set.
+      const manualConstraints = (sketch.constraints || []).filter((c: any) => !c.auto);
+      const autoConstraints = inferAutoConstraints(elements);
+
+      buildSketch({
+        ...sketch,
+        elements,
+        primitives: [...newPrimitives, ...externalPrims],
+        constraints: [...manualConstraints, ...autoConstraints],
       });
     }
   };

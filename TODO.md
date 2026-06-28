@@ -105,6 +105,18 @@ Dimensional constraints (`distance`, `*_radius`, `*_angle`) take `driving?: bool
 - [ ] Add `TangentConstraint` parity; reconcile `SketchConstraintType` enum.
 - [ ] Update `ROADMAP.md` §1.2 as items land.
 
+### Phase 5 — Auto-constraints on draw (SolidWorks "sketch relations")
+- [x] **Rectangle** → 2 Horizontal (top/bottom) + 2 Vertical (sides). `inferAutoConstraints(elements)`
+  (`src/cad/engine/sketch/autoConstraints.ts`), regenerated every edit in `CADLayout.handleUpdateSketch`
+  (deterministic ids → idempotent; tagged `auto: true`; merged with the user's manual constraints). Corners
+  are coincident by construction (shared point ids), so no explicit coincident emitted. Covers corner **and**
+  center rectangle (both map to `RECTANGLE`). Tests: `autoConstraints.test.ts` (4, incl. real-solver skew→axis-
+  aligned) + `e2e/auto-constraints.spec.ts` (1, persists 4 relations).
+- [ ] Extend to line (endpoint coincident-on-snap; near-axis → H/V), 3-pt rectangle & parallelogram
+  (perpendicular/parallel), center rectangle symmetry/midpoint.
+- [ ] Surface auto-constraints distinctly in `SketchConstraintList` (badge), and decide delete semantics
+  (currently a deleted auto-constraint regenerates on the element's next edit).
+
 ## Progress log
 - 2026-06-23: Audited gaps, wrote this plan. Confirmed planegcs solves in vitest.
 - 2026-06-23: Phase 0 + Phase 1 complete. Extracted+fixed `elementsToPrimitives` (rect bug), built
@@ -123,3 +135,8 @@ Dimensional constraints (`distance`, `*_radius`, `*_angle`) take `driving?: bool
   clear when entering a draw tool). Compacted toolbar to icon buttons (fixed off-screen overflow flakiness). Removed
   orphaned `types/sketch/constraints/*` + enum. `constraints-advanced.spec.ts` (tangent/angle/coincident/distance +
   delete). 83 unit + 11 constraint e2e green; build green; existing sketch e2e unaffected.
+- 2026-06-27: **Phase 5 started — rectangle auto-constraints.** `inferAutoConstraints` emits 2 H + 2 V per
+  `RECTANGLE` (corner + center rectangle); regenerated each edit in `CADLayout.handleUpdateSketch` (deterministic ids,
+  `auto: true`, merged with manual). `autoConstraints.test.ts` (4, incl. real-solver skew→axis-aligned) +
+  `e2e/auto-constraints.spec.ts`. Full suite 347 unit green; build green. Shipped alongside sketch box/crossing
+  select + sidebar entity list (ROADMAP §6b/§7).
