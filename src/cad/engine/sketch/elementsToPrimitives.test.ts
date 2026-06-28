@@ -73,6 +73,26 @@ describe('mapElementsToPrimitives', () => {
     expect(mapElementsToPrimitives([centerline])).toEqual([]);
   });
 
+  it('maps a center-based arc to its center point + arc with real radius/angles', () => {
+    // Centerpoint/tangent arcs carry center + radius + angles (not 3 points), so
+    // the mapping must forward those real values, not the old hardcoded defaults.
+    const arc: SketchElement = {
+      type: SketchElementType.ARC,
+      id: 'A',
+      center: { x: 2, y: 3 },
+      radius: 7,
+      startAngle: 0,
+      endAngle: Math.PI / 2,
+    } as SketchElement;
+    const prims = mapElementsToPrimitives([arc]);
+    expect(prims).toContainEqual({ id: 'A_center', type: 'point', fixed: false, data: { x: 2, y: 3 } });
+    const arcPrim = prims.find((p) => p.type === 'arc');
+    expect(arcPrim).toMatchObject({
+      id: 'A',
+      data: { center_id: 'A_center', radius: 7, start_angle: 0, end_angle: Math.PI / 2 },
+    });
+  });
+
   it('maps a polygon to N points + N closed lines', () => {
     const poly: SketchElement = {
       type: SketchElementType.POLYGON,

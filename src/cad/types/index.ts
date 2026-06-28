@@ -14,7 +14,6 @@ export * from './sketch/SketchArc';
 export * from './sketch/SketchRectangle';
 export * from './sketch/SketchPolygon';
 export * from './sketch/SketchEllipse';
-export * from './sketch/SketchSpline';
 export * from './sketch/SketchBezier';
 export * from './sketch/SketchElement';
 export * from './sketch/Workplane';

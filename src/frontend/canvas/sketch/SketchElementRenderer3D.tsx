@@ -79,14 +79,30 @@ export function SketchElementRenderer3D({
       }
       break;
 
-    case SketchElementType.ARC:
-      // TODO: Implement proper arc rendering with 3 points
-      if (element.points && element.points.length === 3) {
+    case SketchElementType.ARC: {
+      // Center-based arc (centerpoint / tangent / solved): sample the CCW sweep.
+      if (
+        element.center &&
+        typeof element.radius === 'number' &&
+        typeof element.startAngle === 'number' &&
+        typeof element.endAngle === 'number'
+      ) {
+        const segments = 64;
+        const { startAngle, endAngle, radius, center } = element;
+        for (let i = 0; i <= segments; i++) {
+          const a = startAngle + (endAngle - startAngle) * (i / segments);
+          points.push(
+            new THREE.Vector3(center.x + Math.cos(a) * radius, center.y + Math.sin(a) * radius, 0)
+          );
+        }
+      } else if (element.points && element.points.length === 3) {
+        // Legacy 3-point arc (no solved geometry): draw the control polyline.
         element.points.forEach((p) => {
           points.push(new THREE.Vector3(p.x, p.y, 0));
         });
       }
       break;
+    }
 
     case SketchElementType.ELLIPSE: {
       const segments = 64;
@@ -103,7 +119,7 @@ export function SketchElementRenderer3D({
       break;
     }
 
-    // TODO: Implement spline, bezier rendering
+    // TODO: Implement bezier rendering
   }
 
   if (points.length === 0) return null;

@@ -49,6 +49,16 @@ const circleEl: SketchElement = {
   radius: 5,
 } as SketchElement;
 
+// Center-based arc (centerpoint / tangent / solved) — a quarter circle.
+const arcEl: SketchElement = {
+  type: SketchElementType.ARC,
+  id: 'a1',
+  center: { x: 0, y: 0 },
+  radius: 5,
+  startAngle: 0,
+  endAngle: Math.PI / 2,
+} as SketchElement;
+
 async function renderElement(element: SketchElement, extra: Record<string, unknown> = {}) {
   return ReactThreeTestRenderer.create(
     <SketchElementRenderer3D element={element} color="#7c93c3" lineWidth={2} {...extra} />
@@ -82,6 +92,18 @@ describe('SketchElementRenderer3D', () => {
     const nativeLines = renderer.scene.findAllByType('Line');
     expect(nativeLines.length).toBe(1);
     expect(nativeLines[0].instance.material.type).toBe('LineBasicMaterial');
+    expect(renderer.scene.findAllByType('Line2')).toHaveLength(0);
+  });
+
+  it('renders a center-based arc as a sampled native polyline (65 verts, curved)', async () => {
+    const renderer = await renderElement(arcEl);
+    const nativeLines = renderer.scene.findAllByType('Line');
+    expect(nativeLines.length).toBe(1);
+    expect(nativeLines[0].instance.material.type).toBe('LineBasicMaterial');
+
+    const geo = nativeLines[0].instance.geometry;
+    // 64 segments + 1 = 65 vertices sampling the sweep (not a 2-point chord).
+    expect(geo.getAttribute('position').count).toBe(65);
     expect(renderer.scene.findAllByType('Line2')).toHaveLength(0);
   });
 

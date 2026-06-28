@@ -89,19 +89,24 @@ export function translatePrimitivesToOCC(
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
           const center = new oc.gp_Pnt_3(center_3d.x, center_3d.y, center_3d.z);
           const normal = new oc.gp_Dir_4(workplane.normal.x, workplane.normal.y, workplane.normal.z);
-          
-          const axis = new oc.gp_Ax2_3(center, normal);
+          // The arc's start/end angles are measured CCW from the workplane X axis, so
+          // pin the circle frame's reference X to it (the 2-arg gp_Ax2 lets OCC pick an
+          // arbitrary X, which would rotate the arc). Full circles don't care, but arcs do.
+          const xDir = new oc.gp_Dir_4(workplane.xAxis.x, workplane.xAxis.y, workplane.xAxis.z);
+
+          const axis = new oc.gp_Ax2_3(center, normal, xDir);
           const circ = new oc.gp_Circ_2(axis, primitive.data.radius);
 
-          // planegcs angles are in local frame from workplane X direction.
-          // Arc by angle parameters: BRepBuilderAPI_MakeEdge_9(gp_Circ, p1, p2).
-          // (_11 takes 2 TopoDS_Vertex — passing numbers throws a BindingError.)
+          // Arc by angle parameters: BRepBuilderAPI_MakeEdge_9(gp_Circ, alpha1, alpha2)
+          // — CCW from alpha1 to alpha2. (_11 takes 2 TopoDS_Vertex — passing numbers
+          // throws a BindingError.)
           const edge = new oc.BRepBuilderAPI_MakeEdge_9(circ, primitive.data.start_angle, primitive.data.end_angle);
           if (edge.IsDone()) {
             shape = edge.Edge();
           }
           center.delete();
           normal.delete();
+          xDir.delete();
           axis.delete();
           edge.delete();
           break;

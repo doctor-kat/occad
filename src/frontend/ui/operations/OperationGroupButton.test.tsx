@@ -101,7 +101,7 @@ describe("OperationGroupButton", () => {
     expect(onOperationSelect).toHaveBeenCalledWith(SketchOperation.PARALLELOGRAM);
   });
 
-  it("renders the circle group with Perimeter Circle disabled", async () => {
+  it("renders the circle group and activates the Perimeter Circle variant", async () => {
     const onOperationSelect = vi.fn();
     renderWithProviders(
       <OperationGroupButton
@@ -118,8 +118,29 @@ describe("OperationGroupButton", () => {
     const menu = await screen.findByRole("menu");
     expect(within(menu).getByText("Perimeter Circle")).toBeInTheDocument();
 
+    // Perimeter Circle (3-point) is implemented now: picking it activates the operation.
     await userEvent.click(within(menu).getByText("Perimeter Circle"));
-    expect(onOperationSelect).not.toHaveBeenCalled();
+    expect(onOperationSelect).toHaveBeenCalledWith(SketchOperation.PERIMETER_CIRCLE);
+  });
+
+  it("renders the arc group with Centerpoint and Tangent arcs selectable", async () => {
+    const onOperationSelect = vi.fn();
+    renderWithProviders(
+      <OperationGroupButton
+        options={arcGroup.options}
+        defaultOptionId={arcGroup.defaultOptionId}
+        variant="full"
+        activeOperation={null}
+        onOperationSelect={onOperationSelect}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "3 Point Arc options" }));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByText("Centerpoint Arc")).toBeInTheDocument();
+
+    await userEvent.click(within(menu).getByText("Centerpoint Arc"));
+    expect(onOperationSelect).toHaveBeenCalledWith(SketchOperation.CENTERPOINT_ARC);
   });
 
   it("defaults the arc group to the implemented 3 Point Arc", async () => {
@@ -134,7 +155,7 @@ describe("OperationGroupButton", () => {
       />,
     );
 
-    // 3 Point Arc is shown even though it is listed last (Centerpoint/Tangent are disabled).
+    // 3 Point Arc is shown even though it is listed last (it's the default option).
     expect(screen.getByText("3 Point Arc")).toBeInTheDocument();
 
     await userEvent.click(screen.getByText("3 Point Arc"));

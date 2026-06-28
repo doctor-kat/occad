@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { drawClosedRectangle } from './helpers';
 
 test.describe('Box-Sketch Flow', () => {
     test.beforeEach(async ({ page }) => {
@@ -55,34 +56,18 @@ test.describe('Box-Sketch Flow', () => {
         // Verify Sketch 1 appears
         await expect(page.locator('.tree-item-row').getByText('Sketch 1')).toBeVisible({ timeout: 15000 });
 
-        // 5. Draw a Rectangle
-        const rectangleOperation = page.locator('button').filter({ hasText: /^Rectangle$/ });
+        // 5. Draw a Rectangle. The Rectangle tool is a split-button group whose
+        // body is labelled "Corner Rectangle".
+        const rectangleOperation = page.locator('button').filter({ hasText: /^Corner Rectangle$/ });
         await rectangleOperation.click();
         await expect(rectangleOperation).toHaveAttribute('data-variant', 'light');
 
         // Wait a bit for the sketch plane mesh to be ready in the DOM/Canvas
         await page.waitForTimeout(1000);
 
-        // Click in the viewport to draw (coordinates are arbitrary for this test as long as they are distinct)
-        const canvas = page.locator('canvas').first();
-        const box = await canvas.boundingBox();
-        if (box) {
-            const centerX = box.x + box.width / 2;
-            const centerY = box.y + box.height / 2;
-
-            // Hover first to ensure mouse events are directed correctly
-            await page.mouse.move(centerX, centerY);
-            await page.waitForTimeout(100);
-
-            // Draw a rectangle using two clicks
-            await page.mouse.click(centerX + 40, centerY + 40);
-            await page.waitForTimeout(200);
-            await page.mouse.click(centerX + 80, centerY + 70);
-            await page.waitForTimeout(500);
-
-            // Verify element was created
-            await expect(page.locator('text=Elements: 1')).toBeVisible({ timeout: 10000 });
-        }
+        // Draw a rectangle (robust against R3F pointer-event timing).
+        await drawClosedRectangle(page);
+        await expect(page.locator('text=Elements: 1')).toBeVisible({ timeout: 10000 });
 
         // 6. Finish Sketch
         await page.getByRole('button', { name: 'Finish Sketch' }).click();

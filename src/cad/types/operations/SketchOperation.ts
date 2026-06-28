@@ -14,6 +14,5 @@ export enum SketchOperation {
   CENTERPOINT_ARC = 'centerpoint-arc',
   TANGENT_ARC = 'tangent-arc',
   ELLIPSE = 'ellipse',
-  SPLINE = 'spline',
   BEZIER = 'bezier'
 }

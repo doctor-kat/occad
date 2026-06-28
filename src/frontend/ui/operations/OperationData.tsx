@@ -20,7 +20,6 @@ import {
   GitMerge,
   Copy,
   DotsThree,
-  Pen,
   WaveSine,
   ArrowsOutCardinal,
   ArrowClockwise,
@@ -109,23 +108,23 @@ export const rectangleGroup: OperationGroup = {
   ],
 };
 
-// The Circle button is a group. Only Circle is implemented; Perimeter Circle is not.
+// The Circle button is a group: Circle (center+radius) and Perimeter Circle (3-point).
 export const circleGroup: OperationGroup = {
   id: 'circle-group',
   options: [
     { id: SketchOperation.CIRCLE, icon: <Circle size={16} weight="regular" />, label: 'Circle' },
-    { id: SketchOperation.PERIMETER_CIRCLE, icon: <CircleDashed size={16} weight="regular" />, label: 'Perimeter Circle', disabled: true },
+    { id: SketchOperation.PERIMETER_CIRCLE, icon: <CircleDashed size={16} weight="regular" />, label: 'Perimeter Circle' },
   ],
 };
 
-// The Arc button is a group. The existing arc tool draws a 3-point arc, so that's the
-// implemented (default) option; Centerpoint and Tangent arcs are not implemented yet.
+// The Arc button is a group offering the three arc tools: Centerpoint (center→start→end),
+// Tangent (continues tangent to the previous entity), and 3 Point (start→end→through).
 export const arcGroup: OperationGroup = {
   id: 'arc-group',
   defaultOptionId: SketchOperation.ARC,
   options: [
-    { id: SketchOperation.CENTERPOINT_ARC, icon: <ArrowArcRight size={16} weight="regular" />, label: 'Centerpoint Arc', disabled: true },
-    { id: SketchOperation.TANGENT_ARC, icon: <ArrowArcLeft size={16} weight="regular" />, label: 'Tangent Arc', disabled: true },
+    { id: SketchOperation.CENTERPOINT_ARC, icon: <ArrowArcRight size={16} weight="regular" />, label: 'Centerpoint Arc' },
+    { id: SketchOperation.TANGENT_ARC, icon: <ArrowArcLeft size={16} weight="regular" />, label: 'Tangent Arc' },
     { id: SketchOperation.ARC, icon: <ArrowRight size={16} weight="regular" />, label: '3 Point Arc' },
   ],
 };
@@ -137,7 +136,6 @@ export const sketchOperations: { id: SketchOperation; icon: React.ReactNode; lab
   { id: SketchOperation.POLYGON, icon: <Hexagon size={16} weight="regular" />, label: 'Polygon' },
   { id: SketchOperation.ARC, icon: <ArrowRight size={16} weight="regular" />, label: '3 Point Arc' },
   { id: SketchOperation.ELLIPSE, icon: <DotsThree size={16} weight="regular" style={{ transform: 'rotate(90deg)' }} />, label: 'Ellipse' },
-  { id: SketchOperation.SPLINE, icon: <Pen size={16} weight="regular" />, label: 'Spline' },
   { id: SketchOperation.BEZIER, icon: <WaveSine size={16} weight="regular" />, label: 'Bezier' },
 ];
 
@@ -163,8 +161,6 @@ export const ioOperations: { id: IOOperation; icon: React.ReactNode; label: stri
 
 // Operations that are not yet implemented (disabled in UI)
 export const disabledOperations: Operation[] = [
-  // Sketch circle / arc variants - not yet implemented
-  SketchOperation.PERIMETER_CIRCLE, SketchOperation.CENTERPOINT_ARC, SketchOperation.TANGENT_ARC,
   // 3D Operations - not yet implemented
   'sweep', 'loft',
   // I/O - not yet implemented

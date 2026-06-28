@@ -31,8 +31,9 @@ test.describe('SketchOverlay', () => {
     await page.getByRole('tab', { name: 'Sketch' }).click();
 
     // Click a sketch operation to start a new sketch on the selected plane.
-    // This creates "Sketch 1" on the Front Plane.
-    const rectangleOperation = page.locator('button').filter({ hasText: /^Rectangle$/ });
+    // This creates "Sketch 1" on the Front Plane. The Rectangle tool is a
+    // split-button group whose body is labelled "Corner Rectangle".
+    const rectangleOperation = page.locator('button').filter({ hasText: /^Corner Rectangle$/ });
     await rectangleOperation.click();
 
     // Verify Sketch 1 appears in Feature Tree

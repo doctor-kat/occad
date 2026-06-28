@@ -27,8 +27,10 @@ const SKETCH_TOOL_OPERATIONS: SketchOperation[] = [
   SketchOperation.CIRCLE,
   SketchOperation.POLYGON,
   SketchOperation.ARC,
+  SketchOperation.CENTERPOINT_ARC,
+  SketchOperation.TANGENT_ARC,
+  SketchOperation.PERIMETER_CIRCLE,
   SketchOperation.ELLIPSE,
-  SketchOperation.SPLINE,
   SketchOperation.BEZIER,
 ];
 

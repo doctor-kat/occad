@@ -4,7 +4,6 @@ import { SketchArc } from './SketchArc';
 import { SketchRectangle } from './SketchRectangle';
 import { SketchPolygon } from './SketchPolygon';
 import { SketchEllipse } from './SketchEllipse';
-import { SketchSpline } from './SketchSpline';
 import { SketchBezier } from './SketchBezier';
 import { SketchPoint } from './SketchPoint';
 
@@ -15,6 +14,5 @@ export type SketchElement =
   | SketchRectangle
   | SketchPolygon
   | SketchEllipse
-  | SketchSpline
   | SketchBezier
   | SketchPoint;

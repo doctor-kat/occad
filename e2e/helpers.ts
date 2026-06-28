@@ -65,3 +65,66 @@ export async function drawClosedRectangle(
   // One explicit assertion so a genuine failure reports clearly.
   expect(await hasClosedSketch(), 'rectangle did not produce a closed sketch').toBe(true);
 }
+
+/** True if any persisted sketch holds an element of the given type. */
+export function sketchHasElementOfType(page: Page, type: string): Promise<boolean> {
+  return page.evaluate((t) => {
+    try {
+      const p = JSON.parse(localStorage.getItem('occad-project') || '{}');
+      return (p.sketches || []).some((s: any) =>
+        (s.elements || []).some((e: any) => e.type === t)
+      );
+    } catch {
+      return false;
+    }
+  }, type);
+}
+
+/**
+ * Click a sequence of canvas points (relative to the canvas centre) to drive a
+ * multi-click sketch tool, retrying the whole gesture until `predicate` holds.
+ *
+ * Like {@link drawClosedRectangle}, this warms R3F's raycaster with real pointer
+ * movement and hovers before each click, because the sketch plane only raycasts
+ * on pointer-move — a bare click with no preceding movement is often dropped in
+ * headless Chromium. The retry loop absorbs residual WebGL/event timing jitter.
+ */
+export async function drawSketchPointsUntil(
+  page: Page,
+  offsets: Array<{ dx: number; dy: number }>,
+  predicate: () => Promise<boolean>,
+  opts: { attempts?: number; label?: string } = {}
+): Promise<void> {
+  const { attempts = 5, label = 'sketch primitive' } = opts;
+  const canvas = page.locator('canvas').first();
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const b = await canvas.boundingBox();
+    if (!b) throw new Error('drawSketchPointsUntil: canvas has no bounding box');
+    const cx = b.x + b.width * 0.5;
+    const cy = b.y + b.height * 0.5;
+
+    // Warm up the raycaster with real pointer movement over the plane.
+    for (let i = 0; i < 5; i++) {
+      await page.mouse.move(cx - 70 + i * 25, cy - 10 + (i % 2) * 20, { steps: 4 });
+      await page.waitForTimeout(80);
+    }
+
+    for (const { dx, dy } of offsets) {
+      const x = cx + dx;
+      const y = cy + dy;
+      await page.mouse.move(x, y, { steps: 6 });
+      await page.waitForTimeout(220);
+      await page.mouse.click(x, y);
+      await page.waitForTimeout(280);
+    }
+
+    if (await predicate()) return;
+
+    // Clear any half-placed points before retrying.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+  }
+
+  expect(await predicate(), `${label} was not created`).toBe(true);
+}

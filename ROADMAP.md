@@ -14,24 +14,24 @@ started
 
 ## Summary
 
-| Area                       | Status | Done                                                | Partial         | Todo                             |
-|----------------------------|--------|-----------------------------------------------------|-----------------|----------------------------------|
-| **Sketch primitives**      | 🟡     | Line, Rectangle, Circle, Polygon, Arc, Ellipse      | Spline          | Bezier                           |
-| **Sketch constraints**     | ✅      | 10 constraints end-to-end (factory+solver tests+UI+e2e); create/list/delete; point-level selection | — | Midpoint, Symmetric (need composition) |
-| **Sketch-based features**  | ✅      | Extrude Boss/Cut, Revolve Boss/Cut                  | —               | —                                |
-| **Primitives**             | 🟡     | Box, Cylinder                                       | —               | Sphere, Cone, Torus, Wedge       |
-| **Boolean ops**            | 🟡     | Union, Subtract, Intersect (engine)                 | —               | UI for standalone booleans       |
-| **Modifications**          | ✅      | Fillet, Chamfer, Shell, Offset (engine+rebuild+UI)  | —               | —                                |
-| **Transforms**             | ❌      | —                                                   | UI + types only | Move, Rotate, Mirror, Scale      |
-| **Advanced modeling**      | ❌      | —                                                   | —               | Sweep, Loft                      |
-| **Import / Export**        | ❌      | —                                                   | UI (disabled)   | STEP, IGES, STL, glTF, OBJ       |
-| **Measurement / Analysis** | ❌      | —                                                   | Type only       | Measure, volume, area, CoM, bbox |
-| **Feature tree**           | ✅      | Tree, reorder (deterministic), suppress, visibility, edit | —         | Wire reorder to a drag handler   |
-| **Undo / Redo**            | ✅      | Snapshot history in `useCADState` (records per version change, ignores derived enrichments); Toolbar buttons + Ctrl/⌘+Z·Y wired; undo rebuilds | — | — |
-| **Mouse model (SolidWorks)** | 🟡     | Camera on MMB only (orbit; Ctrl+MMB pan; wheel zoom); LMB freed for selection, RMB freed for menu — see §6a | — | RMB context menu; confirm pan gesture |
-| **Selection / picking**    | 🟡     | Single-pick face/edge/vertex/sketch via R3F `onClick`; empty-click clears | — | Box/crossing select; multi-select sets — see §6b |
-| **Parametric rebuild**     | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans     | —               | All non-wired feature types      |
-| **Deterministic topology** | 🟡     | Step 1: deterministic build order + working reorder + loud stale-selection errors. Step 2: fingerprint engine. Step 3a/3b: fingerprint-aware resolution + lazy capture wired into rebuild (fillet/chamfer/shell/offset selections now survive index renumber). Step 3c: OCC-history scaffold (`history.ts`) + sketch external-geom now fingerprint-stable (`findShapeByRef`, vertex fingerprints, lazy `sourceRef` capture). Step 4: snapshot undo/redo | — | Boolean exact-history resolution deferred (no payoff for current selection model) — see "Deterministic topology" section below |
+| Area                         | Status | Done                                                      | Partial         | Todo                                                |
+|------------------------------|--------|-----------------------------------------------------------|-----------------|-----------------------------------------------------|
+| **Sketch primitives**        | ✅     | Line, Rectangle, Circle (+Perimeter), Polygon, Arc (3pt/Centerpoint/Tangent), Ellipse | —               | Bezier (won't implement); Spline removed            |
+| **Sketch constraints**       | ✅     | 10 constraints end-to-end (UI+solver+e2e)                 | —               | Midpoint, Symmetric                                 |
+| **Sketch-based features**    | ✅     | Extrude Boss/Cut, Revolve Boss/Cut                        | —               | —                                                   |
+| **Primitives**               | 🟡     | Box, Cylinder                                             | —               | Sphere, Cone, Torus, Wedge                          |
+| **Boolean ops**              | 🟡     | Union, Subtract, Intersect (engine)                       | —               | UI for standalone booleans                          |
+| **Modifications**            | ✅     | Fillet, Chamfer, Shell, Offset                            | —               | —                                                   |
+| **Transforms**               | ❌     | —                                                         | UI + types only | Move, Rotate, Mirror, Scale                         |
+| **Advanced modeling**        | ❌     | —                                                         | —               | Sweep, Loft                                         |
+| **Import / Export**          | ❌     | —                                                         | UI (disabled)   | STEP, IGES, STL, glTF, OBJ                          |
+| **Measurement / Analysis**   | ❌     | —                                                         | Type only       | Measure, volume, area, CoM, bbox                    |
+| **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
+| **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
+| **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
+| **Selection / picking**      | 🟡     | Single-pick face/edge/vertex/sketch; empty-click clears   | —               | Box/crossing + multi-select — §6b                   |
+| **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans           | —               | All non-wired feature types                         |
+| **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
 
 **Overall:** Sketch + constraints + extrude/revolve + boolean + modification pipeline is solid. The biggest gaps are
 **undo/redo**, the **remaining primitives**, and the **transform/IO** families (UI buttons exist but do nothing on
@@ -90,11 +90,37 @@ rebuild).
 | Line              | ✅            | ✅ `line`                      | ✅          | ✅      |
 | Corner Rectangle  | ✅            | ✅ (decomposed to lines)       | ✅          | ✅      |
 | Circle            | ✅            | ✅ `circle`                    | ✅          | ✅      |
+| Perimeter Circle  | ✅ (→ Circle) | ✅ `circleFromThreePoints`     | ✅          | ✅      |
 | Polygon           | ✅            | ✅ (decomposed to lines)       | ✅          | ✅      |
 | 3 Point Arc       | ✅            | ✅ `arc`                       | ✅          | ✅      |
+| Centerpoint Arc   | ✅            | ✅ `centerpointArc` → `arc`    | ✅          | ✅      |
+| Tangent Arc       | ✅            | ✅ `tangentArc` → `arc`        | ✅          | ✅      |
 | Ellipse           | ✅            | ✅ `ellipse`                   | ✅          | ✅      |
-| Spline            | ✅            | 🟡 `GeomAPI_PointsToBSpline`  | ✅          | 🟡     |
-| Bezier            | 🟡 type only | ❌                             | ✅ (button) | ❌      |
+| Bezier            | 🟡 type only | ❌                             | ✅ (button) | 🚫 won't implement |
+
+> **Spline removed (2026-06-27):** the half-implemented Spline tool (no OCC
+> translation case, no overlay drawing) was deleted — `SketchSpline` type, the
+> `SPLINE` enum members, the toolbar button and the `SKETCH_TOOL_OPERATIONS`
+> entry. Bezier stays a known dead button (won't implement). The OCC B-spline
+> *surface/curve* fingerprint names in `fingerprint.ts` are unrelated and untouched.
+>
+> **Circle/arc variants finished (2026-06-27, TDD):** Perimeter (3-point) Circle,
+> Centerpoint Arc and Tangent Arc are wired end-to-end. Pure geometry lives in
+> `src/cad/engine/sketch/arcGeometry.ts` (`circleFromThreePoints`,
+> `arcFromThreePoints`, `centerpointArc`, `tangentArc`, `endTangentDirection`) with
+> 14 unit tests written first. Perimeter Circle emits a normal `SketchCircle`
+> (reuses the proven circle path). Centerpoint/Tangent arcs emit a center-based
+> `SketchArc` (center + radius + start/end angle, CCW-normalized); `SketchOverlay`
+> collects clicks + previews (Tangent Arc continues tangent to the previously drawn
+> entity's end, falling back to +X), `SketchElementRenderer3D` samples the sweep as
+> a native polyline, and `elementsToPrimitives` forwards the real angles.
+> `sketchBuilders` now pins the arc's `gp_Ax2` reference X to the workplane X
+> (`gp_Ax2_3(center, normal, xDir)`) so `BRepBuilderAPI_MakeEdge_9`'s start/end
+> angles are measured in the sketch frame (the old 2-arg form let OCC pick an
+> arbitrary X, rotating the arc). e2e: `e2e/sketch-primitives.spec.ts` draws each
+> tool through the real UI and asserts the committed element. ⚠️ Per the
+> worker-is-mocked note, arc *solid* geometry validity is e2e-only (a lone arc isn't
+> a closed profile); the angle/center math is covered by the unit tests.
 
 **Sketch toolbar groups (UI-only, 2026-06-24):** in the sketch tab every tool except the big **Sketch** button is
 rendered small (compact), flowing into **columns of 2, left to right** (CSS grid, `renderSketchTools`). Tools with
@@ -105,8 +131,8 @@ Rectangle op is relabelled **Corner Rectangle**.
 |-----------|-------------------------------------------------------------------------------------------------------------|
 | Line      | Line ✅ · Centerline ✅ · Midpoint Line ✅                                                                     |
 | Rectangle | Corner Rectangle ✅ · Center Rectangle ✅ · 3 Point Corner Rectangle ✅ · 3 Point Center Rectangle ✅ · Parallelogram ✅ |
-| Circle    | Circle ✅ · Perimeter Circle ❌                                                                               |
-| Arc       | Centerpoint Arc ❌ · Tangent Arc ❌ · 3 Point Arc ✅ (default; the existing arc tool is 3-point)              |
+| Circle    | Circle ✅ · Perimeter Circle ✅ (3-point)                                                                     |
+| Arc       | Centerpoint Arc ✅ · Tangent Arc ✅ · 3 Point Arc ✅ (default)                                                 |
 
 **Line & rectangle variants (2026-06-25):** all line/rectangle dropdown variants are now drawable. Pure geometry
 lives in `src/cad/engine/sketch/sketchShapeBuilders.ts` (unit-tested); `SketchOverlay` collects the clicks and
@@ -641,7 +667,11 @@ Each has a co-located `*.test.ts`.
 
 ---
 
-_Last updated: 2026-06-26 — added planned §7 (left-sidebar sketch entity + constraint lists) and §8
+_Last updated: 2026-06-27 — finished the remaining sketch primitives: Perimeter (3-point) Circle,
+Centerpoint Arc and Tangent Arc, all TDD with a real e2e (`e2e/sketch-primitives.spec.ts`); added the
+pure `arcGeometry.ts` module + 14 unit tests; fixed the arc OCC frame (`gp_Ax2` reference X) and arc
+rendering; removed the half-implemented Spline tool; fixed stale "Rectangle"→"Corner Rectangle" e2e
+locators in `box-sketch-flow`/`sketch-overlay`. Earlier (2026-06-26): added planned §7 (left-sidebar sketch entity + constraint lists) and §8
 (SolidWorks-style history rollback bar: rewind/fast-forward with insert-at-the-bar), plus matching
 rows in the Application Features table. Earlier (2026-06-24): completed the deterministic-topology effort (fingerprint-stable sketch
 external geometry incl. vertex fingerprints + lazy `sourceRef` capture; OCC-history scaffold

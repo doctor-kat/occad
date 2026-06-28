@@ -11,6 +11,13 @@ import {
   buildThreePointCenterRectangle,
   buildParallelogram,
 } from '@/cad/engine/sketch/sketchShapeBuilders';
+import {
+  circleFromThreePoints,
+  centerpointArc,
+  tangentArc,
+  endTangentDirection,
+  type ArcGeometry,
+} from '@/cad/engine/sketch/arcGeometry';
 import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
@@ -25,6 +32,33 @@ import { useViewportStore } from '@/frontend/shared/viewportStore';
  * handles remain real pointer targets.
  */
 const NO_RAYCAST = () => null;
+
+/** Build an ARC sketch element from solved arc geometry (center + angle sweep). */
+function arcElementFrom(g: ArcGeometry): SketchElement {
+  return {
+    type: SketchElementType.ARC,
+    id: crypto.randomUUID(),
+    center: g.center,
+    radius: g.radius,
+    startAngle: g.startAngle,
+    endAngle: g.endAngle,
+  };
+}
+
+/**
+ * Tangent direction at the end of the most recently drawn (non-construction)
+ * element — the Tangent Arc tool continues from it. Falls back to +X when the
+ * sketch is empty.
+ */
+function lastEndTangent(elements: SketchElement[]): Point2D {
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const el = elements[i];
+    if (el.type === SketchElementType.LINE && el.construction) continue;
+    const dir = endTangentDirection(el as unknown as { type: string } & Record<string, any>);
+    if (dir) return dir;
+  }
+  return { x: 1, y: 0 };
+}
 
 /** Project a point onto a line segment; returns the projection and distance. */
 function projectPointOntoLineSegment(
@@ -100,6 +134,13 @@ function getDistanceToElement(point: Point2D, element: SketchElement): number {
     }
 
     case SketchElementType.ARC: {
+      // Center-based arc (centerpoint/tangent): distance to the arc's circle.
+      if (element.center && typeof element.radius === 'number') {
+        const distToCenter = Math.sqrt(
+          Math.pow(point.x - element.center.x, 2) + Math.pow(point.y - element.center.y, 2)
+        );
+        return Math.abs(distToCenter - element.radius);
+      }
       if (element.points && element.points.length === 3) {
         let minDistance = Infinity;
         element.points.forEach((p) => {
@@ -615,6 +656,54 @@ export function SketchOverlay({
           }
           break;
 
+        case SketchOperation.PERIMETER_CIRCLE:
+          // 3 points on the circumference define the circle.
+          if (points.length < 2) {
+            setPoints([...points, snappedPoint]);
+          } else {
+            const circle = circleFromThreePoints(points[0], points[1], snappedPoint);
+            if (circle) {
+              const newCircle: SketchElement = {
+                type: SketchElementType.CIRCLE,
+                id: crypto.randomUUID(),
+                center: circle.center,
+                radius: circle.radius,
+              };
+              onElementsChange(sketch.id, [...sketch.elements, newCircle]);
+            }
+            setPoints([]);
+            setPreviewElement(null);
+          }
+          break;
+
+        case SketchOperation.CENTERPOINT_ARC:
+          // center, then start (radius), then end.
+          if (points.length < 2) {
+            setPoints([...points, snappedPoint]);
+          } else {
+            const g = centerpointArc(points[0], points[1], snappedPoint);
+            if (g) {
+              onElementsChange(sketch.id, [...sketch.elements, arcElementFrom(g)]);
+            }
+            setPoints([]);
+            setPreviewElement(null);
+          }
+          break;
+
+        case SketchOperation.TANGENT_ARC:
+          // start, then end — tangent to the previously drawn entity's end direction.
+          if (points.length === 0) {
+            setPoints([snappedPoint]);
+          } else {
+            const g = tangentArc(points[0], lastEndTangent(sketch.elements), snappedPoint);
+            if (g) {
+              onElementsChange(sketch.id, [...sketch.elements, arcElementFrom(g)]);
+            }
+            setPoints([]);
+            setPreviewElement(null);
+          }
+          break;
+
         default:
           console.warn(`Operation ${activeOperation} not yet implemented`);
       }
@@ -775,6 +864,50 @@ export function SketchOverlay({
               center,
               radius,
             } as SketchElement);
+          }
+          break;
+
+        case SketchOperation.PERIMETER_CIRCLE:
+          // First two clicks preview as a chord; the third previews the full circle.
+          if (points.length === 1) {
+            setPreviewElement({
+              type: SketchElementType.LINE,
+              id: 'preview',
+              start: points[0],
+              end: snappedPoint,
+            } as SketchElement);
+          } else if (points.length === 2) {
+            const circle = circleFromThreePoints(points[0], points[1], snappedPoint);
+            if (circle) {
+              setPreviewElement({
+                type: SketchElementType.CIRCLE,
+                id: 'preview',
+                center: circle.center,
+                radius: circle.radius,
+              } as SketchElement);
+            }
+          }
+          break;
+
+        case SketchOperation.CENTERPOINT_ARC:
+          // First click sets the center; the radius line previews next, then the arc.
+          if (points.length === 1) {
+            setPreviewElement({
+              type: SketchElementType.LINE,
+              id: 'preview',
+              start: points[0],
+              end: snappedPoint,
+            } as SketchElement);
+          } else if (points.length === 2) {
+            const g = centerpointArc(points[0], points[1], snappedPoint);
+            if (g) setPreviewElement({ ...arcElementFrom(g), id: 'preview' });
+          }
+          break;
+
+        case SketchOperation.TANGENT_ARC:
+          if (points.length === 1) {
+            const g = tangentArc(points[0], lastEndTangent(sketch.elements), snappedPoint);
+            if (g) setPreviewElement({ ...arcElementFrom(g), id: 'preview' });
           }
           break;
       }
