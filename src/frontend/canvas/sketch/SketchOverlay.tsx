@@ -132,6 +132,9 @@ function projectPointOntoLineSegment(
  */
 function getDistanceToElement(point: Point2D, element: SketchElement): number {
   switch (element.type) {
+    case SketchElementType.POINT:
+      return Math.sqrt(Math.pow(point.x - element.x, 2) + Math.pow(point.y - element.y, 2));
+
     case SketchElementType.LINE: {
       const { distance } = projectPointOntoLineSegment(point, element.start, element.end);
       return distance;
@@ -488,6 +491,9 @@ export function SketchOverlay({
     const points: Point2D[] = [];
     sketch.elements.forEach((element) => {
       switch (element.type) {
+        case SketchElementType.POINT:
+          points.push({ x: element.x, y: element.y });
+          break;
         case SketchElementType.LINE:
           points.push(element.start, element.end);
           break;
@@ -701,6 +707,20 @@ export function SketchOverlay({
       const points = currentPointsRef.current;
 
       switch (activeOperation) {
+        case SketchOperation.POINT: {
+          // A point is placed on a single click.
+          const newPoint: SketchElement = {
+            type: SketchElementType.POINT,
+            id: crypto.randomUUID(),
+            x: snappedPoint.x,
+            y: snappedPoint.y,
+          };
+          onElementsChange(sketch.id, [...sketch.elements, newPoint]);
+          setPoints([]);
+          setPreviewElement(null);
+          break;
+        }
+
         case SketchOperation.LINE:
         case SketchOperation.CENTERLINE:
           if (points.length === 0) {

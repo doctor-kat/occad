@@ -27,6 +27,12 @@ export function mapElementsToPrimitives(elements: SketchElement[]): SketchPrimit
 
   elements.forEach((el) => {
     switch (el.type) {
+      case 'point': {
+        // A standalone point: its own id is the point primitive id (no `_p1`
+        // suffix) so a constraint can reference the point directly.
+        primitives.push({ id: el.id, type: 'point', fixed: false, data: { x: el.x, y: el.y } });
+        break;
+      }
       case 'line': {
         // Construction lines (centerlines) are reference-only: never emit them as
         // profile geometry, or they'd add a stray edge that breaks the closed wire.

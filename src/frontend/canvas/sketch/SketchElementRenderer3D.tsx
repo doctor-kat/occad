@@ -32,6 +32,16 @@ export function SketchElementRenderer3D({
     finalLineWidth = finalLineWidth + 1;
   }
 
+  // A standalone point renders as a small filled dot (not a polyline).
+  if (element.type === SketchElementType.POINT) {
+    return (
+      <mesh position={[element.x, element.y, 0.05]} renderOrder={1002}>
+        <circleGeometry args={[isSelected ? 1.6 : isHovered ? 1.3 : 1.0, 20]} />
+        <meshBasicMaterial color={finalColor} transparent opacity={opacity} depthTest={false} />
+      </mesh>
+    );
+  }
+
   const points: THREE.Vector3[] = [];
 
   switch (element.type) {

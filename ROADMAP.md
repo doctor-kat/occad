@@ -97,6 +97,13 @@ rebuild).
 | Tangent Arc       | ✅            | ✅ `tangentArc` → `arc`        | ✅          | ✅      |
 | Ellipse           | ✅            | ✅ `ellipse`                   | ✅          | ✅      |
 
+> **Point tool wired (2026-06-30):** the standalone Point primitive is now drawable end-to-end. Added
+> `SketchOperation.POINT` + a **Point** sketch-toolbar button; `mapElementsToPrimitives` maps a `POINT`
+> element to a single point primitive keyed by its own id (no `_p1` suffix) so constraints can reference
+> it directly; `SketchElementRenderer3D` draws it as a small filled dot; `SketchOverlay` places a point
+> on a single click and includes points in hover/selection + snap candidates. Test:
+> `elementsToPrimitives.test.ts` (point mapping).
+
 > **Circle/arc variants finished (2026-06-27, TDD):** Perimeter (3-point) Circle, Centerpoint Arc and
 > Tangent Arc are wired end-to-end. Pure geometry in `src/cad/engine/sketch/arcGeometry.ts`
 > (`circleFromThreePoints`/`arcFromThreePoints`/`centerpointArc`/`tangentArc`, 14 unit tests first):

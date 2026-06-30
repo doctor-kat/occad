@@ -130,6 +130,7 @@ export const arcGroup: OperationGroup = {
 };
 
 export const sketchOperations: { id: SketchOperation; icon: React.ReactNode; label: string }[] = [
+  { id: SketchOperation.POINT, icon: <DotOutline size={16} weight="fill" />, label: 'Point' },
   { id: SketchOperation.LINE, icon: <Minus size={16} weight="regular" />, label: 'Line' },
   { id: SketchOperation.RECTANGLE, icon: <Square size={16} weight="regular" />, label: 'Corner Rectangle' },
   { id: SketchOperation.CIRCLE, icon: <Circle size={16} weight="regular" />, label: 'Circle' },

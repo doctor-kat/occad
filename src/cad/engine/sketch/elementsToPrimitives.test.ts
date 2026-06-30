@@ -19,6 +19,19 @@ describe('mapElementsToPrimitives', () => {
     ]);
   });
 
+  it('maps a standalone point to a single point primitive keyed by its own id', () => {
+    const point: SketchElement = {
+      type: SketchElementType.POINT,
+      id: 'PT',
+      x: 4,
+      y: -2,
+    };
+    const prims = mapElementsToPrimitives([point]);
+    expect(prims).toEqual([
+      { id: 'PT', type: 'point', fixed: false, data: { x: 4, y: -2 } },
+    ]);
+  });
+
   it('maps a circle to a center point + a circle (planegcs c_id)', () => {
     const circle: SketchElement = {
       type: SketchElementType.CIRCLE,

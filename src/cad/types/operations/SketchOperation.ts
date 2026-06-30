@@ -1,4 +1,5 @@
 export enum SketchOperation {
+  POINT = 'point',
   LINE = 'line',
   CENTERLINE = 'centerline',
   MIDPOINT_LINE = 'midpoint-line',
