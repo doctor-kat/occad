@@ -41,6 +41,7 @@ import {
   selectElementsInBox,
 } from '@/cad/engine/sketch/sketchBoxSelection';
 import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors';
+import { ORIGIN_POINT_ID } from '@/cad/engine/sketch/originPoint';
 
 /**
  * No-op raycast: makes a mesh/line render but never be an intersection target.
@@ -1178,10 +1179,29 @@ export function SketchOverlay({
       <line geometry={yAxisGeo} position={[0, 0, 0.02]} renderOrder={1000} raycast={NO_RAYCAST}>
         <lineBasicMaterial color="#22c55e" transparent opacity={0.35} depthTest={false} />
       </line>
-      {/* Origin dot */}
-      <mesh position={[0, 0, 0.03]} renderOrder={1001} raycast={NO_RAYCAST}>
-        <circleGeometry args={[1.5, 24]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.6} depthTest={false} />
+      {/* Origin point — a fixed sketch entity at (0,0), mirroring the world Origin.
+          Selectable in selection mode (so it can be picked for a constraint); the
+          underlying fixed point primitive lives in sketch.primitives (originPoint.ts). */}
+      <mesh
+        position={[0, 0, 0.03]}
+        renderOrder={1001}
+        raycast={activeOperation ? NO_RAYCAST : undefined}
+        onClick={
+          activeOperation
+            ? undefined
+            : (e) => {
+                e.stopPropagation();
+                toggleSketchElementSelection(ORIGIN_POINT_ID);
+              }
+        }
+      >
+        <circleGeometry args={[selectedElementIds.has(ORIGIN_POINT_ID) ? 2 : 1.5, 24]} />
+        <meshBasicMaterial
+          color={selectedElementIds.has(ORIGIN_POINT_ID) ? '#f97316' : '#ffffff'}
+          transparent
+          opacity={selectedElementIds.has(ORIGIN_POINT_ID) ? 0.95 : 0.6}
+          depthTest={false}
+        />
       </mesh>
 
       {/* Render existing sketch elements */}

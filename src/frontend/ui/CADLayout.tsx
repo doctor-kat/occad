@@ -16,6 +16,7 @@ import { Cube, Polygon } from '@phosphor-icons/react';
 import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
+import { withOriginPrimitive } from '@/cad/engine/sketch/originPoint';
 import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
 import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 import { SketchConstraintToolbar } from './operations/SketchConstraintToolbar';
@@ -452,7 +453,9 @@ export function CADLayout() {
       buildSketch({
         ...sketch,
         elements,
-        primitives: [...newPrimitives, ...externalPrims],
+        // Every sketch carries a fixed origin point primitive (the (0,0) of the
+        // workplane) so geometry can be constrained to it; see originPoint.ts.
+        primitives: withOriginPrimitive([...newPrimitives, ...externalPrims]),
         constraints: [...manualConstraints, ...autoConstraints],
       });
     }

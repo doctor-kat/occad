@@ -104,6 +104,13 @@ rebuild).
 > on a single click and includes points in hover/selection + snap candidates. Test:
 > `elementsToPrimitives.test.ts` (point mapping).
 
+> **Sketch origin point (2026-06-30):** every sketch now carries a *fixed* origin point primitive at the
+> workplane (0,0), mirroring the world Origin reference geometry, so drawn geometry can be constrained to
+> it. `originPoint.ts` (`ORIGIN_POINT_ID`/`makeOriginPrimitive`/`withOriginPrimitive`) is the canonical
+> source; `CADLayout.handleUpdateSketch` prepends it to the solver primitives (de-duped, so it never
+> drifts). The overlay renders it as a selectable dot (id `origin`) that can be picked for a constraint.
+> Test: `originPoint.test.ts`.
+
 > **Circle/arc variants finished (2026-06-27, TDD):** Perimeter (3-point) Circle, Centerpoint Arc and
 > Tangent Arc are wired end-to-end. Pure geometry in `src/cad/engine/sketch/arcGeometry.ts`
 > (`circleFromThreePoints`/`arcFromThreePoints`/`centerpointArc`/`tangentArc`, 14 unit tests first):
