@@ -332,6 +332,13 @@ export function SketchOverlay({
   // Handle keyboard events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Select all sketch entities (Ctrl/Cmd+A) — Del then deletes them.
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        setSketchElementSelection(sketch.elements.map((el) => el.id));
+        return;
+      }
+
       // Toggle grid snap
       if (e.key === 'g' || e.key === 'G') {
         setSnapToGrid((prev) => !prev);
@@ -386,7 +393,7 @@ export function SketchOverlay({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints, onExitSketch, setHoveredElementId]);
+  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints, onExitSketch, setHoveredElementId, setSketchElementSelection]);
 
   // Left-button rubber-band box / crossing selection of sketch entities — active
   // only in selection mode (no draw tool). The camera is on the middle button, so

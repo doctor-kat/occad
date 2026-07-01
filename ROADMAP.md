@@ -46,6 +46,10 @@ rebuild).
 > `onExitSketch` prop threaded `OpenCascadeViewport` → `Scene` → `SketchOverlay`). Previously `Esc` with no
 > draw in progress only cleared the selection.
 
+> **Ctrl/Cmd+A select-all (2026-06-30):** in sketch mode, `Ctrl/Cmd+A` selects every entity in the active
+> sketch (`setSketchElementSelection` over all `sketch.elements` ids); `Delete`/`Backspace` then removes the
+> selection (existing handler). The origin point isn't a sketch element, so it's never swept up.
+
 > **Fixed (2026-06-24):** picking a sketch tool (Rectangle/Line/etc.) with nothing selected used
 > to silently auto-create a sketch on the Front Plane. It now requires a sketch plane/face: if one
 > is selected the sketch starts there; otherwise all three reference planes are revealed for picking

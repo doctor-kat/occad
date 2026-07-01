@@ -222,7 +222,7 @@ All edges are combined into a `TopoDS_Wire` via `BRepBuilderAPI_MakeWire`, then 
 
 The **SketchOverlay** component provides a 3D overlay with grid snapping (toggle with 'G' key) and constraint-based snapping (point, midpoint, center, edge constraints).
 
-It supports: Line, Rectangle, Circle, Polygon, Arc drawing operations. Keyboard: ESC cancels/clears, ENTER completes polygon, G toggles grid snap, DEL deletes selected.
+It supports: Point, Line, Rectangle, Circle, Polygon, Arc drawing operations. Keyboard: ESC aborts the in-progress element or (when none) exits sketch mode, ENTER completes polygon, G toggles grid snap, H toggles grid visibility, Ctrl/Cmd+A selects all sketch entities, DEL deletes selected.
 
 ### Face Selection → Sketch Workflow
 
