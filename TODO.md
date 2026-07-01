@@ -65,13 +65,18 @@ call site (edges for fillet/chamfer, faces for shell) but a leading `%kind` may 
 
 ## Work breakdown (TDD, pure-first — mirror fingerprint.ts discipline)
 
-### Phase 0 — Descriptor extraction (worker, thin)  ❌
-- [ ] `describeSubShapes(ctx, shape, kind): SubShapeDescriptor[]` in a new
-      `src/cad/engine/selectors/describe.ts`. Reuse `fingerprint.ts` helpers for geomType/measure/
-      centroid/obb; add **face normal** (planar: plane axis; else surface `D1` at UV-center → normal)
-      and **edge tangent** (`BRepAdaptor_Curve.D1` at mid-param; line = its direction) + optional
-      **radius**. All via `ctx.oc` so it's mockable.
-- [ ] `describe.test.ts` with a mock `oc` (box: 6 planar faces w/ axis-aligned normals, 12 edges).
+### Phase 0 — Descriptor extraction (worker, thin)  ✅
+- [x] `describeSubShapes(ctx, shape, kind): SubShapeDescriptor[]` in `src/cad/engine/selectors/
+      describe.ts`. Delegates base fields to the tested `fingerprint.computeFingerprint`; adds
+      **planar-face normal** (plane axis, flipped on reversed orientation), **line-edge tangent**
+      (`Line().Direction()`), and **radius** (cylinder/sphere face, circle edge). All via `ctx.oc`.
+      Also collapses `-0` → `0` so negated normals don't leak negative zero.
+- [x] `describe.test.ts` (8) with a faithful mock `oc`: outward-normal + orientation flip, cylinder
+      radius, line tangent, circle radius, vertex, non-unit-normal normalization, and a
+      describe→`selectSubShapes` integration (`>Z`/`|Z`/`%cylinder`). **36/36 selector tests green.**
+- [ ] Deferred (curved sub-shapes): general D1-based normal (non-planar faces) / tangent (non-line
+      edges) at UV/param-center — currently `direction` is undefined for them, so directional
+      selectors correctly skip them. Add when a real case needs it.
 
 ### Phase 1 — Pure selector engine (NO WASM — the core, biggest test surface)  ✅
 - [x] `src/cad/engine/selectors/types.ts` — `SubShapeDescriptor` + `SelectorNode` AST + `Axis`/`Vec3`.
