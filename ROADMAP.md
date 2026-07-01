@@ -174,6 +174,39 @@ Polygon, Ellipse, Bezier are plain compact buttons (no variants). `OperationGrou
 - **Bezier** — 🚫 won't implement. The `SketchBezier` type + toolbar button still exist but there is no
   builder; it remains a known dead button.
 
+### 1.1.2 Primitive groups / folders — ❌ planned
+
+Goal: a composite sketch entity that **owns** a set of underlying primitives so they behave as one unit in
+the tree, selection, and deletion — like a SolidWorks feature that expands to reveal its geometry.
+
+**Motivating case — Center Rectangle:** today it emits a rectangle, a center point, and two construction
+diagonals as four *independent* top-level elements (see §1.1 "Center rectangle guides"). It should instead be
+a **group** whose children are: 1 `POINT` (center), 2 `construction` `LINE`s (centerline diagonals), and 1
+`RECTANGLE` (the four native OpenCascade edges). Deleting/moving/selecting the group acts on all children;
+the tree/entity-list shows the group as an expandable folder.
+
+| Item | Behavior |
+|------|----------|
+| **Group node** | One entity-list/tree row (e.g. "Center Rectangle 1") that expands to its child primitives |
+| **Select group** | Selects all children (and vice-versa: selecting every child highlights the group) |
+| **Delete group** | Removes the group and every child primitive in one action (one undo step) |
+| **Hover group** | Highlights all child geometry in the overlay |
+| **Construction children** | Diagonals/center stay construction-only (never reach the profile wire) |
+
+**Implementation notes**
+
+- **Model:** add a `groupId` to `SketchElement` (children reference their parent) *or* a
+  `SketchGroup { id; type; childIds[] }` collection on the `Sketch`. `groupId` on elements is the least
+  invasive (no new array to keep in sync with the flat element list).
+- **Producers:** Center Rectangle is the first producer; generalize so other composites (slot, polygon with
+  center, mirror sets, etc.) can emit a group.
+- **Deletion / selection:** `SketchEntitiesPanel` + `SketchOverlay` operate on the whole group when a group
+  id is selected; `handleUpdateSketch` filters all children when a group is deleted.
+- **Wire building:** unaffected — construction children already emit no profile edges, and the rectangle's
+  edges still build normally (§2.1 multi-wire).
+- Per CLAUDE.md, viewport/sketch changes require tests — cover group create/select/delete and that children
+  stay linked across a solve round-trip.
+
 ### 1.2 Sketch constraint solver
 
 - ✅ **planegcs** (`@salusoft89/planegcs`) integrated in `SketchSolver.ts`, runs in the worker.
