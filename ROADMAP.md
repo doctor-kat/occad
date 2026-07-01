@@ -104,6 +104,11 @@ rebuild).
 > on a single click and includes points in hover/selection + snap candidates. Test:
 > `elementsToPrimitives.test.ts` (point mapping).
 
+> **Center rectangle guides (2026-06-30):** drawing a Center Rectangle now also emits its **center point**
+> and the two **construction diagonals** (opposite corners, crossing at the center), mirroring SolidWorks.
+> Pure geometry in `sketchShapeBuilders.centerRectangleGuides`; the overlay mints a `POINT` + two
+> `construction` lines alongside the rectangle. Test: `sketchShapeBuilders.test.ts`.
+
 > **Sketch origin point (2026-06-30):** every sketch now carries a *fixed* origin point primitive at the
 > workplane (0,0), mirroring the world Origin reference geometry, so drawn geometry can be constrained to
 > it. `originPoint.ts` (`ORIGIN_POINT_ID`/`makeOriginPrimitive`/`withOriginPrimitive`) is the canonical

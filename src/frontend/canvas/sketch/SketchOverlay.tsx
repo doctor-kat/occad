@@ -21,6 +21,7 @@ import { getWorkplaneTransform } from './getPlaneTransform';
 import {
   buildMidpointLine,
   buildCenterRectangle,
+  centerRectangleGuides,
   buildThreePointCornerRectangle,
   buildThreePointCenterRectangle,
   buildParallelogram,
@@ -798,7 +799,23 @@ export function SketchOverlay({
               corner1,
               corner2,
             };
-            onElementsChange(sketch.id, [...sketch.elements, newRect]);
+            // Add the center point and the two construction diagonals (which cross
+            // at the center), mirroring SolidWorks' center-rectangle relations.
+            const { diagonals, center } = centerRectangleGuides(corner1, corner2);
+            const centerPoint: SketchElement = {
+              type: SketchElementType.POINT,
+              id: crypto.randomUUID(),
+              x: center.x,
+              y: center.y,
+            };
+            const diagLines: SketchElement[] = diagonals.map(([start, end]) => ({
+              type: SketchElementType.LINE,
+              id: crypto.randomUUID(),
+              start,
+              end,
+              construction: true,
+            }));
+            onElementsChange(sketch.id, [...sketch.elements, newRect, centerPoint, ...diagLines]);
             setPoints([]);
             setPreviewElement(null);
           }

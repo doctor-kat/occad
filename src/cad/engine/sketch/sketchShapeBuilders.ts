@@ -46,6 +46,29 @@ export function buildCenterRectangle(
 }
 
 /**
+ * Construction guides for a center rectangle: the two diagonals connecting opposite
+ * corners (which cross at the center) and the center point. `corner1`/`corner2` are
+ * the axis-aligned min/max corners from {@link buildCenterRectangle}. Returned as
+ * plain geometry so the overlay can mint construction lines + a point element.
+ */
+export function centerRectangleGuides(
+  corner1: Point2D,
+  corner2: Point2D
+): { diagonals: [Point2D, Point2D][]; center: Point2D } {
+  const c1 = corner1;                              // (min, min)
+  const c2 = { x: corner2.x, y: corner1.y };       // (max, min)
+  const c3 = corner2;                              // (max, max)
+  const c4 = { x: corner1.x, y: corner2.y };       // (min, max)
+  return {
+    diagonals: [
+      [c1, c3],
+      [c2, c4],
+    ],
+    center: { x: (corner1.x + corner2.x) / 2, y: (corner1.y + corner2.y) / 2 },
+  };
+}
+
+/**
  * 3-point corner rectangle: `a`→`b` defines the first edge (direction + length),
  * `c` sets the width as its perpendicular distance from that edge. Returns the 4
  * corners in order.

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildMidpointLine,
   buildCenterRectangle,
+  centerRectangleGuides,
   buildThreePointCornerRectangle,
   buildThreePointCenterRectangle,
   buildParallelogram,
@@ -24,6 +25,21 @@ describe('buildCenterRectangle', () => {
     expect(corner1).toEqual({ x: 7, y: 8 });
     // center is the midpoint of the two corners
     expect({ x: (corner1.x + corner2.x) / 2, y: (corner1.y + corner2.y) / 2 }).toEqual({ x: 10, y: 10 });
+  });
+});
+
+describe('centerRectangleGuides', () => {
+  it('returns two corner-to-corner diagonals that cross at the center', () => {
+    const { diagonals, center } = centerRectangleGuides({ x: 0, y: 0 }, { x: 10, y: 6 });
+    expect(center).toEqual({ x: 5, y: 3 });
+    expect(diagonals).toEqual([
+      [{ x: 0, y: 0 }, { x: 10, y: 6 }],
+      [{ x: 10, y: 0 }, { x: 0, y: 6 }],
+    ]);
+    // Both diagonals' midpoints are the center.
+    for (const [a, b] of diagonals) {
+      expect({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }).toEqual(center);
+    }
   });
 });
 
