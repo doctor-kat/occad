@@ -159,8 +159,17 @@ export function translatePrimitivesToOCC(
 }
 
 /**
- * Builds a final wire/face from sketch primitives.
- * Only non-external primitives forming closed wires are used.
+ * Groups the sketch's edge primitives into connected components and builds one
+ * wire per component. A sketch can legitimately contain several disjoint profiles
+ * (e.g. two separate rectangles); combining all their edges into a single
+ * `BRepBuilderAPI_MakeWire` fails (a wire is a single connected loop), which used
+ * to abort the whole sketch build — including the constraint solve round-trip.
+ *
+ * Line edges are connected when they share an endpoint *point id* (union-find);
+ * each self-closed edge (circle/arc/ellipse) is its own component.
+ *
+ * @returns a single `TopoDS_Wire` when there is one profile, or a
+ *   `TopoDS_Compound` of wires when there are several.
  */
 export function buildSketchWire(
   ctx: WorkerContext,
@@ -168,34 +177,121 @@ export function buildSketchWire(
 ): TopoDS_Shape {
   const { oc } = ctx;
   const shapes = translatePrimitivesToOCC(ctx, sketch);
-  
-  const wireBuilder = new oc.BRepBuilderAPI_MakeWire_1();
-  let edgesAdded = 0;
 
-  // Filter for non-external edges that can form a wire
+  // Union-find over point ids so line edges sharing an endpoint land in one group.
+  const parent = new Map<string, string>();
+  const ensure = (x: string) => { if (!parent.has(x)) parent.set(x, x); };
+  const find = (x: string): string => {
+    ensure(x);
+    while (parent.get(x) !== x) {
+      const gp = parent.get(parent.get(x)!)!;
+      parent.set(x, gp);
+      x = gp;
+    }
+    return x;
+  };
+  const union = (a: string, b: string) => { parent.set(find(a), find(b)); };
+
+  // Collect the edges to place, tagged with a provisional grouping key. Line edges
+  // key on a point id (resolved to its component root after all unions); self-closed
+  // edges key on their own primitive id.
+  const tagged: { key: string; isPoint: boolean; edge: TopoDS_Shape }[] = [];
   for (const primitive of sketch.primitives) {
     if (primitive.isExternal) continue;
     if (primitive.type === 'point') continue;
 
     const shape = shapes.get(primitive.id);
-    if (shape && shape.ShapeType() === oc.TopAbs_ShapeEnum.TopAbs_EDGE) {
-      wireBuilder.Add_1(oc.TopoDS.Edge_1(shape));
-      edgesAdded++;
+    if (!shape || shape.ShapeType() !== oc.TopAbs_ShapeEnum.TopAbs_EDGE) continue;
+
+    if (primitive.type === 'line') {
+      const p1 = primitive.data.p1_id as string;
+      const p2 = primitive.data.p2_id as string;
+      union(p1, p2);
+      tagged.push({ key: p1, isPoint: true, edge: shape });
+    } else {
+      tagged.push({ key: primitive.id, isPoint: false, edge: shape });
     }
   }
 
-  if (edgesAdded === 0) {
+  if (tagged.length === 0) {
     throw new Error('No edges found in sketch to build wire');
   }
 
-  if (!wireBuilder.IsDone()) {
-    const error = wireBuilder.Error();
-    wireBuilder.delete();
-    throw new Error(`BRepBuilderAPI_MakeWire failed with error code: ${error}`);
+  // Resolve each edge to its connected-component root and group.
+  const groups = new Map<string, TopoDS_Shape[]>();
+  for (const { key, isPoint, edge } of tagged) {
+    const root = isPoint ? `pt:${find(key)}` : `edge:${key}`;
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root)!.push(edge);
   }
 
-  const wire = wireBuilder.Wire();
-  wireBuilder.delete();
-  
-  return wire;
+  // Build a wire per component. A component whose edges won't connect is skipped
+  // (its constraints still round-trip; the profile just contributes no geometry).
+  const wires: TopoDS_Shape[] = [];
+  for (const groupEdges of groups.values()) {
+    const wireBuilder = new oc.BRepBuilderAPI_MakeWire_1();
+    for (const edge of groupEdges) {
+      wireBuilder.Add_1(oc.TopoDS.Edge_1(edge));
+    }
+    if (wireBuilder.IsDone()) {
+      wires.push(wireBuilder.Wire());
+    }
+    wireBuilder.delete();
+  }
+
+  if (wires.length === 0) {
+    throw new Error('BRepBuilderAPI_MakeWire failed to build any wire');
+  }
+  if (wires.length === 1) {
+    return wires[0];
+  }
+
+  // Multiple disjoint profiles → return them as a compound of wires.
+  const compound = new oc.TopoDS_Compound();
+  const builder = new oc.BRep_Builder();
+  builder.MakeCompound(compound);
+  for (const w of wires) builder.Add(compound, w);
+  builder.delete();
+  return compound;
+}
+
+/**
+ * Turn a sketch profile (a wire, or a compound of wires from {@link buildSketchWire})
+ * into a face or a compound of faces. Each closed wire becomes one face; open or
+ * unfaceable wires are skipped. Returns the input unchanged if nothing could be
+ * faced (callers fall back to the wire for display).
+ */
+export function buildProfileFace(
+  ctx: WorkerContext,
+  profile: TopoDS_Shape
+): TopoDS_Shape {
+  const { oc } = ctx;
+
+  const faceFromWire = (wire: TopoDS_Wire): TopoDS_Shape | null => {
+    const faceMaker = new oc.BRepBuilderAPI_MakeFace_15(wire, false);
+    const face = faceMaker.IsDone() ? faceMaker.Face() : null;
+    faceMaker.delete();
+    return face;
+  };
+
+  if (profile.ShapeType() === oc.TopAbs_ShapeEnum.TopAbs_WIRE) {
+    return faceFromWire(oc.TopoDS.Wire_1(profile)) ?? profile;
+  }
+
+  if (profile.ShapeType() === oc.TopAbs_ShapeEnum.TopAbs_COMPOUND) {
+    const wireMap = new oc.TopTools_IndexedMapOfShape_1();
+    oc.TopExp.MapShapes_1(profile, oc.TopAbs_ShapeEnum.TopAbs_WIRE, wireMap);
+    const compound = new oc.TopoDS_Compound();
+    const builder = new oc.BRep_Builder();
+    builder.MakeCompound(compound);
+    let faces = 0;
+    for (let i = 1; i <= wireMap.Extent(); i++) {
+      const face = faceFromWire(oc.TopoDS.Wire_1(wireMap.FindKey(i)));
+      if (face) { builder.Add(compound, face); faces++; }
+    }
+    builder.delete();
+    return faces > 0 ? compound : profile;
+  }
+
+  return profile;
 }

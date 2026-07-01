@@ -235,6 +235,19 @@ Polygon, Ellipse, Bezier are plain compact buttons (no variants). `OperationGrou
 
 ## 2. 3D Features
 
+> **Fixed (2026-06-30) — multiple profiles lost constraints.** Drawing a second (disjoint) profile in a
+> sketch — e.g. a second rectangle — left it with **no constraints**. `handleBuildSketch` solved the sketch
+> (producing the constraints) and *then* called `buildSketchWire`, which combined **all** edges into one
+> `BRepBuilderAPI_MakeWire`; two disconnected loops made it throw, aborting before `solvedSketch` (with the
+> new constraints) was posted back — so the UI kept only the first profile's constraints. `buildSketchWire`
+> now groups edges into connected components (union-find on line endpoint point-ids; each circle/arc/ellipse
+> is its own component) and builds **one wire per profile**, returning a `TopoDS_Compound` of wires for
+> multi-profile sketches. New `buildProfileFace` turns a wire (or compound of wires) into a face (or compound
+> of faces); `ensureFace` passes a compound through so multi-profile extrude prisms each face. Geometry
+> building in `handleBuildSketch`/rebuild is now wrapped so a failed profile can't block the constraint
+> round-trip (`sketchBuilt.geometry`/`meshData` are optional). Test: `sketchBuilders.test.ts` (per-component
+> wires → compound).
+
 ### 2.1 Sketch-based
 
 | Feature      | Engine | Rebuild | Boolean combine | UI | Status |

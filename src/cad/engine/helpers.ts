@@ -53,6 +53,12 @@ export function findSketchShape(ctx: WorkerContext, sketchId: string): TopoDS_Sh
 export function ensureFace(ctx: WorkerContext, shape: TopoDS_Shape): TopoDS_Face {
   const { oc } = ctx;
 
+  // A compound (multiple faces from disjoint profiles) is already extrudable as-is —
+  // BRepPrimAPI_MakePrism prisms each contained face. Pass it through untouched.
+  if (shape.ShapeType() === oc.TopAbs_ShapeEnum.TopAbs_COMPOUND) {
+    return shape as TopoDS_Face;
+  }
+
   if (shape.ShapeType() === oc.TopAbs_ShapeEnum.TopAbs_WIRE) {
     // Downcast TopoDS_Shape to TopoDS_Wire
     const wire = oc.TopoDS.Wire_1(shape);

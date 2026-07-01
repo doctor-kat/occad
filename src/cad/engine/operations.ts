@@ -34,7 +34,7 @@ import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuil
 import type { WorkerContext } from './workerContext';
 import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
-import { buildSketchWire } from './sketchBuilders';
+import { buildSketchWire, buildProfileFace } from './sketchBuilders';
 import { applyFillet, applyChamfer, applyShell, applyOffset, enrichRefs } from './modifications';
 import { tessellate, extractEdgeVertices } from './tessellation';
 import { SketchSolver } from './SketchSolver';
@@ -121,36 +121,31 @@ export async function handleBuildSketch(
 
     post({ type: 'progress', message: `Building sketch geometry ${sketch.id}...` });
 
-    // 3. Build wire from sketch elements
-    const wire = buildSketchWire(ctx, solvedSketch);
-
-    // 4. Create face from wire (if closed)
-    let shape: TopoDS_Shape = wire;
+    // 3-6. Build geometry (wire → face(s) → mesh). This is best-effort: a profile
+    // that can't be faced (e.g. an open/degenerate loop) must NOT prevent the solved
+    // sketch — and therefore its constraints — from being posted back to the UI.
+    let geometry: ShapeReference | undefined;
+    let meshData: MeshData | undefined;
     try {
-      const wireWire = oc.TopoDS.Wire_1(wire);
-      const faceMaker = new oc.BRepBuilderAPI_MakeFace_15(wireWire, false);
-      if (faceMaker.IsDone()) {
-        shape = faceMaker.Face();
-      }
-      faceMaker.delete();
-    } catch (err) {}
-
-    // 5. Store shape
-    const shapeId = `sketch_${sketch.id}_${shapeIdCounter++}`;
-    ctx.shapeStorage.set(shapeId, shape);
-
-    // 6. Tessellate for visualization
-    const meshData = tessellate(ctx, shape, 0.05, 0.3);
+      const wire = buildSketchWire(ctx, solvedSketch);
+      const shape: TopoDS_Shape = buildProfileFace(ctx, wire);
+      const shapeId = `sketch_${sketch.id}_${shapeIdCounter++}`;
+      ctx.shapeStorage.set(shapeId, shape);
+      geometry = { shapeId, shapeType: 'face' as const };
+      meshData = tessellate(ctx, shape, 0.05, 0.3);
+    } catch (err) {
+      console.warn(`[handleBuildSketch] geometry build failed for ${sketch.id}; constraints still applied:`, err);
+    }
 
     post(
       {
         type: 'sketchBuilt',
         sketchId: sketch.id,
-        geometry: { shapeId, shapeType: 'face' as const },
+        geometry,
         meshData,
         solvedSketch,
       },
-      getTransferables(meshData)
+      meshData ? getTransferables(meshData) : []
     );
   } catch (err: unknown) {
     const message = formatError(err);
@@ -319,20 +314,16 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
           }
           const sketchToSolve = currentBody ? reprojectExternalGeometry(ctx, sketch, currentBody) : sketch;
           const solvedSketch = await solver.solve(sketchToSolve);
-          const wire = buildSketchWire(ctx, solvedSketch);
-          let shape: TopoDS_Shape = wire;
           try {
-            const wireWire = oc.TopoDS.Wire_1(wire);
-            const faceMaker = new oc.BRepBuilderAPI_MakeFace_15(wireWire, false);
-            if (faceMaker.IsDone()) shape = faceMaker.Face();
-            faceMaker.delete();
-          } catch (err) {}
-          const shapeId = `sketch_${sketch.id}_${shapeIdCounter++}`;
-          ctx.shapeStorage.set(shapeId, shape);
-          try {
+            const wire = buildSketchWire(ctx, solvedSketch);
+            const shape: TopoDS_Shape = buildProfileFace(ctx, wire);
+            const shapeId = `sketch_${sketch.id}_${shapeIdCounter++}`;
+            ctx.shapeStorage.set(shapeId, shape);
             const edgeVertices = extractEdgeVertices(ctx, shape, 0.05, 0.3);
             if (edgeVertices.length > 0) sketchEdgesMap[sketch.id] = { edgeVertices };
-          } catch (err) {}
+          } catch (err) {
+            console.warn(`[rebuild] sketch geometry build failed for ${sketch.id}:`, err);
+          }
         } else if (item.type === 'feature') {
           const feature = item.data;
           if (feature.isSuppressed) { processedItems++; continue; }

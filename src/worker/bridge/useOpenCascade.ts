@@ -87,10 +87,13 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           break;
 
         case "sketchBuilt":
-          setMesh(msg.meshData);
-          setCurrentShapeId(msg.geometry.shapeId);
+          // geometry/meshData are absent when the profile couldn't be faced; the
+          // constraint solve still round-trips via solvedSketch, so apply that
+          // regardless and only update mesh/shape when geometry was produced.
+          if (msg.meshData) setMesh(msg.meshData);
+          if (msg.geometry) setCurrentShapeId(msg.geometry.shapeId);
           setStatus("ready");
-          optsRef.current.onSketchBuilt?.(msg.sketchId, msg.meshData, msg.solvedSketch);
+          optsRef.current.onSketchBuilt?.(msg.sketchId, msg.meshData as CADMeshData, msg.solvedSketch);
           break;
 
         case "featureBuilt":
