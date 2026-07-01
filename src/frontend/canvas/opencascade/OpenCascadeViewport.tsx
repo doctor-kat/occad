@@ -141,6 +141,7 @@ export function OpenCascadeViewport({
             onSketchClick={onSketchClick}
             onBackgroundClick={onBackgroundClick}
             onUpdateSketch={onUpdateSketch}
+            onExitSketch={onCancelSketch}
           />
           {activeSketch && (
             <SketchRenderer 

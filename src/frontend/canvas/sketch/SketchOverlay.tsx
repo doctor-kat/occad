@@ -206,6 +206,8 @@ export interface SketchOverlayProps {
   activeConstraint?: string;
   onElementsChange: (sketchId: string, elements: SketchElement[]) => void;
   onBackgroundClick?: () => void;
+  /** Exit sketch editing (Esc when no draw is in progress). */
+  onExitSketch?: () => void;
 }
 
 /**
@@ -217,6 +219,7 @@ export function SketchOverlay({
   activeConstraint = 'none',
   onElementsChange,
   onBackgroundClick,
+  onExitSketch,
 }: SketchOverlayProps) {
   const [currentPoints, setCurrentPoints] = useState<Point2D[]>([]);
   // Mirror of `currentPoints` for the pointer handlers to read. The handlers are
@@ -347,13 +350,16 @@ export function SketchOverlay({
         return;
       }
 
-      // Cancel current drawing
+      // Escape: abort the in-progress element if one is being drawn; otherwise
+      // exit sketch mode entirely (falls back to clearing selection if the sketch
+      // can't be exited for some reason).
       if (e.key === 'Escape') {
         if (currentPointsRef.current.length > 0) {
           setPoints([]);
           setPreviewElement(null);
+        } else if (onExitSketch) {
+          onExitSketch();
         } else {
-          // If no drawing in progress, clear selection
           clearSketchSelection();
         }
         return;
@@ -380,7 +386,7 @@ export function SketchOverlay({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints]);
+  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints, onExitSketch, setHoveredElementId]);
 
   // Left-button rubber-band box / crossing selection of sketch entities — active
   // only in selection mode (no draw tool). The camera is on the middle button, so

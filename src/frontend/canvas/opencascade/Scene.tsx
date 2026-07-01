@@ -31,6 +31,8 @@ export interface SceneProps {
   onSketchClick?: (sketchId: string) => void;
   onBackgroundClick?: () => void;
   onUpdateSketch?: (sketchId: string, elements: any[]) => void;
+  /** Exit sketch editing (Esc in the overlay). */
+  onExitSketch?: () => void;
 }
 
 export function Scene({
@@ -51,7 +53,8 @@ export function Scene({
   onVertexClick,
   onSketchClick,
   onBackgroundClick,
-  onUpdateSketch
+  onUpdateSketch,
+  onExitSketch
 }: SceneProps) {
   const hoveredTreeItem = useViewportStore((state) => state.hoveredTreeItem);
   const setHoveredTreeItem = useViewportStore((state) => state.setHoveredTreeItem);
@@ -142,6 +145,7 @@ export function Scene({
           activeConstraint={activeConstraint}
           onElementsChange={onUpdateSketch}
           onBackgroundClick={onBackgroundClick}
+          onExitSketch={onExitSketch}
           occMesh={mesh}
           occSketchEdges={sketchEdges}
         />

@@ -41,6 +41,11 @@ rebuild).
 
 ## 1. Sketch System
 
+> **Esc exits sketch mode (2026-06-30):** in the sketch overlay, `Esc` now aborts the in-progress element
+> if one is being drawn (unchanged), otherwise **exits sketch editing** (wired to `onCancelSketch` via a new
+> `onExitSketch` prop threaded `OpenCascadeViewport` → `Scene` → `SketchOverlay`). Previously `Esc` with no
+> draw in progress only cleared the selection.
+
 > **Fixed (2026-06-24):** picking a sketch tool (Rectangle/Line/etc.) with nothing selected used
 > to silently auto-create a sketch on the Front Plane. It now requires a sketch plane/face: if one
 > is selected the sketch starts there; otherwise all three reference planes are revealed for picking
