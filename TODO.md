@@ -1,142 +1,143 @@
-# TODO — Sketch Constraints Implementation
+# TODO — Selector system (ROADMAP §9.1)
 
-Living context doc for implementing **sketch constraints** end-to-end (TDD, e2e per feature).
-See `ROADMAP.md` §1.2 for the audited gap list.
+Port CadQuery's **selector** concept — declarative rules that pick edges/faces/vertices by
+geometry (`>Z`, `|Z`, `%plane`, `>>Z[1]`, nearest-to-point, radius-nth, and boolean combinations)
+— onto our existing TS-over-OCCT engine. Goal: replace tedious one-edge-at-a-time picking for
+fillet/chamfer/shell with a rule you type once that re-anchors across rebuilds.
 
-## ✅ FEATURE COMPLETE (2026-06-23)
+> **License:** clean-room port of the *concepts and grammar* documented in CadQuery's
+> `selectors.py`, **not** a copy of its code. CadQuery is Apache-2.0 (reference only). Do not paste
+> source; reimplement from the semantics table below.
 
-All 10 standard constraints work end-to-end (factory + real-solver test + UI + e2e):
-horizontal, vertical, parallel, perpendicular, equal, angle, coincident, distance, radius, tangent.
-Plus: create toolbar (`SketchConstraintToolbar`), list + delete (`SketchConstraintList`), whole-element AND
-point-level (endpoint) selection, the circle `c_id` + OCC `MakeEdge` overload fixes (radius solves 10→40, circles
-extrudable), and orphaned `types/sketch/constraints/*` removed.
-Tests: 83 unit (incl. 12 real-solver factory tests), 11 constraint e2e — all green; existing sketch e2e unaffected.
-**Deferred:** Midpoint & Symmetric (no single planegcs primitive — need multi-constraint composition); arc/ellipse
-solve (need `start_id`/`end_id` point primitives reshape).
+## Why this fits our codebase (context)
 
-## Architecture facts (discovered — don't re-derive)
+- `fingerprint.ts` already extracts, per sub-shape: **geomType** (plane/cylinder/cone/sphere/torus/
+  bspline for faces; line/circle/ellipse/bspline for edges), **measure** (area/length), **centroid**
+  (center of mass), and **OBB half-sizes**. A selector engine is mostly a *filter + rank* pass over
+  that same descriptor data — so it stays **pure and mockable** exactly like `fingerprint.ts`.
+- The **one missing datum** is orientation/**direction**: face normal at its center, and edge tangent
+  direction. Directional selectors (`>Z`, `|Z`, `#Z`) need it; the current fingerprint deliberately
+  omits it (OBB is rotation-invariant by design). We add it to a richer *worker-only* descriptor, not
+  to the persisted `Fingerprint`.
+- Selectors resolve to **indices → `StableRef[]`** (fingerprinted), so a materialized selection is
+  automatically deterministic-topology stable via the machinery in `modifications.ts` /
+  `fingerprint.ts`. Nothing new needed for stability.
+- Plugs into the existing selection→params flow: fillet/chamfer read `params.edges: GeometryRef[]`,
+  shell/offset read `params.faces`. The selector just *produces* those arrays (Phase A) or is stored
+  and *re-evaluated each rebuild* (Phase B).
 
-- **Pipeline:** user draws → `sketch.elements` (`SketchElement[]`) → `mapElementsToPrimitives()` in
-  `src/frontend/ui/CADLayout.tsx` → planegcs `sketch.primitives` → `solver.solve()` (`SketchSolver.ts`, called from
-  `operations.ts:handleBuildSketch` and rebuild) → `buildSketchWire()` builds the OCC wire **from `primitives`**.
-- **The solver is real and already wired.** `sketch.constraints: any[]` holds **planegcs-format** constraint objects.
-  The only missing piece for constraints is *creating* them (no `addConstraint`, no UI).
-- **planegcs runs in vitest/node** — confirmed it actually solves (distance moved a point 5→20). So solver-behavior
-  tests are **real unit tests**, not mocks. New tests should NOT mock planegcs.
-- **Primitive id derivation** (from `mapElementsToPrimitives`): line `el.id` (+ points `${el.id}_p1/_p2`); circle
-  `el.id` (+ center `${el.id}_center`); rect lines `${el.id}_l1..l4` (+ points `_p1.._p4`); polygon `${el.id}_l{i}`.
-- **Selection:** `SketchOverlay.tsx` has `selectedElementIds: Set<string>` (element-level). Point-level (endpoint)
-  selection does NOT exist yet — needed for coincident/distance-between-points.
-- **Typed interfaces** in `src/cad/types/sketch/constraints/*.ts` are orphaned (only their own tests import them).
-  New canonical model = planegcs objects produced by `constraintFactory`.
+## Selector grammar & semantics (target)
 
-## planegcs constraint strings (verified in `@salusoft89/planegcs/planegcs_dist/constraints.ts`)
+String DSL, whitespace-separated tokens combined left→right; parentheses + `and`/`or`/`not`/`exc`
+for composition. Axis ∈ {X, Y, Z} (optionally signed, e.g. `+Z`, `-Z`). Kind is implied by the
+call site (edges for fillet/chamfer, faces for shell) but a leading `%kind` may pin it.
 
-| Semantic        | planegcs type        | params                          |
-|-----------------|----------------------|---------------------------------|
-| Horizontal      | `horizontal_l`       | `l_id`                          |
-| Vertical        | `vertical_l`         | `l_id`                          |
-| Coincident      | `p2p_coincident`     | `p1_id, p2_id`                  |
-| Parallel        | `parallel`           | `l1_id, l2_id`                  |
-| Perpendicular   | `perpendicular_ll`   | `l1_id, l2_id`                  |
-| Distance        | `p2p_distance`       | `p1_id, p2_id, distance`        |
-| Radius (circle) | `circle_radius`      | `c_id, radius`                  |
-| Radius (arc)    | `arc_radius`         | `a_id, radius`                  |
-| Equal length    | `equal_length`       | `l1_id, l2_id`                  |
-| Tangent (LC)    | `tangent_lc`         | `l_id, c_id`                    |
-| Angle (lines)   | `l2l_angle_ll`       | `l1_id, l2_id, angle`           |
-| Midpoint        | `midpoint_on_line_ll`| `l1_id, l2_id`                  |
-| Fixed           | (no constraint)      | set `primitive.fixed = true`    |
+| Token            | Meaning (CadQuery parity)                                                        | Needs      |
+|------------------|----------------------------------------------------------------------------------|------------|
+| `>Z` / `<Z`      | Sub-shape whose **center** is max/min along axis (DirectionMinMax)               | centroid   |
+| `>Z[n]` / `<Z[n]`| n-th from the max/min along axis, 0-based, ties grouped (DirectionNth)           | centroid   |
+| `\|Z`            | **Parallel** to axis — edges tangent ∥ Z; faces whose **normal** ∥ Z            | direction  |
+| `#Z`             | **Perpendicular** to axis — normal/tangent ⊥ Z                                   | direction  |
+| `+Z` / `-Z`      | Direction ∥ **and** pointing the same/opposite way as +Z                         | direction  |
+| `%plane` `%line` `%circle` `%cylinder` …| Geometry **type** filter                                          | geomType   |
+| `>>Z` (alias)    | (optional) same as `>Z`; keep `>` canonical                                       | centroid   |
+| `radius(n)` / `>>R[n]` | n-th smallest/largest **radius** (cylinders/circles) — RadiusNth            | +radius    |
+| `near(x,y,z)`    | Nearest sub-shape to a point (NearestToPoint)                                     | centroid   |
+| `A and B` / `A B`| Intersection                                                                     | —          |
+| `A or B`         | Union                                                                            | —          |
+| `not A` / `exc A`| Complement / set-subtract                                                         | —          |
 
-Dimensional constraints (`distance`, `*_radius`, `*_angle`) take `driving?: boolean` (default true = driving).
+**Semantics to get exactly right** (verify against `selectors.py` before coding each):
+- `>Z` on **faces** = the face(s) whose center has max Z (e.g. the top of a box). `|Z` on faces =
+  faces whose **normal** is parallel to Z (top **and** bottom — the horizontal faces).
+- `#Z` on faces = faces whose normal ⊥ Z (the 4 vertical walls of a box).
+- `|Z` on **edges** = edges whose direction is parallel to Z (the 4 vertical edges of a box) — this
+  is the flagship "fillet all vertical edges" case.
+- Ties: min/max group sub-shapes within a tolerance so `>Z` can return *all* co-planar top faces.
 
-## Plan (each constraint "feature" = engine + state + UI + **e2e**)
+## Data model additions
 
-### Phase 0 — Foundation & known bug ✅
-- [x] Confirm planegcs solves in vitest (probe passed).
-- [x] **Bug fixed:** extracted `mapElementsToPrimitives` → `src/cad/engine/sketch/elementsToPrimitives.ts`, fixed the
-  undefined `p3_id`/`p4_id` rect typo, added `elementsToPrimitives.test.ts` (4 tests incl. rect regression). CADLayout
-  now imports the shared fn.
+- `SubShapeDescriptor` (worker-only, **not persisted**): `{ index, kind, geomType, measure,
+  centroid, obb, direction?: {x,y,z}, radius?: number }`. Reuse `fingerprint.ts` extraction; add
+  `direction` (face normal / edge tangent) + `radius` (from `BRepAdaptor_Surface.Cylinder().Radius()`
+  / `Curve.Circle().Radius()`).
+- Keep `Fingerprint` untouched (persisted/serialized — don't add direction there).
 
-### Phase 1 — Engine: constraint factory (TDD, real solver) ✅
-- [x] `src/cad/engine/sketch/constraintFactory.ts`: `createConstraint(id, input)` → planegcs object; `CONSTRAINT_ARITY`.
-- [x] `constraintFactory.test.ts`: shape tests + **real-solver** tests (12 total) proving geometry actually moves for
-  horizontal, vertical, coincident, parallel, perpendicular, distance, radius, equal, tangent, angle. All green.
+## Work breakdown (TDD, pure-first — mirror fingerprint.ts discipline)
 
-### Circle field-name mismatch — FIXED (✅), but exposed a deeper OCC bug
-- [x] `elementsToPrimitives` now emits `c_id` for circles; readers (`sketchBuilders.translatePrimitivesToOCC`,
-  `SketchRenderer`) accept `c_id ?? center_id`. Circles reach the solver; radius/tangent solve (unit-tested).
-  Tests: `elementsToPrimitives.test.ts` (c_id), `sketchBuilders.test.ts` (c_id + legacy center_id fallback).
-- [ ] **Arc/ellipse**: still emit `center_id` (readers fall back). Arcs additionally need `start_id`/`end_id` *point*
-  primitives (planegcs `push_arc` reads them) before they can solve — larger reshape.
-- [x] ✅ **OCC circle `BindingError` FIXED.** Root cause: wrong OCC overloads — `BRepBuilderAPI_MakeEdge_10` needs
-  `(gp_Circ, gp_Pnt, gp_Pnt)` and `_11` needs vertices. Full circle = `MakeEdge_8(gp_Circ)`, arc by angles =
-  `MakeEdge_9(gp_Circ, p1, p2)`. Circles now build wires + solve end-to-end (radius e2e asserts 10→40). Unblocks
-  circle extrude too.
+### Phase 0 — Descriptor extraction (worker, thin)  ❌
+- [ ] `describeSubShapes(ctx, shape, kind): SubShapeDescriptor[]` in a new
+      `src/cad/engine/selectors/describe.ts`. Reuse `fingerprint.ts` helpers for geomType/measure/
+      centroid/obb; add **face normal** (planar: plane axis; else surface `D1` at UV-center → normal)
+      and **edge tangent** (`BRepAdaptor_Curve.D1` at mid-param; line = its direction) + optional
+      **radius**. All via `ctx.oc` so it's mockable.
+- [ ] `describe.test.ts` with a mock `oc` (box: 6 planar faces w/ axis-aligned normals, 12 edges).
 
-### Phase 2 — State: useCADState ✅
-- [x] `addConstraint(sketchId, constraint)`, `removeConstraint(sketchId, constraintId)` + unit tests (3, green).
-- [x] Both bump `project.version` so a rebuild re-solves.
+### Phase 1 — Pure selector engine (NO WASM — the core, biggest test surface)  ✅
+- [x] `src/cad/engine/selectors/types.ts` — `SubShapeDescriptor` + `SelectorNode` AST + `Axis`/`Vec3`.
+- [x] `src/cad/engine/selectors/grammar.ts` — `tokenize` + recursive-descent `parse` → AST
+      (type/direction/minmax/nth/radius/near + and/or/not; `exc`=unary complement). **`grammar.test.ts`**
+      (14): every token, `>>` alias, `[n]`, juxtaposition=AND, AND-binds-tighter-than-OR, parens,
+      case-insensitivity, and error cases (empty/unknown token/unbalanced parens).
+- [x] `src/cad/engine/selectors/evaluate.ts` — `evaluate(ast, descriptors, opts?): number[]`, pure.
+      All predicates ported; tunable angle/coord/radius tolerances. **`evaluate.test.ts`** (14):
+      `>Z`→top face, `<Z`→bottom, `|Z`(faces)→2 horizontals, `#Z`(faces)→4 walls, `±Z`→outward
+      top/bottom, `|Z`(edges)→**4 vertical edges** (flagship), `%plane`, tie-grouping, `>Z[n]`,
+      `radius(n)`, `near()`, and `and`/`or`/`not` composition.
+- [x] `src/cad/engine/selectors/index.ts` — `selectSubShapes(descriptors, selector, opts?)` (parse+
+      evaluate) + re-exports. **28/28 tests green; `bun run build` clean.**
+- [ ] Follow-up polish (deferred): friendly "no matches" error vs. empty array; binary set-subtract
+      (`A exc B`) — currently `exc` is unary only (use `A and not B`).
 
-### Phase 3 — UI + e2e ✅ (line constraints) / 🟡 (rest)
-- [x] Lifted sketch element selection into `viewportStore` (`selectedSketchElementIds` + toggle/set/clear);
-  `SketchOverlay` now reads/writes it (multi-select via toggle on click).
-- [x] `SketchConstraintToolbar` (sketch-mode overlay): Horizontal/Vertical (1 line), Parallel/Perpendicular/Equal
-  (2 lines), enabled by selection; shows `Solver Constraints: N` + `DOF: N`. Wired in `CADLayout.handleApplyConstraint`
-  → `createConstraint` → `addConstraint` → `buildSketch` (re-solve).
-- [x] `e2e/constraints-line.spec.ts`: 5 parametrized cases (h/v/parallel/perp/equal), all green. Seeds a sketch and
-  drives selection via the store-exposed `window.__viewportStore` (canvas draw/select is non-deterministic in the
-  perspective view — see notes). Asserts toolbar count, DOF populated, and the persisted planegcs object.
-- [x] **Point-level (endpoint) selection** — `SketchOverlay` renders clickable point handles; coincident/distance use them.
-- [x] Dimensional value entry — `NumberInput` in the toolbar (radius/distance = length, angle = degrees).
-- [x] Constraint list panel with per-constraint delete (`SketchConstraintList` → `removeConstraint`).
-- [x] All 10 kinds in the toolbar (added tangent/angle/coincident/distance); compact icon layout.
+### Phase 2 — Worker wiring: materialize a selector → StableRef[]  ❌
+- [ ] `ResolveSelectorRequest` / `SelectorResolvedResponse` DTOs in `src/worker/types/{requests,
+      responses}/` + index barrels + union types (`WorkerRequestType`/`WorkerResponseType`).
+- [ ] Handler `handleResolveSelector(ctx, { shapeId, kind, selector })` in `operations.ts`:
+      `describeSubShapes` → `selectSubShapes` → for each hit index, `computeFingerprint` →
+      **`StableRef[]`** (fingerprinted, so stable) → post back. Reuse `findSketchShape`/current-body
+      lookup already in `operations.ts`.
+- [ ] `useOpenCascade.resolveSelector(shapeId, kind, selector)` bridge method + promise/callback
+      plumbing mirroring `getFaceGeometry`.
+- [ ] Unit test the handler path with mock `oc` (assert it returns fingerprinted refs, not bare
+      indices); geometric correctness is e2e.
 
-**e2e notes / follow-ups:**
-- Entering sketch mode does NOT orient the camera normal to the plane → the grid is tilted/offset, so deterministic
-  canvas clicking for draw+select is impractical. A "look normal to sketch" action would unblock pure-UI draw/select
-  e2e and is a real UX win.
-- `buildSketchWire` fails (`BRepBuilderAPI_MakeWire`) when connected line elements use **distinct** endpoint point-ids
-  at the same coords; the rectangle path works because its edges share point-ids. The seed shares the corner id.
+### Phase 3 — UI: "select by rule" for fillet/chamfer/shell  ❌
+- [ ] In `OperationPanel` (modification params), add a selector `TextInput` beside the manual
+      edge/face list: typing a rule calls `resolveSelector` and **fills** `params.edges`/`.faces`
+      with the returned `StableRef[]` (Phase A = materialize-once). Show match count + a "couldn't
+      match" state. Highlight resolved sub-shapes in the viewport (reuse hover/selection highlight).
+- [ ] A few **preset chips** for the common cases (`|Z` all vertical edges, `>Z` top face,
+      `#Z` side faces) so it's discoverable without learning the DSL.
+- [ ] Tests: `OperationPanel.test.tsx` (rule input fills refs, empty-match state).
 
-### Phase 4 — New constraint types & cleanup
-- [ ] Model Midpoint, Symmetric (planegcs `symmetric`), Angle, Equal end-to-end.
-- [ ] Remove/replace orphaned `types/sketch/constraints/*.ts` (or back them with the factory).
-- [ ] Add `TangentConstraint` parity; reconcile `SketchConstraintType` enum.
-- [ ] Update `ROADMAP.md` §1.2 as items land.
+### Phase 4 — (stretch) Persistent parametric selectors  ❌ — Phase B
+- [ ] Optional `selector?: string` on `FilletParams`/`ChamferParams`/`ShellParams`. When present,
+      `resolveSubShapes` (or a pre-step in `handleRebuild`) **re-evaluates** it against the live body
+      each rebuild instead of using stored indices — so "fillet all vertical edges" auto-includes
+      edges introduced by an upstream change. Decide precedence when both `selector` and explicit
+      `edges` exist (selector ∪ explicit, or selector wins).
+- [ ] e2e: box → fillet `|Z` → edit box to add a boss that creates new vertical edges → rebuild →
+      the new edges are filleted too (proves live re-evaluation).
 
-### Phase 5 — Auto-constraints on draw (SolidWorks "sketch relations")
-- [x] **Rectangle** → 2 Horizontal (top/bottom) + 2 Vertical (sides). `inferAutoConstraints(elements)`
-  (`src/cad/engine/sketch/autoConstraints.ts`), regenerated every edit in `CADLayout.handleUpdateSketch`
-  (deterministic ids → idempotent; tagged `auto: true`; merged with the user's manual constraints). Corners
-  are coincident by construction (shared point ids), so no explicit coincident emitted. Covers corner **and**
-  center rectangle (both map to `RECTANGLE`). Tests: `autoConstraints.test.ts` (4, incl. real-solver skew→axis-
-  aligned) + `e2e/auto-constraints.spec.ts` (1, persists 4 relations).
-- [ ] Extend to line (endpoint coincident-on-snap; near-axis → H/V), 3-pt rectangle & parallelogram
-  (perpendicular/parallel), center rectangle symmetry/midpoint.
-- [ ] Surface auto-constraints distinctly in `SketchConstraintList` (badge), and decide delete semantics
-  (currently a deleted auto-constraint regenerates on the element's next edit).
+### Phase 5 — e2e + docs  ❌
+- [ ] `e2e/selectors.spec.ts`: box → fillet via `|Z` selects 4 vertical edges → valid rounded solid;
+      `>Z` top-face shell; `%cylinder` on a cylinder.
+- [ ] Flip ROADMAP §9.1 status → ✅ (or 🟡 if Phase 4 deferred); update the footer date.
 
-## Progress log
-- 2026-06-23: Audited gaps, wrote this plan. Confirmed planegcs solves in vitest.
-- 2026-06-23: Phase 0 + Phase 1 complete. Extracted+fixed `elementsToPrimitives` (rect bug), built
-  `constraintFactory` with 12 real-solver TDD tests (all constraint kinds proven). Found circle/arc `c_id` vs
-  `center_id` mismatch (tracked above). Full suite 86→ green; build green.
-- 2026-06-23: Phase 2 + Phase 3 (line constraints) complete. `addConstraint`/`removeConstraint` in `useCADState`
-  (+3 unit tests). Lifted sketch selection into `viewportStore`. New `SketchConstraintToolbar` for
-  horizontal/vertical/parallel/perpendicular/equal. `e2e/constraints-line.spec.ts` — 5 cases green. Unit suite 89 green,
-  build green.
-- 2026-06-23: Circle `c_id` fix + Radius UI. `elementsToPrimitives` emits `c_id`; readers accept both keys
-  (+2 sketchBuilders tests). Added Radius button + value `NumberInput` to the toolbar. Surfaced a pre-existing OCC
-  circle `BindingError`.
-- 2026-06-23: **Feature completed.** Fixed the OCC overloads (`BRepBuilderAPI_MakeEdge_8` circle / `_9` arc) — radius now
-  solves end-to-end (e2e asserts 10→40). Added Tangent + Angle + Coincident + Distance to the toolbar; point-level
-  endpoint selection in `SketchOverlay`; `SketchConstraintList` (delete). Fixed selection being wiped on remount (only
-  clear when entering a draw tool). Compacted toolbar to icon buttons (fixed off-screen overflow flakiness). Removed
-  orphaned `types/sketch/constraints/*` + enum. `constraints-advanced.spec.ts` (tangent/angle/coincident/distance +
-  delete). 83 unit + 11 constraint e2e green; build green; existing sketch e2e unaffected.
-- 2026-06-27: **Phase 5 started — rectangle auto-constraints.** `inferAutoConstraints` emits 2 H + 2 V per
-  `RECTANGLE` (corner + center rectangle); regenerated each edit in `CADLayout.handleUpdateSketch` (deterministic ids,
-  `auto: true`, merged with manual). `autoConstraints.test.ts` (4, incl. real-solver skew→axis-aligned) +
-  `e2e/auto-constraints.spec.ts`. Full suite 347 unit green; build green. Shipped alongside sketch box/crossing
-  select + sidebar entity list (ROADMAP §6b/§7).
+## Test / verify checklist (per CLAUDE.md: 3D changes require tests)
+- `bun run test` green (grammar/evaluate/describe unit suites).
+- `bun run build` (type errors).
+- e2e selectors spec.
+- ⚠️ Unit tests mock `oc` — **real geometric validity (normals, tangents, radii) is e2e-only.** Load
+  the app / run e2e before trusting Phase 0 extraction (the CLAUDE.md OCC-constructor-name gotcha).
+
+## Open questions
+- Materialize-once (Phase A) vs persistent re-evaluation (Phase B) as the default UX? Start A.
+- Edge selector default axis frame: world axes only, or also relative to a picked face's plane
+  (CadQuery workplane-relative selectors)? Start world-only.
+- Grammar surface: full CadQuery string parity vs a trimmed subset + preset chips? Ship the subset
+  (`>`, `<`, `|`, `#`, `%`, `[n]`, `and`/`or`/`not`) first; radius/near are Phase-1 stretch.
+
+---
+_Started 2026-06-30. Phase order is deliberately pure-first: Phases 0–1 need no WASM and carry the
+bulk of the logic + tests, matching the `fingerprint.ts` mockable-engine pattern._

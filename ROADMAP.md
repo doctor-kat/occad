@@ -657,6 +657,40 @@ you can edit earlier in the history without deleting later work. Status ❌ (not
 
 ---
 
+## 9. CadQuery / OCP evaluation — ❌ won't adopt; mine for ideas
+
+Evaluated (2026-06-30) replacing the OpenCascade.js kernel with **CadQuery** / **OCP**
+(`github.com/CadQuery/cadquery`, `github.com/CadQuery/OCP`). **Verdict: do not adopt** — but three
+concrete, kernel-staying-the-same improvements fall out of the analysis (below).
+
+**Why not adopt**
+
+- **Same kernel, not a replacement.** CadQuery is a Python fluent API *over OCP*, and OCP is
+  pybind11/CPython bindings over the **same OCCT** our `opencascade.full.wasm` already wraps. Adopting
+  it wouldn't change or upgrade the kernel — it would add a Python layer on top of the kernel we
+  already call directly.
+- **Can't run client-side.** OCP is CPython/pybind11 — no browser runtime. The only paths are a
+  server-side Python backend (breaks the local-first, client-only architecture + adds latency vs. our
+  zero-copy `ArrayBuffer` worker transfers) or Pyodide (tens of MB of Python-in-WASM *on top of* the
+  same OCCT — strictly heavier for no kernel gain). User decision: **stay client-side**, so both are out.
+- **We're already ahead on constraints.** CadQuery has no constraint solver (explicit geometry only);
+  we ship planegcs + `SketchSolver` (§1.2). Adopting it would regress the sketcher.
+
+**Actionable takeaways (added to the roadmap)** — leverage CadQuery/OCP as *reference*, not runtime:
+
+| # | Item | What it is | Effort | Pointer |
+|---|------|-----------|--------|---------|
+| 9.1 | **Selector system** 🟡 | Port CadQuery's edge/face **selectors** (`>Z`, `<X`, `\|Y`, tag/nearest/radius filters) to our TS-over-OCCT topology walk. Biggest UX win: better fillet/chamfer edge-picking + selection ergonomics. We already have the topology-exploration primitives. Clean-room port of the *concepts* (grammar + predicates), not the code — CadQuery is Apache-2.0. **Phase 1 done (2026-06-30):** pure grammar+evaluate engine in `src/cad/engine/selectors/` (28 unit tests, no WASM). Remaining: OCC descriptor extraction, worker/UI wiring — see `TODO.md`. | Medium | CadQuery `selectors.py` (Apache-2.0, reference only); our `fingerprint.ts`, `modifications.ts` (`resolveSubShapes`), `sketch/coordinateSystem.ts` |
+| 9.2 | **Standard-format export** | Implement STEP / STL / glTF **export directly** — the OCCT writers are already in our `full.wasm`; no CadQuery/OCP dependency needed. Folds into the existing §3 Import/Export gap. | Small–Medium | `STEPControl_Writer`, `StlAPI_Writer`, `RWGltf_CafWriter`; wire into `operations.ts` + the disabled I/O tab |
+| 9.3 | **Custom (trimmed) WASM build** | We load the monolithic `opencascade.full.wasm` (whole kernel). `opencascade.js` supports custom builds binding only the classes we use → smaller WASM + faster cold start. OCP's module list is a useful map of what OCCT offers when scoping the build. | Medium | `opencascadeWorker.ts` (`openCascadeWasm`, `initOpenCascade`), `vite.config.ts` optimizeDeps |
+
+> **OCP as an API reference.** Independent of the above: OCP ships type stubs (`.pyi`) covering
+> essentially all of OCCT with clean signatures/enums/overloads — a faster, more complete cross-reference
+> than `opencascade.js`'s thin generated TS types when reaching for under-documented classes (the §3/§4
+> writers, `BRepGProp`, `ShapeFix_*`).
+
+---
+
 ## Priority Roadmap (suggested order)
 
 1. **Undo / Redo** — ✅ done: snapshot history in `useCADState` (records per `version` change,
@@ -732,7 +766,13 @@ Each has a co-located `*.test.ts`.
 
 ---
 
-_Last updated: 2026-06-27 — finished the remaining sketch primitives (Perimeter Circle, Centerpoint
+_Last updated: 2026-06-30 — evaluated replacing the OCC kernel with CadQuery/OCP and decided
+**against** it (§9): same OCCT kernel, no client-side runtime, and we already beat CadQuery on
+constraints. Captured three kernel-staying improvements it surfaced — selector system (§9.1),
+standard-format export (§9.2), and a trimmed custom WASM build (§9.3). Started §9.1: landed the
+pure selector engine (grammar + evaluate, `src/cad/engine/selectors/`, 28 tests) — Phase 1 of the
+plan in `TODO.md`. Earlier (2026-06-27): finished
+the remaining sketch primitives (Perimeter Circle, Centerpoint
 Arc, Tangent Arc) TDD with a real e2e; removed Spline (§1.1.1). Earlier (2026-06-26): added planned §7 (left-sidebar sketch entity + constraint lists) and §8
 (SolidWorks-style history rollback bar: rewind/fast-forward with insert-at-the-bar), plus matching
 rows in the Application Features table. Earlier (2026-06-24): completed the deterministic-topology effort (fingerprint-stable sketch
