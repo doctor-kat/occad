@@ -111,6 +111,13 @@ rebuild).
 > drifts). The overlay renders it as a selectable dot (id `origin`) that can be picked for a constraint.
 > Test: `originPoint.test.ts`.
 
+> **Snap-to-origin + coincident (2026-06-30):** while placing a point (line/rectangle corner/point tool),
+> the overlay now snaps to the origin (0,0) whenever the cursor is within the snap distance, so geometry
+> lands exactly on it (shown by the green snap ring). `originPoint.inferOriginCoincidence(elements)` then
+> emits a `p2p_coincident` (tagged `auto`) binding every endpoint/corner/center at (0,0) to the fixed
+> origin point; `handleUpdateSketch` merges it with the rectangle H/V auto-relations, regenerated
+> idempotently each edit. Tests: `originPoint.test.ts` (coincidence inference incl. construction-line skip).
+
 > **Circle/arc variants finished (2026-06-27, TDD):** Perimeter (3-point) Circle, Centerpoint Arc and
 > Tangent Arc are wired end-to-end. Pure geometry in `src/cad/engine/sketch/arcGeometry.ts`
 > (`circleFromThreePoints`/`arcFromThreePoints`/`centerpointArc`/`tangentArc`, 14 unit tests first):

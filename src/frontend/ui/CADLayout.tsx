@@ -16,7 +16,7 @@ import { Cube, Polygon } from '@phosphor-icons/react';
 import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
-import { withOriginPrimitive } from '@/cad/engine/sketch/originPoint';
+import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/engine/sketch/originPoint';
 import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
 import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 import { SketchConstraintToolbar } from './operations/SketchConstraintToolbar';
@@ -448,7 +448,9 @@ export function CADLayout() {
       // current elements every edit — deterministic ids make this idempotent.
       // Keep the user's manual constraints (untagged) and replace the inferred set.
       const manualConstraints = (sketch.constraints || []).filter((c: any) => !c.auto);
-      const autoConstraints = inferAutoConstraints(elements);
+      // Auto-relations: a rectangle's H/V edges + coincidence for any endpoint/
+      // corner/center snapped onto the origin (see originPoint.inferOriginCoincidence).
+      const autoConstraints = [...inferAutoConstraints(elements), ...inferOriginCoincidence(elements)];
 
       buildSketch({
         ...sketch,

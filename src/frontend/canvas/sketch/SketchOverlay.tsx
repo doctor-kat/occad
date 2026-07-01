@@ -651,6 +651,14 @@ export function SketchOverlay({
         }
       }
 
+      // Origin snapping: always available while placing a point, so drawn geometry
+      // can land exactly on (0,0). A coincident-to-origin constraint is then inferred
+      // for the endpoint (see originPoint.inferOriginCoincidence).
+      if (Math.hypot(point.x, point.y) < snapDistance) {
+        setSnapPoint2D({ x: 0, y: 0 });
+        return { x: 0, y: 0 };
+      }
+
       setSnapPoint2D(null);
 
       // Fall back to grid snapping
