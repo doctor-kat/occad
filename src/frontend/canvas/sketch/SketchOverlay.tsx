@@ -239,6 +239,9 @@ export function SketchOverlay({
   const [previewElement, setPreviewElement] = useState<SketchElement | null>(null);
   const [hoverPoint, setHoverPoint] = useState<Point2D | null>(null);
   const [snapPoint2D, setSnapPoint2D] = useState<Point2D | null>(null);
+  // True while the cursor is snapped to the origin during a draw — drives the
+  // "coincident-to-be-added" preview badge shown at the origin.
+  const [originSnap, setOriginSnap] = useState(false);
   // Sketch element selection + hover live in the shared viewport store so the
   // constraint toolbar and the sidebar entity list (both rendered outside the R3F
   // canvas) can read and drive them.
@@ -647,6 +650,7 @@ export function SketchOverlay({
         const constraintSnap = findSnapPoint(point);
         if (constraintSnap) {
           setSnapPoint2D(constraintSnap);
+          setOriginSnap(false);
           return constraintSnap;
         }
       }
@@ -656,10 +660,12 @@ export function SketchOverlay({
       // for the endpoint (see originPoint.inferOriginCoincidence).
       if (Math.hypot(point.x, point.y) < snapDistance) {
         setSnapPoint2D({ x: 0, y: 0 });
+        setOriginSnap(true);
         return { x: 0, y: 0 };
       }
 
       setSnapPoint2D(null);
+      setOriginSnap(false);
 
       // Fall back to grid snapping
       if (!snapToGrid) return point;
@@ -1158,7 +1164,10 @@ export function SketchOverlay({
         position={[0, 0, 0.01]}
         onClick={handlePlaneClick}
         onPointerMove={handlePlaneMove}
-        onPointerLeave={() => setHoverPoint(null)}
+        onPointerLeave={() => {
+          setHoverPoint(null);
+          setOriginSnap(false);
+        }}
       >
         <planeGeometry args={[200, 200]} />
         <meshBasicMaterial
@@ -1327,6 +1336,38 @@ export function SketchOverlay({
             <meshBasicMaterial color="#22c55e" />
           </mesh>
         </group>
+      )}
+
+      {/* Coincident-to-origin preview: while drawing and snapped to the origin, show
+          the coincident constraint icon that WILL be added, using the hover accent
+          colour as its background so it reads as a pending relation. */}
+      {originSnap && activeOperation && (
+        <Html
+          position={[0, 0, 0.3]}
+          center
+          zIndexRange={[40, 20]}
+          style={{ pointerEvents: 'none' }}
+        >
+          <div
+            data-testid="origin-coincident-preview"
+            title="Coincident with origin"
+            style={{
+              width: 18,
+              height: 18,
+              transform: 'translate(12px, -12px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#f97316',
+              border: '1.5px solid #fdba74',
+              borderRadius: 4,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
+              userSelect: 'none',
+            }}
+          >
+            <Dot size={14} weight="bold" color="#0a0a0f" />
+          </div>
+        </Html>
       )}
 
       {/* Render available snap points based on active constraint */}

@@ -118,6 +118,12 @@ rebuild).
 > origin point; `handleUpdateSketch` merges it with the rectangle H/V auto-relations, regenerated
 > idempotently each edit. Tests: `originPoint.test.ts` (coincidence inference incl. construction-line skip).
 
+> **Coincident preview badge (2026-06-30):** while drawing and snapped to the origin, the overlay shows
+> the coincident constraint icon (the `Dot` glyph, matching the constraint-badge icon set) that *will* be
+> added, drawn as a DOM badge with the orange hover/highlight accent (`#f97316`) as its background so it
+> reads as a pending relation. Driven by an `originSnap` flag set in the overlay's snap logic; cleared on
+> pointer-leave / non-origin snaps (`data-testid="origin-coincident-preview"`).
+
 > **Circle/arc variants finished (2026-06-27, TDD):** Perimeter (3-point) Circle, Centerpoint Arc and
 > Tangent Arc are wired end-to-end. Pure geometry in `src/cad/engine/sketch/arcGeometry.ts`
 > (`circleFromThreePoints`/`arcFromThreePoints`/`centerpointArc`/`tangentArc`, 14 unit tests first):
