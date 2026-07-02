@@ -86,6 +86,14 @@ export function SketchConstraintToolbar({ sketch, onApply }: SketchConstraintToo
       build: () => (twoPoints ? { kind: 'distance', p1Id: pointIds[0], p2Id: pointIds[1], distance: dimValue } : null),
     },
     {
+      key: 'horizontal-distance', label: 'Horiz. Distance', hint: 'select 2 points + a value', icon: <HorizontalIcon size={16} />, enabled: twoPoints,
+      build: () => (twoPoints ? { kind: 'horizontal-distance', p1Id: pointIds[0], p2Id: pointIds[1], distance: dimValue } : null),
+    },
+    {
+      key: 'vertical-distance', label: 'Vert. Distance', hint: 'select 2 points + a value', icon: <VerticalIcon size={16} />, enabled: twoPoints,
+      build: () => (twoPoints ? { kind: 'vertical-distance', p1Id: pointIds[0], p2Id: pointIds[1], distance: dimValue } : null),
+    },
+    {
       key: 'radius', label: 'Radius', hint: 'select 1 circle + a value', icon: <RadiusIcon size={16} />, enabled: oneCircle,
       build: () => (oneCircle ? { kind: 'radius', targetId: circles[0].id, radius: dimValue } : null),
     },

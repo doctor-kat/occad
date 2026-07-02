@@ -234,6 +234,8 @@ the tree/entity-list shows the group as an expandable folder.
 | Angle         |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
 | Coincident    |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
 | Distance      |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Horiz. Distance |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
+| Vert. Distance |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
 | Radius        |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
 | Tangent       |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
 | Fixed         |   n/a¹  |         —          |      —      |  —  | 🟡     |
@@ -277,6 +279,15 @@ the tree/entity-list shows the group as an expandable folder.
    `viewportStore.selectedConstraintId`, wired two-way with `SketchConstraintList` (badge ↔ row highlight). Badges
    render in selection mode only (so they never intercept drawing clicks). Tests: `constraintAnchors.test.ts` (12) +
    `SketchConstraintList.test.tsx` (4).
+7. ✅ **Horizontal & vertical distance dimensions (2026-07-02).** planegcs has no dedicated `p2p_distance_x`/`_y`
+   type, so these use the generic `difference` constraint (`param1 - param2 = difference`, `param: {o_id, prop}`,
+   `prop: 'x'` or `'y'`) — `createConstraint('horizontal-distance'|'vertical-distance', ...)` in
+   `constraintFactory.ts`. `SketchConstraintToolbar` adds two buttons next to Distance (same 2-point selection,
+   reuses the existing `HorizontalIcon`/`VerticalIcon`); `SketchConstraintList` labels them "Horiz./Vert. Dist";
+   `SketchRenderer` draws an axis-aligned elbow leader line (distinct from the diagonal `p2p_distance` leader) and
+   reads/writes `constraint.difference` (vs `.distance`) on double-click edit — `CADLayout.handleUpdateConstraintValue`
+   now branches on `'difference' in c` too. Tests: `constraintFactory.test.ts` (+4: object-shape + 2 real-solver
+   solves proving the orthogonal axis stays free), `e2e/constraints-advanced.spec.ts` (+2).
 
 ---
 

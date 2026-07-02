@@ -718,6 +718,7 @@ export function CADLayout() {
           if (c.id === constraintId) {
             // Update the value based on constraint type
             if ('distance' in c) return { ...c, distance: value };
+            if ('difference' in c) return { ...c, difference: value };
             if ('radius' in c) return { ...c, radius: value };
             if ('angle' in c) return { ...c, angle: value };
           }

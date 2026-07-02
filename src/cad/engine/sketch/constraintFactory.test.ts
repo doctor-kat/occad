@@ -48,6 +48,12 @@ describe('createConstraint — object shape', () => {
     expect(createConstraint('c', { kind: 'parallel', l1Id: 'a', l2Id: 'b' })).toMatchObject({ type: 'parallel' });
     expect(createConstraint('c', { kind: 'perpendicular', l1Id: 'a', l2Id: 'b' })).toMatchObject({ type: 'perpendicular_ll' });
     expect(createConstraint('c', { kind: 'distance', p1Id: 'a', p2Id: 'b', distance: 5 })).toMatchObject({ type: 'p2p_distance', distance: 5, driving: true });
+    expect(createConstraint('c', { kind: 'horizontal-distance', p1Id: 'a', p2Id: 'b', distance: 5 })).toMatchObject({
+      type: 'difference', param1: { o_id: 'a', prop: 'x' }, param2: { o_id: 'b', prop: 'x' }, difference: 5, driving: true,
+    });
+    expect(createConstraint('c', { kind: 'vertical-distance', p1Id: 'a', p2Id: 'b', distance: 5 })).toMatchObject({
+      type: 'difference', param1: { o_id: 'a', prop: 'y' }, param2: { o_id: 'b', prop: 'y' }, difference: 5, driving: true,
+    });
     expect(createConstraint('c', { kind: 'radius', targetId: 'C', radius: 7 })).toMatchObject({ type: 'circle_radius', c_id: 'C', radius: 7 });
     expect(createConstraint('c', { kind: 'radius', targetId: 'A', radius: 7, isArc: true })).toMatchObject({ type: 'arc_radius', a_id: 'A' });
     expect(createConstraint('c', { kind: 'equal', l1Id: 'a', l2Id: 'b' })).toMatchObject({ type: 'equal_length' });
@@ -57,7 +63,10 @@ describe('createConstraint — object shape', () => {
 
   it('declares arity for every kind', () => {
     expect(Object.keys(CONSTRAINT_ARITY).sort()).toEqual(
-      ['angle', 'coincident', 'distance', 'equal', 'horizontal', 'parallel', 'perpendicular', 'radius', 'tangent', 'vertical'],
+      [
+        'angle', 'coincident', 'distance', 'equal', 'horizontal', 'horizontal-distance',
+        'parallel', 'perpendicular', 'radius', 'tangent', 'vertical', 'vertical-distance',
+      ],
     );
   });
 });
@@ -90,6 +99,26 @@ describe('createConstraint — real planegcs solve', () => {
     const { status, byId } = await solve(prims, [createConstraint('c', { kind: 'distance', p1Id: 'a', p2Id: 'b', distance: 20 })]);
     expect(status).toBe(0);
     expect(dist(byId.a, byId.b)).toBeCloseTo(20, 4);
+  });
+
+  it('horizontal-distance: enforces X separation while leaving Y free', async () => {
+    const prims = [pt('a', 0, 0, true), pt('b', 5, 3)];
+    const { status, byId } = await solve(prims, [
+      createConstraint('c', { kind: 'horizontal-distance', p1Id: 'a', p2Id: 'b', distance: 20 }),
+    ]);
+    expect(status).toBe(0);
+    expect(Math.abs(byId.b.x - byId.a.x)).toBeCloseTo(20, 4);
+    expect(byId.b.y).toBeCloseTo(3, 4); // Y untouched
+  });
+
+  it('vertical-distance: enforces Y separation while leaving X free', async () => {
+    const prims = [pt('a', 0, 0, true), pt('b', 5, 3)];
+    const { status, byId } = await solve(prims, [
+      createConstraint('c', { kind: 'vertical-distance', p1Id: 'a', p2Id: 'b', distance: 20 }),
+    ]);
+    expect(status).toBe(0);
+    expect(Math.abs(byId.b.y - byId.a.y)).toBeCloseTo(20, 4);
+    expect(byId.b.x).toBeCloseTo(5, 4); // X untouched
   });
 
   it('parallel: makes a line parallel to a fixed horizontal line', async () => {

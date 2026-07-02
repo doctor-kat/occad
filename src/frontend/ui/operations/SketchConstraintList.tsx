@@ -19,6 +19,12 @@ function constraintLabel(c: any): string {
     case 'l2l_angle_ll': return `Angle ${Math.round(((c.angle ?? 0) * 180) / Math.PI)}°`;
     case 'p2p_coincident': return 'Coincident';
     case 'p2p_distance': return `Distance ${c.distance ?? ''}`;
+    case 'difference': {
+      const prop = c.param1?.prop;
+      if (prop === 'x') return `Horiz. Dist ${c.difference ?? ''}`;
+      if (prop === 'y') return `Vert. Dist ${c.difference ?? ''}`;
+      return `Difference ${c.difference ?? ''}`;
+    }
     case 'circle_radius':
     case 'arc_radius': return `Radius ${c.radius ?? ''}`;
     case 'tangent_lc': return 'Tangent';

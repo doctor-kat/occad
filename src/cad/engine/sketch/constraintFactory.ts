@@ -14,6 +14,8 @@ export type ConstraintKind =
   | 'parallel'
   | 'perpendicular'
   | 'distance'
+  | 'horizontal-distance'
+  | 'vertical-distance'
   | 'radius'
   | 'equal'
   | 'tangent'
@@ -27,6 +29,8 @@ export type ConstraintInput =
   | { kind: 'parallel'; l1Id: string; l2Id: string }
   | { kind: 'perpendicular'; l1Id: string; l2Id: string }
   | { kind: 'distance'; p1Id: string; p2Id: string; distance: number }
+  | { kind: 'horizontal-distance'; p1Id: string; p2Id: string; distance: number }
+  | { kind: 'vertical-distance'; p1Id: string; p2Id: string; distance: number }
   | { kind: 'radius'; targetId: string; radius: number; isArc?: boolean }
   | { kind: 'equal'; l1Id: string; l2Id: string }
   | { kind: 'tangent'; lineId: string; circleId: string }
@@ -60,6 +64,26 @@ export function createConstraint(id: string, input: ConstraintInput): PlanegcsCo
     case 'distance':
       return { id, type: 'p2p_distance', p1_id: input.p1Id, p2_id: input.p2Id, distance: input.distance, driving: true };
 
+    case 'horizontal-distance':
+      return {
+        id,
+        type: 'difference',
+        param1: { o_id: input.p1Id, prop: 'x' },
+        param2: { o_id: input.p2Id, prop: 'x' },
+        difference: input.distance,
+        driving: true,
+      };
+
+    case 'vertical-distance':
+      return {
+        id,
+        type: 'difference',
+        param1: { o_id: input.p1Id, prop: 'y' },
+        param2: { o_id: input.p2Id, prop: 'y' },
+        difference: input.distance,
+        driving: true,
+      };
+
     case 'radius':
       return input.isArc
         ? { id, type: 'arc_radius', a_id: input.targetId, radius: input.radius, driving: true }
@@ -90,6 +114,8 @@ export const CONSTRAINT_ARITY: Record<ConstraintKind, number> = {
   parallel: 2,
   perpendicular: 2,
   distance: 2,
+  'horizontal-distance': 2,
+  'vertical-distance': 2,
   radius: 1,
   equal: 2,
   tangent: 2,

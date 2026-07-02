@@ -146,6 +146,49 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
       );
     }
     
+    if (constraint.type === 'difference') {
+      const p1Data = primitives.find(p => p.id === constraint.param1?.o_id)?.data;
+      const p2Data = primitives.find(p => p.id === constraint.param2?.o_id)?.data;
+      if (!p1Data || !p2Data) return null;
+      const isHorizontal = constraint.param1?.prop === 'x';
+
+      // Elbow point: shares the X (horizontal dim) or Y (vertical dim) axis with p1,
+      // and the other axis with p2 — matches the standard axis-aligned dimension leader shape.
+      const elbow2d = isHorizontal ? { x: p2Data.x, y: p1Data.y } : { x: p1Data.x, y: p2Data.y };
+
+      const p1 = lift({ x: p1Data.x, y: p1Data.y }, workplane);
+      const p2 = lift({ x: p2Data.x, y: p2Data.y }, workplane);
+      const elbow = lift(elbow2d, workplane);
+
+      const mid2d = { x: (p1Data.x + elbow2d.x) / 2, y: (p1Data.y + elbow2d.y) / 2 };
+      const labelOffset = meta?.labelOffset || { x: 10, y: 10 };
+      const labelPos = lift({ x: mid2d.x + labelOffset.x, y: mid2d.y + labelOffset.y }, workplane);
+
+      return (
+        <group key={constraint.id}>
+          <NativePolyline
+            points={[[p1.x, p1.y, p1.z], [elbow.x, elbow.y, elbow.z], [p2.x, p2.y, p2.z]]}
+            color={dimColor}
+          />
+          <Text
+            position={[labelPos.x, labelPos.y, labelPos.z + 0.1]}
+            fontSize={1.5}
+            color="white"
+            anchorX="center"
+            anchorY="middle"
+            onDoubleClick={() => {
+              const newValue = prompt('Enter distance:', constraint.difference);
+              if (newValue !== null && onUpdateConstraintValue) {
+                onUpdateConstraintValue(constraint.id, parseFloat(newValue));
+              }
+            }}
+          >
+            {constraint.difference.toFixed(2)}
+          </Text>
+        </group>
+      );
+    }
+
     if (constraint.type === 'parallel' || constraint.type === 'perpendicular' || constraint.type === 'tangent') {
       const p1Id = constraint.line1_id || constraint.obj1_id;
       if (!p1Id) return null;

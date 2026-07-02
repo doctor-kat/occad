@@ -133,6 +133,30 @@ test.describe('Sketch advanced constraints', () => {
     expect(await persistedConstraint(page)).toMatchObject({ type: 'p2p_distance', p1_id: 'B', p2_id: 'E', distance: 25 });
   });
 
+  test('Horizontal Distance (two points)', async ({ page }) => {
+    await seed(page);
+    await page.reload();
+    await page.waitForSelector('text=Front Plane', { timeout: 10000 });
+    await enterSketch(page);
+    await setValue(page, '25');
+    await applyWithSelection(page, 'horizontal-distance', ['B', 'E']);
+    expect(await persistedConstraint(page)).toMatchObject({
+      type: 'difference', param1: { o_id: 'B', prop: 'x' }, param2: { o_id: 'E', prop: 'x' }, difference: 25,
+    });
+  });
+
+  test('Vertical Distance (two points)', async ({ page }) => {
+    await seed(page);
+    await page.reload();
+    await page.waitForSelector('text=Front Plane', { timeout: 10000 });
+    await enterSketch(page);
+    await setValue(page, '25');
+    await applyWithSelection(page, 'vertical-distance', ['B', 'E']);
+    expect(await persistedConstraint(page)).toMatchObject({
+      type: 'difference', param1: { o_id: 'B', prop: 'y' }, param2: { o_id: 'E', prop: 'y' }, difference: 25,
+    });
+  });
+
   test('delete removes a constraint from the list', async ({ page }) => {
     await seed(page, [{ id: 'cx', type: 'horizontal_l', l_id: 'L1' }]);
     await page.reload();
