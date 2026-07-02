@@ -1,5 +1,10 @@
+import { cloneElement, isValidElement } from 'react';
 import { Button, Box, useMantineTheme } from '@mantine/core';
 import { Operation } from '@/cad/types';
+
+/** Icon size for the large (72×72) operation button — larger than the 16px
+ *  used by the compact/icon-only variants to fill the roomier button. */
+const LARGE_ICON_SIZE = 32;
 
 const operationButtonInternalStyles = {
   inner: {
@@ -27,6 +32,12 @@ export interface OperationButtonProps {
 
 export function OperationButton({ icon, label, isActive, onClick, disabled = false, radius }: OperationButtonProps) {
   const theme = useMantineTheme();
+
+  // Enlarge the icon only for this large variant; the shared icon node from
+  // OperationData ships at size 16 for the compact/icon-only buttons.
+  const sizedIcon = isValidElement<{ size?: number }>(icon)
+    ? cloneElement(icon, { size: LARGE_ICON_SIZE })
+    : icon;
 
   return (
     <Button
@@ -65,8 +76,8 @@ export function OperationButton({ icon, label, isActive, onClick, disabled = fal
           gap: 4,
         }}
       >
-        <Box style={{ fontSize: 24, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {icon}
+        <Box style={{ lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {sizedIcon}
         </Box>
         <Box component="span" style={{ fontSize: 10, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>
           {label}

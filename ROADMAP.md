@@ -415,6 +415,34 @@ the tree/entity-list shows the group as an expandable folder.
 
 ## 5. Application Features
 
+> **Added (2026-07-01):** **Custom CAD icon set** (`src/frontend/shared/icons/`). 73 CAD-domain glyphs
+> (sketch entities, sketch tools, features, geometric constraints, dimensions, primitives, modifications,
+> transforms, measure, viewport nav, STEP/IGES/STL/GLTF interchange) extracted from the Claude Design project
+> "CAD Modeling App Icons" (`6f4ae857`). Each is a React component (`<LineIcon />`, `<ExtrudeBossIcon />`, …)
+> wrapping a shared `CadIcon` base that renders a 32×32 viewBox SVG and supplies the design palette as CSS
+> custom properties — `--ink` defaults to `currentColor` (visible on the dark theme, themeable), design accents
+> (`--accent`/`--accent2`/`--sec` + tints) preserved and overridable via `style`. Generated from the design's
+> SVG export ("CAD Modeling App Icons" zip): the export's baked-in light-mode hex palette is mapped to the
+> `CadIcon` CSS custom properties, and `#ffffff` knockout fills become `transparent` (hollow handles on any
+> background). `icon-manifest.ts` lists every glyph's name/label/section for pickers/galleries. **Generic UI actions (File new/open/save/export, undo/redo,
+> zoom in/out, fit-to-view, toggle grid, view options) intentionally stay on `@phosphor-icons/react`** — only
+> the CAD-domain glyphs were imported. Covered by `CadIcon.test.tsx`.
+>
+> **Wired in (2026-07-01):** CAD-domain icon usages now render the custom set — `OperationData.tsx` (every
+> feature/sketch/primitive/boolean/transform/measure/IO operation button), `SketchConstraintToolbar.tsx` +
+> `SketchOverlay.tsx`'s `CONSTRAINT_ICONS` badges (geometric/dimensional constraints), `SketchEntitiesPanel.tsx`
+> (per-entity-type list icons), and `OperationsBar.tsx`'s Sketch button (`SketchModeIcon`). Intentionally left on
+> `@phosphor-icons/react`: `Toolbar.tsx` (file/undo/redo/zoom/fit/grid/view — generic), the feature-tree
+> structural markers (`TreeItem`/`FeatureTree`), `EntitiesPanel` (3D face/edge lists), `CADLayout` sidebar tabs,
+> and generic X/Check/Caret controls — none have a 1:1 in the CAD glyph vocabulary. All 415 tests green.
+> The large (72×72) `OperationButton` enlarges its icon to 32px via `cloneElement` (`LARGE_ICON_SIZE`); the
+> compact (116×34) and icon-only (34×34) variants keep the 16px icon shipped by `OperationData`.
+> **Dark-mode tint fix (2026-07-01):** the source canvas fills feature faces (Extrude Boss, Shell, Rib, Box,
+> Cone, …) with opaque pale tints (`#dde8fb`) meant for a light page, which read as bright white patches on the
+> dark app. `CadIcon` now resolves `--accent-tint`/`--accent2-tint`/`--sec-tint` to a translucent wash of the
+> corresponding accent (`color-mix(in srgb, var(--accent) 20%, transparent)`) — a subtle filled-face that tracks
+> the accent color and never goes white, matching the design's own dark-mode rendering. Overridable per-usage.
+>
 > **Fixed (2026-06-26):** Sketcher hotkeys panel (`SketchHotkeys.tsx`) appeared in the middle of the viewport
 > after maximizing the window. The panel uses drei's `<Html>`, which positions its wrapper at the projected
 > 3D point and applies a CSS `transform` to it; a transformed ancestor becomes the containing block for

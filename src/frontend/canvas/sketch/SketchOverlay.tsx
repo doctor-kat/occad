@@ -1,19 +1,20 @@
 import { useRef, useMemo, useCallback, useState, useEffect, type ComponentType } from 'react';
 import { ThreeEvent, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
+import { Dot, DotsThree } from '@phosphor-icons/react';
 import {
-  ArrowsHorizontal,
-  ArrowsVertical,
-  ArrowsOutLineHorizontal,
-  Angle,
-  Equals,
-  Triangle,
-  Dot,
-  Ruler,
-  Circle as CircleIcon,
-  Intersect,
-  DotsThree,
-} from '@phosphor-icons/react';
+  HorizontalIcon,
+  VerticalIcon,
+  ParallelIcon,
+  PerpendicularIcon,
+  EqualIcon,
+  AngularIcon,
+  CoincidentIcon,
+  SmartLinearIcon,
+  RadiusIcon,
+  TangentIcon,
+  type CadIconProps,
+} from '@/frontend/shared/icons';
 import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D } from '@/cad/types';
 import { SketchOperation, SketchElementType } from '@/cad/types';
@@ -59,18 +60,18 @@ const NO_RAYCAST = () => null;
  * Icon shown inside a constraint badge, keyed by planegcs constraint type —
  * mirrors the icons used to *create* each constraint in `SketchConstraintToolbar`.
  */
-const CONSTRAINT_ICONS: Record<string, ComponentType<{ size?: number; weight?: any; color?: string }>> = {
-  horizontal_l: ArrowsHorizontal,
-  vertical_l: ArrowsVertical,
-  parallel: ArrowsOutLineHorizontal,
-  perpendicular_ll: Angle,
-  equal_length: Equals,
-  l2l_angle_ll: Triangle,
-  p2p_coincident: Dot,
-  p2p_distance: Ruler,
-  circle_radius: CircleIcon,
-  arc_radius: CircleIcon,
-  tangent_lc: Intersect,
+const CONSTRAINT_ICONS: Record<string, ComponentType<CadIconProps>> = {
+  horizontal_l: HorizontalIcon,
+  vertical_l: VerticalIcon,
+  parallel: ParallelIcon,
+  perpendicular_ll: PerpendicularIcon,
+  equal_length: EqualIcon,
+  l2l_angle_ll: AngularIcon,
+  p2p_coincident: CoincidentIcon,
+  p2p_distance: SmartLinearIcon,
+  circle_radius: RadiusIcon,
+  arc_radius: RadiusIcon,
+  tangent_lc: TangentIcon,
 };
 
 /** Build an ARC sketch element from solved arc geometry (center + angle sweep). */
@@ -1325,7 +1326,7 @@ export function SketchOverlay({
                 userSelect: 'none',
               }}
             >
-              <Icon size={12} weight="bold" color="#0a0a0f" />
+              <Icon size={12} color="#0a0a0f" />
             </div>
           </Html>
         );

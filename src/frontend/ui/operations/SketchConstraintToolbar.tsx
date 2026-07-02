@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { Box, Group, ActionIcon, Text, Tooltip, Divider, NumberInput } from '@mantine/core';
 import {
-  ArrowsHorizontal,
-  ArrowsVertical,
-  ArrowsOutLineHorizontal,
-  Angle,
-  Equals,
-  Circle as CircleIcon,
-  Intersect,
-  Triangle,
-  Dot,
-  Ruler,
-} from '@phosphor-icons/react';
+  HorizontalIcon,
+  VerticalIcon,
+  ParallelIcon,
+  PerpendicularIcon,
+  EqualIcon,
+  AngularIcon,
+  CoincidentIcon,
+  SmartLinearIcon,
+  RadiusIcon,
+  TangentIcon,
+} from '@/frontend/shared/icons';
 import { useMantineTheme } from '@mantine/core';
 import type { Sketch, SketchElement } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
@@ -54,43 +54,43 @@ export function SketchConstraintToolbar({ sketch, onApply }: SketchConstraintToo
   type Btn = { key: string; label: string; hint: string; icon: JSX.Element; enabled: boolean; build: () => ConstraintInput | null };
   const buttons: Btn[] = [
     {
-      key: 'horizontal', label: 'Horizontal', hint: 'select 1 line', icon: <ArrowsHorizontal size={16} />, enabled: oneLine,
+      key: 'horizontal', label: 'Horizontal', hint: 'select 1 line', icon: <HorizontalIcon size={16} />, enabled: oneLine,
       build: () => (oneLine ? { kind: 'horizontal', lineId: lines[0].id } : null),
     },
     {
-      key: 'vertical', label: 'Vertical', hint: 'select 1 line', icon: <ArrowsVertical size={16} />, enabled: oneLine,
+      key: 'vertical', label: 'Vertical', hint: 'select 1 line', icon: <VerticalIcon size={16} />, enabled: oneLine,
       build: () => (oneLine ? { kind: 'vertical', lineId: lines[0].id } : null),
     },
     {
-      key: 'parallel', label: 'Parallel', hint: 'select 2 lines', icon: <ArrowsOutLineHorizontal size={16} />, enabled: twoLines,
+      key: 'parallel', label: 'Parallel', hint: 'select 2 lines', icon: <ParallelIcon size={16} />, enabled: twoLines,
       build: () => (twoLines ? { kind: 'parallel', l1Id: lines[0].id, l2Id: lines[1].id } : null),
     },
     {
-      key: 'perpendicular', label: 'Perpendicular', hint: 'select 2 lines', icon: <Angle size={16} />, enabled: twoLines,
+      key: 'perpendicular', label: 'Perpendicular', hint: 'select 2 lines', icon: <PerpendicularIcon size={16} />, enabled: twoLines,
       build: () => (twoLines ? { kind: 'perpendicular', l1Id: lines[0].id, l2Id: lines[1].id } : null),
     },
     {
-      key: 'equal', label: 'Equal', hint: 'select 2 lines', icon: <Equals size={16} />, enabled: twoLines,
+      key: 'equal', label: 'Equal', hint: 'select 2 lines', icon: <EqualIcon size={16} />, enabled: twoLines,
       build: () => (twoLines ? { kind: 'equal', l1Id: lines[0].id, l2Id: lines[1].id } : null),
     },
     {
-      key: 'angle', label: 'Angle', hint: 'select 2 lines + a value (°)', icon: <Triangle size={16} />, enabled: twoLines,
+      key: 'angle', label: 'Angle', hint: 'select 2 lines + a value (°)', icon: <AngularIcon size={16} />, enabled: twoLines,
       build: () => (twoLines ? { kind: 'angle', l1Id: lines[0].id, l2Id: lines[1].id, angle: (dimValue * Math.PI) / 180 } : null),
     },
     {
-      key: 'coincident', label: 'Coincident', hint: 'select 2 points', icon: <Dot size={16} />, enabled: twoPoints,
+      key: 'coincident', label: 'Coincident', hint: 'select 2 points', icon: <CoincidentIcon size={16} />, enabled: twoPoints,
       build: () => (twoPoints ? { kind: 'coincident', p1Id: pointIds[0], p2Id: pointIds[1] } : null),
     },
     {
-      key: 'distance', label: 'Distance', hint: 'select 2 points + a value', icon: <Ruler size={16} />, enabled: twoPoints,
+      key: 'distance', label: 'Distance', hint: 'select 2 points + a value', icon: <SmartLinearIcon size={16} />, enabled: twoPoints,
       build: () => (twoPoints ? { kind: 'distance', p1Id: pointIds[0], p2Id: pointIds[1], distance: dimValue } : null),
     },
     {
-      key: 'radius', label: 'Radius', hint: 'select 1 circle + a value', icon: <CircleIcon size={16} />, enabled: oneCircle,
+      key: 'radius', label: 'Radius', hint: 'select 1 circle + a value', icon: <RadiusIcon size={16} />, enabled: oneCircle,
       build: () => (oneCircle ? { kind: 'radius', targetId: circles[0].id, radius: dimValue } : null),
     },
     {
-      key: 'tangent', label: 'Tangent', hint: 'select 1 line + 1 circle', icon: <Intersect size={16} />, enabled: lineAndCircle,
+      key: 'tangent', label: 'Tangent', hint: 'select 1 line + 1 circle', icon: <TangentIcon size={16} />, enabled: lineAndCircle,
       build: () => (lineAndCircle ? { kind: 'tangent', lineId: lines[0].id, circleId: circles[0].id } : null),
     },
   ];

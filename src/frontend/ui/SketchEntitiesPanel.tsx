@@ -1,5 +1,17 @@
 import { Stack, Text, Box, ScrollArea, useMantineTheme, Group, ActionIcon, Badge, Center } from '@mantine/core';
-import { Circle, Rectangle, LineSegment, Polygon, BezierCurve, DotOutline, X } from '@phosphor-icons/react';
+import { X } from '@phosphor-icons/react';
+import {
+  LineIcon,
+  RectangleIcon,
+  CircleIcon,
+  PolygonIcon,
+  ArcIcon,
+  EllipseIcon,
+  SplineIcon,
+  PointIcon,
+  type CadIconProps,
+} from '@/frontend/shared/icons';
+import type { ComponentType } from 'react';
 import type { Sketch, SketchElement } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
@@ -11,15 +23,15 @@ interface SketchEntitiesPanelProps {
 }
 
 /** Human label + icon for each sketch element type. */
-const TYPE_META: Record<string, { label: string; Icon: typeof Circle }> = {
-  [SketchElementType.LINE]: { label: 'Line', Icon: LineSegment },
-  [SketchElementType.RECTANGLE]: { label: 'Rectangle', Icon: Rectangle },
-  [SketchElementType.CIRCLE]: { label: 'Circle', Icon: Circle },
-  [SketchElementType.POLYGON]: { label: 'Polygon', Icon: Polygon },
-  [SketchElementType.ARC]: { label: 'Arc', Icon: BezierCurve },
-  [SketchElementType.ELLIPSE]: { label: 'Ellipse', Icon: Circle },
-  [SketchElementType.BEZIER]: { label: 'Spline', Icon: BezierCurve },
-  [SketchElementType.POINT]: { label: 'Point', Icon: DotOutline },
+const TYPE_META: Record<string, { label: string; Icon: ComponentType<CadIconProps> }> = {
+  [SketchElementType.LINE]: { label: 'Line', Icon: LineIcon },
+  [SketchElementType.RECTANGLE]: { label: 'Rectangle', Icon: RectangleIcon },
+  [SketchElementType.CIRCLE]: { label: 'Circle', Icon: CircleIcon },
+  [SketchElementType.POLYGON]: { label: 'Polygon', Icon: PolygonIcon },
+  [SketchElementType.ARC]: { label: 'Arc', Icon: ArcIcon },
+  [SketchElementType.ELLIPSE]: { label: 'Ellipse', Icon: EllipseIcon },
+  [SketchElementType.BEZIER]: { label: 'Spline', Icon: SplineIcon },
+  [SketchElementType.POINT]: { label: 'Point', Icon: PointIcon },
 };
 
 /**
@@ -41,7 +53,7 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
     return (
       <Center style={{ flex: 1, height: '100%' }} p="md">
         <Stack align="center" gap="xs">
-          <Polygon size={32} weight="thin" color={theme.other.colors.mutedForeground} />
+          <PolygonIcon size={32} color={theme.other.colors.mutedForeground} />
           <Text size="xs" c="dimmed" ta="center">
             No sketch entities yet. Draw lines, circles, or rectangles to populate this list.
           </Text>
@@ -71,7 +83,7 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
           </Group>
 
           {elements.map((element: SketchElement) => {
-            const meta = TYPE_META[element.type] ?? { label: element.type, Icon: Polygon };
+            const meta = TYPE_META[element.type] ?? { label: element.type, Icon: PolygonIcon };
             typeCounts[element.type] = (typeCounts[element.type] || 0) + 1;
             const label = `${meta.label} ${typeCounts[element.type]}`;
             const isSelected = selectedIds.includes(element.id);
@@ -111,7 +123,6 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
               >
                 <Icon
                   size={16}
-                  weight="regular"
                   color={isSelected ? theme.colors.yellow[4] : theme.colors.cyan[5]}
                 />
                 <Text size="xs" fw={500} style={{ color: theme.other.colors.foreground, flex: 1 }}>

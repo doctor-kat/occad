@@ -1,4 +1,4 @@
-import { Pen } from '@phosphor-icons/react';
+import { SketchModeIcon } from '@/frontend/shared/icons';
 import { Tabs, Box, Group, useMantineTheme } from '@mantine/core';
 import { OperationCategory, Operation, SketchOperation } from '@/cad/types';
 import { OperationButton } from './OperationButton';
@@ -148,7 +148,7 @@ export function OperationsBar({ activeTab, activeOperation, selectedTreeItem, ac
             <Tabs.Panel value="sketch" style={{ margin: 0 }}>
               <Group gap={4} align="center" wrap="nowrap">
                 <OperationButton
-                  icon={<Pen size={16} weight="regular" />}
+                  icon={<SketchModeIcon size={16} />}
                   label="Sketch"
                   operationId={null}
                   isActive={!!activeSketchId}
