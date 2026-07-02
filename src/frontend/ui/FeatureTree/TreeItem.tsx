@@ -1,41 +1,88 @@
-import { useState } from 'react';
+import { useState, type ComponentType } from 'react';
+import { CaretRight, CaretDown, PencilSimple, Trash, Eye, EyeClosed, Warning } from '@phosphor-icons/react';
 import {
-  CaretRight,
-  CaretDown,
-  PencilSimple,
-  Trash,
-  Eye,
-  EyeClosed,
-  Perspective,
-  VectorThree,
-  DotsNine,
-  Cube,
-  Warning
-} from '@phosphor-icons/react';
-import { FeatureTreeItem as TreeItemType, FeatureTreeItemType, ReferenceGeometryType } from '@/cad/types';
+  PlaneIcon,
+  OriginIcon,
+  SketchIcon,
+  FeatureIcon,
+  ExtrudeBossIcon,
+  RevolveIcon,
+  ExtrudeCutIcon,
+  RevolveCutIcon,
+  BoxIcon,
+  SphereIcon,
+  CylinderIcon,
+  ConeIcon,
+  TorusIcon,
+  WedgeIcon,
+  SweepIcon,
+  LoftIcon,
+  UnionIcon,
+  IntersectIcon,
+  FilletIcon,
+  ChamferIcon,
+  ShellIcon,
+  OffsetIcon,
+  MoveIcon,
+  Rotate2Icon,
+  MirrorIcon,
+  ScaleIcon,
+  MeasureIcon,
+  type CadIconProps,
+} from '@/frontend/shared/icons';
+import { FeatureTreeItem as TreeItemType, FeatureTreeItemType, ReferenceGeometryType, FeatureOperation } from '@/cad/types';
 import { Box, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
+
+/** Icon per feature operation, keyed by the same FeatureOperation used to build/rebuild the feature. */
+const FEATURE_OPERATION_ICONS: Record<FeatureOperation, ComponentType<CadIconProps>> = {
+  [FeatureOperation.EXTRUDE_BOSS]: ExtrudeBossIcon,
+  [FeatureOperation.REVOLVED_BOSS]: RevolveIcon,
+  [FeatureOperation.EXTRUDED_CUT]: ExtrudeCutIcon,
+  [FeatureOperation.REVOLVED_CUT]: RevolveCutIcon,
+  [FeatureOperation.BOX]: BoxIcon,
+  [FeatureOperation.SPHERE]: SphereIcon,
+  [FeatureOperation.CYLINDER]: CylinderIcon,
+  [FeatureOperation.CONE]: ConeIcon,
+  [FeatureOperation.TORUS]: TorusIcon,
+  [FeatureOperation.WEDGE]: WedgeIcon,
+  [FeatureOperation.SWEEP]: SweepIcon,
+  [FeatureOperation.LOFT]: LoftIcon,
+  [FeatureOperation.UNION]: UnionIcon,
+  [FeatureOperation.INTERSECT]: IntersectIcon,
+  [FeatureOperation.FILLET]: FilletIcon,
+  [FeatureOperation.CHAMFER]: ChamferIcon,
+  [FeatureOperation.SHELL]: ShellIcon,
+  [FeatureOperation.OFFSET]: OffsetIcon,
+  [FeatureOperation.MOVE]: MoveIcon,
+  [FeatureOperation.ROTATE]: Rotate2Icon,
+  [FeatureOperation.MIRROR]: MirrorIcon,
+  [FeatureOperation.SCALE]: ScaleIcon,
+  [FeatureOperation.MEASURE]: MeasureIcon,
+};
 
 export function getItemIcon(item: TreeItemType, theme: any) {
   const iconSize = 16;
 
   if (item.type === FeatureTreeItemType.REFERENCE_GEOMETRY) {
     if (item.children) {
-      return <Perspective size={iconSize} weight="regular" color={theme.colors.cyan[5]} />;
+      return <PlaneIcon size={iconSize} color={theme.colors.cyan[5]} />;
     }
     const data = item.data as { type: ReferenceGeometryType };
     if (data?.type === ReferenceGeometryType.ORIGIN) {
-      return <VectorThree size={iconSize} weight="regular" color={theme.other.colors.warning} />;
+      return <OriginIcon size={iconSize} color={theme.other.colors.warning} />;
     }
-    return <Perspective size={iconSize} weight="regular" color={theme.other.colors.info} />;
+    return <PlaneIcon size={iconSize} color={theme.other.colors.info} />;
   }
 
   if (item.type === FeatureTreeItemType.SKETCH) {
-    return <DotsNine size={iconSize} weight="regular" color={theme.colors.purple[5]} />;
+    return <SketchIcon size={iconSize} color={theme.colors.purple[5]} />;
   }
 
   if (item.type === FeatureTreeItemType.FEATURE) {
-    return <Cube size={iconSize} weight="regular" color={theme.other.colors.success} />;
+    const data = item.data as { type: FeatureOperation } | undefined;
+    const Icon = (data?.type && FEATURE_OPERATION_ICONS[data.type]) || FeatureIcon;
+    return <Icon size={iconSize} color={theme.other.colors.success} />;
   }
 
   return null;

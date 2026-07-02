@@ -12,7 +12,7 @@ import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Group } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
-import { Cube, Polygon } from '@phosphor-icons/react';
+import { FeatureTreeIcon, EntitiesIcon } from '@/frontend/shared/icons';
 import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
@@ -866,12 +866,12 @@ export function CADLayout() {
                         }}
                       >                        {isSidebarOpen ? (
                           <Group gap={6} wrap="nowrap">
-                            <Cube size={16} />
+                            <FeatureTreeIcon size={16} />
                             <span>Feature Tree</span>
                           </Group>
                         ) : (
                           <Tooltip label="Feature Tree" position="right">
-                            <Center><Cube size={20} /></Center>
+                            <Center><FeatureTreeIcon size={20} /></Center>
                           </Tooltip>
                         )}
                       </Tabs.Tab>
@@ -889,12 +889,12 @@ export function CADLayout() {
                       >
                         {isSidebarOpen ? (
                           <Group gap={6} wrap="nowrap">
-                            <Polygon size={16} />
+                            <EntitiesIcon size={16} />
                             <span>Entities</span>
                           </Group>
                         ) : (
                           <Tooltip label="Entities" position="right">
-                            <Center><Polygon size={20} /></Center>
+                            <Center><EntitiesIcon size={20} /></Center>
                           </Tooltip>
                         )}
                       </Tabs.Tab>
@@ -903,7 +903,7 @@ export function CADLayout() {
                         <Box mt="auto" px={8} pb={8} style={{ width: '100%' }}>
                           <Tooltip label="Expand Sidebar" position="right">
                             <ActionIcon variant="subtle" color="gray" onClick={toggleSidebar} w="100%" h={40}>
-                              <Cube size={20} />
+                              <FeatureTreeIcon size={20} />
                             </ActionIcon>
                           </Tooltip>
                         </Box>
@@ -934,7 +934,7 @@ export function CADLayout() {
                         <Stack gap={4} p={8} align="center">
                           <Tooltip label="Faces" position="right">
                             <ActionIcon variant="subtle" size="lg">
-                              <Polygon size={20} />
+                              <EntitiesIcon size={20} />
                             </ActionIcon>
                           </Tooltip>
                         </Stack>

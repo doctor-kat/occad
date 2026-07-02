@@ -1,6 +1,4 @@
-import {
-  Pen
-} from '@phosphor-icons/react';
+import { SketchModeIcon } from '@/frontend/shared/icons';
 import { FeatureTreeItem as TreeItemType } from '@/cad/types';
 import { Stack, Box, ScrollArea, Text, useMantineTheme } from '@mantine/core';
 import { TreeItem } from './TreeItem';
@@ -87,7 +85,7 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
                 textAlign: 'center',
               }}
             >
-              <Pen
+              <SketchModeIcon
                 size={24}
                 style={{
                   marginLeft: 'auto',

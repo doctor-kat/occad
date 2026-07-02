@@ -1,6 +1,6 @@
 // AUTO-GENERATED — do not edit by hand.
 // Source: "CAD Modeling App Icons" export from Claude Design (project 6f4ae857).
-// 84 glyphs total; 73 CAD-domain glyphs emitted (generic File / View & History excluded).
+// 84 glyphs total; 83 CAD-domain glyphs emitted (generic File / View & History excluded).
 // The export's baked-in light-mode palette is mapped to CadIcon's CSS custom
 // properties so the dark-mode treatment (currentColor ink, translucent tints) applies.
 import { CadIcon, type CadIconProps } from './CadIcon';
@@ -734,6 +734,107 @@ export const ExportGLTFIcon = (props: CadIconProps) => (
     <line x1="17" y1="13" x2="11" y2="13" style={{ "stroke": "var(--accent)" }} />
     <line x1="18" y1="16" x2="27" y2="16" style={{ "stroke": "var(--accent)" }} />
     <path d="M24 13 L27 16 L24 19" style={{ "stroke": "var(--accent)" }} />
+  </CadIcon>
+);
+
+/** Plane — Reference Geometry */
+export const PlaneIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <path d="M6 11 L22 11 L26 21 L10 21 Z" />
+    <path d="M6 16 L6 11 L11 11" style={{ "stroke": "var(--accent)" }} />
+    <circle cx="6" cy="11" r="2.3" style={{ "fill": "var(--accent)", "stroke": "none" }} />
+  </CadIcon>
+);
+
+/** Origin — Reference Geometry */
+export const OriginIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <line x1="14" y1="20" x2="14" y2="6" />
+    <path d="M11.5 8.5 L14 6 L16.5 8.5" />
+    <line x1="14" y1="20" x2="5" y2="25" />
+    <path d="M5.4 22 L4.6 25.4 L8 25" />
+    <line x1="14" y1="20" x2="27" y2="24" />
+    <path d="M24 22 L27.4 24 L24.4 26.4" />
+    <circle cx="14" cy="20" r="2.7" style={{ "fill": "var(--accent)", "stroke": "none" }} />
+  </CadIcon>
+);
+
+/** Axis — Reference Geometry */
+export const AxisIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <line x1="6" y1="24" x2="26" y2="8" style={{ "strokeDasharray": "7 2.5 1.5 2.5" }} />
+    <circle cx="16" cy="16" r="2.7" style={{ "fill": "var(--accent)", "stroke": "none" }} />
+  </CadIcon>
+);
+
+/** Sketch — Model Tree */
+export const SketchIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <path d="M4 21 L12 13 L28 13 L20 21 Z" />
+    <path d="M11 19 L15 15 L22 15 L18 19 Z" style={{ "stroke": "var(--accent)" }} />
+  </CadIcon>
+);
+
+/** Feature — Model Tree */
+export const FeatureIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <path d="M6 12 L12 7 L24 7 L18 12 Z" />
+    <path d="M18 12 L24 7 L24 21 L18 26 Z" />
+    <rect x="6" y="12" width="12" height="14" rx="0.5" style={{ "fill": "var(--accent-tint)" }} />
+  </CadIcon>
+);
+
+/** Face — Model Entities */
+export const FaceIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <path d="M6 12 L12 7 L24 7 L18 12 Z" />
+    <path d="M18 12 L24 7 L24 21 L18 26 Z" style={{ "fill": "var(--accent-tint)", "stroke": "var(--accent)" }} />
+    <rect x="6" y="12" width="12" height="14" rx="0.5" />
+  </CadIcon>
+);
+
+/** Edge — Model Entities */
+export const EdgeIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <path d="M6 12 L12 7 L24 7 L18 12 Z" />
+    <path d="M18 12 L24 7 L24 21 L18 26 Z" />
+    <rect x="6" y="12" width="12" height="14" rx="0.5" />
+    <line x1="18" y1="12" x2="18" y2="26" style={{ "stroke": "var(--accent)" }} />
+    <circle cx="18" cy="12" r="2.3" style={{ "fill": "var(--accent)", "stroke": "none" }} />
+    <circle cx="18" cy="26" r="2.3" style={{ "fill": "var(--accent)", "stroke": "none" }} />
+  </CadIcon>
+);
+
+/** Vertex — Model Entities */
+export const VertexIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <path d="M6 12 L12 7 L24 7 L18 12 Z" />
+    <path d="M18 12 L24 7 L24 21 L18 26 Z" />
+    <rect x="6" y="12" width="12" height="14" rx="0.5" />
+    <circle cx="18" cy="12" r="3.1" style={{ "fill": "var(--accent)", "stroke": "none" }} />
+  </CadIcon>
+);
+
+/** Feature Tree — UI · Panels */
+export const FeatureTreeIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <rect x="6" y="5" width="7" height="6" rx="1" style={{ "fill": "var(--accent)", "stroke": "none" }} />
+    <line x1="9.5" y1="11" x2="9.5" y2="23" />
+    <line x1="9.5" y1="15" x2="17" y2="15" />
+    <line x1="9.5" y1="23" x2="17" y2="23" />
+    <rect x="17" y="12" width="7" height="6" rx="1" />
+    <rect x="17" y="20" width="7" height="6" rx="1" />
+  </CadIcon>
+);
+
+/** Entities — UI · Panels */
+export const EntitiesIcon = (props: CadIconProps) => (
+  <CadIcon {...props}>
+    <path d="M6 12 L12 7 L24 7 L18 12 Z" />
+    <path d="M18 12 L24 7 L24 21 L18 26 Z" style={{ "fill": "var(--accent-tint)", "stroke": "var(--ink)" }} />
+    <rect x="6" y="12" width="12" height="14" rx="0.5" />
+    <line x1="6" y1="12" x2="6" y2="26" style={{ "stroke": "var(--accent)" }} />
+    <circle cx="12" cy="7" r="2.3" style={{ "fill": "var(--accent)", "stroke": "none" }} />
   </CadIcon>
 );
 

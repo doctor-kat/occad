@@ -443,6 +443,18 @@ the tree/entity-list shows the group as an expandable folder.
 > corresponding accent (`color-mix(in srgb, var(--accent) 20%, transparent)`) — a subtle filled-face that tracks
 > the accent color and never goes white, matching the design's own dark-mode rendering. Overridable per-usage.
 >
+> **Expanded + wired into the feature tree (2026-07-01):** 10 more glyphs added to the CAD icon set (83 total)
+> from a second design export — Reference Geometry (`PlaneIcon`, `OriginIcon`, `AxisIcon`), Model Tree
+> (`SketchIcon`, `FeatureIcon`), Model Entities (`FaceIcon`, `EdgeIcon`, `VertexIcon`), UI · Panels
+> (`FeatureTreeIcon`, `EntitiesIcon`). Wired in: `TreeItem.getItemIcon` now shows the **actual feature operation
+> glyph** per tree node (`ExtrudeBossIcon`, `FilletIcon`, `BoxIcon`, … via a `FeatureOperation`-keyed map, falling
+> back to `FeatureIcon`) instead of one generic icon for every feature; reference-geometry nodes use
+> `PlaneIcon`/`OriginIcon`; sketch nodes use `SketchIcon`. `EntitiesPanel` uses `FaceIcon`/`EdgeIcon` for its
+> face/edge rows and empty state. `CADLayout`'s Feature Tree / Entities sidebar tabs use `FeatureTreeIcon`/
+> `EntitiesIcon`. `FeatureTree`'s empty-state hint uses `SketchModeIcon`. `AxisIcon`/`VertexIcon` generated but
+> not yet wired (no axis reference-geometry type or vertex row exists yet). Build clean, 415 tests pass, no new
+> lint issues.
+>
 > **Fixed (2026-06-26):** Sketcher hotkeys panel (`SketchHotkeys.tsx`) appeared in the middle of the viewport
 > after maximizing the window. The panel uses drei's `<Html>`, which positions its wrapper at the projected
 > 3D point and applies a CSS `transform` to it; a transformed ancestor becomes the containing block for

@@ -1,5 +1,6 @@
 import { Stack, Text, Box, ScrollArea, useMantineTheme, Group, ActionIcon, Badge, Center } from '@mantine/core';
-import { CaretRight, CaretDown, Polygon, LineSegment } from '@phosphor-icons/react';
+import { CaretRight, CaretDown } from '@phosphor-icons/react';
+import { FaceIcon, EdgeIcon } from '@/frontend/shared/icons';
 import { useState } from 'react';
 import type { MeshData } from '@/cad/types';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
@@ -36,7 +37,7 @@ export function EntitiesPanel({
     return (
       <Center style={{ flex: 1, height: '100%' }} p="md">
         <Stack align="center" gap="xs">
-          <Polygon size={32} weight="thin" color={theme.other.colors.mutedForeground} />
+          <FaceIcon size={32} color={theme.other.colors.mutedForeground} />
           <Text size="xs" c="dimmed" ta="center">
             No geometry entities found. Create a feature to see its faces and edges.
           </Text>
@@ -138,7 +139,7 @@ export function EntitiesPanel({
                     onMouseEnter={() => setHoveredFaceId(i)}
                     onMouseLeave={() => setHoveredFaceId(null)}
                   >
-                    <Polygon size={16} weight="regular" color={theme.colors.cyan[5]} />
+                    <FaceIcon size={16} color={theme.colors.cyan[5]} />
                     <Text
                       size="xs"
                       fw={500}
@@ -240,7 +241,7 @@ export function EntitiesPanel({
                     onMouseEnter={() => setHoveredEdgeIndex(i)}
                     onMouseLeave={() => setHoveredEdgeIndex(null)}
                   >
-                    <LineSegment size={16} weight="regular" color={theme.colors.purple[5]} />
+                    <EdgeIcon size={16} color={theme.colors.purple[5]} />
                     <Text
                       size="xs"
                       fw={500}

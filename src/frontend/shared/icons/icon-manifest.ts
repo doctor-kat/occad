@@ -371,5 +371,55 @@ export const cadIconManifest: CadIconMeta[] = [
     "name": "ExportGLTFIcon",
     "label": "Export GLTF",
     "section": "Interchange · STEP / IGES / STL / GLTF"
+  },
+  {
+    "name": "PlaneIcon",
+    "label": "Plane",
+    "section": "Reference Geometry"
+  },
+  {
+    "name": "OriginIcon",
+    "label": "Origin",
+    "section": "Reference Geometry"
+  },
+  {
+    "name": "AxisIcon",
+    "label": "Axis",
+    "section": "Reference Geometry"
+  },
+  {
+    "name": "SketchIcon",
+    "label": "Sketch",
+    "section": "Model Tree"
+  },
+  {
+    "name": "FeatureIcon",
+    "label": "Feature",
+    "section": "Model Tree"
+  },
+  {
+    "name": "FaceIcon",
+    "label": "Face",
+    "section": "Model Entities"
+  },
+  {
+    "name": "EdgeIcon",
+    "label": "Edge",
+    "section": "Model Entities"
+  },
+  {
+    "name": "VertexIcon",
+    "label": "Vertex",
+    "section": "Model Entities"
+  },
+  {
+    "name": "FeatureTreeIcon",
+    "label": "Feature Tree",
+    "section": "UI · Panels"
+  },
+  {
+    "name": "EntitiesIcon",
+    "label": "Entities",
+    "section": "UI · Panels"
   }
 ];
