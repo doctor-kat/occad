@@ -287,7 +287,165 @@ the tree/entity-list shows the group as an expandable folder.
    `SketchRenderer` draws an axis-aligned elbow leader line (distinct from the diagonal `p2p_distance` leader) and
    reads/writes `constraint.difference` (vs `.distance`) on double-click edit — `CADLayout.handleUpdateConstraintValue`
    now branches on `'difference' in c` too. Tests: `constraintFactory.test.ts` (+4: object-shape + 2 real-solver
-   solves proving the orthogonal axis stays free), `e2e/constraints-advanced.spec.ts` (+2).
+   solves proving the orthogonal axis stays free), `e2e/constraints-advanced.spec.ts` (+2, since removed — see below).
+8. ✅ **Dimension tool button (2026-07-02).** Replaced the toolbar's point-based Distance/Horiz-Distance/
+   Vert-Distance buttons with an always-docked `Dimension` `OperationButton` in `OperationsBar`'s sketch tab
+   (next to `Sketch`, disabled unless a sketch is active) — added `SketchOperation.DIMENSION`, deliberately
+   **excluded** from `CADLayout`'s `SKETCH_TOOL_OPERATIONS` so it never auto-starts a sketch on a plane. Clicking
+   it puts `SketchOverlay` into a click-to-pick-2-points mode: the point/origin handle `onClick`s branch on
+   `activeOperation === DIMENSION` and call a new `handleDimensionPick`, arming the first point (orange
+   highlight, reusing the existing "selected" style) then creating a driving `p2p_distance` constraint (via a
+   new `onCreateConstraint` prop threaded `SketchOverlay → Scene → OpenCascadeViewport → CADViewport →
+   CADLayout.handleApplyConstraint`) between it and the second click, seeded with the two points' *current*
+   distance so applying doesn't move geometry. Escape (and switching tools) clears an armed pick. The
+   `horizontal-distance`/`vertical-distance` factory kinds and their `difference`-type rendering/editing are
+   unchanged and still supported (only their toolbar buttons were removed — no longer directly creatable, but
+   still renderable/editable if present in a saved project). Tests: `SketchOverlay.dimension.test.tsx` (3, via
+   `@react-three/test-renderer` — arm/commit, same-point no-op, Escape-clears), `OperationsBar.test.tsx` (+1:
+   disabled until `activeSketchId`, calls `onOperationSelect(DIMENSION)`); removed the 3 toolbar-button e2e
+   cases from `constraints-advanced.spec.ts` (canvas point-handle clicks aren't reliably driveable in e2e — real
+   pixel-hit-testing tiny meshes in the perspective view is fragile, unlike the existing store-driven
+   whole-element selection e2e helpers).
+9. ✅ **Dimension tool: real snapping, point+line dimensions, draggable label, CAD-style rendering (2026-07-02).**
+   Fixed three issues in the Dimension tool above:
+   - **Grid-snap indicators no longer show while dimensioning.** `SketchOverlay`'s `handlePlaneMove`/`handlePlaneClick`
+     now special-case `DIMENSION` mode *before* falling into the generic `snapPoint` (grid/origin) logic — hovering
+     now highlights the nearest real point primitive or line element (`hoveredDimTargetId`) instead.
+   - **Point+line (perpendicular) dimensions.** planegcs' `p2l_distance` (`p_id`/`l_id`/`distance`) is now reachable:
+     `constraintFactory.ts` gained `point-line-distance`; `handleDimensionPick` (renamed target shape to
+     `{id, kind: 'point'|'line'}`) supports point+point → `distance`, point+line (either order) → `point-line-distance`,
+     line+line → unsupported (no such planegcs primitive; console-warns). Since no line-handle mesh exists, line
+     picks go through `handlePlaneClick`'s DIMENSION case via the same `getDistanceToElement`/hover-threshold
+     hit-test already used for no-operation-mode selection.
+   - **CAD-style rendering + draggable label.** New pure geometry module `engine/sketch/dimensionLayout.ts`
+     (`pointPointDimensionLayout`, `pointLineDimensionLayout`, `axisDimensionLayout` — the last replaces the old
+     single-elbow `difference` rendering) computes witness/extension lines, a dimension line, two arrowhead
+     chevrons, and a label position from two points + a perpendicular offset. `SketchRenderer.tsx`'s
+     `p2p_distance`/`p2l_distance`/`difference` branches were rewritten around a shared `DimensionAnnotation`
+     component using this layout (also **fixing a real bug**: the old `p2p_distance || p2l_distance` branch read
+     `p1_id`/`p2_id`, which don't exist on a `p2l_distance` object — it silently rendered nothing; unreachable
+     until this session added the only path that creates one). The label is now draggable: an invisible hit-area
+     mesh's `onPointerDown` starts a window-level pointer-move/up drag that raycasts the cursor onto the sketch's
+     `THREE.Plane` and converts to local 2D via `project()` (`coordinateSystem.ts`) — live-tracked as a local
+     override, committed to `sketch.visualMetadata[id].labelOffset` on release via a new `onUpdateLabelOffset` prop
+     threaded `SketchRenderer → OpenCascadeViewport → CADViewport → CADLayout.handleUpdateLabelOffset` (pure
+     metadata write via `updateSketchState`, no re-solve).
+   - **Test-environment gotcha worth remembering:** drei's `<Text>` (troika-three-text) never resolves under
+     `@react-three/test-renderer` (no font-loading network access in the test env) — and its failure isn't
+     contained: with no error boundary, this blanks the *entire* scene graph, including sibling `<Line>`s in the
+     same group. Any test rendering a dimension (which pairs polylines with a `<Text>` label) must
+     `vi.mock('@react-three/drei', ...)` to replace `Text` with a plain mesh (see `SketchRenderer.test.tsx`).
+   - Tests: `dimensionLayout.test.ts` (7, pure geometry), `constraintFactory.test.ts` (+2: `point-line-distance`
+     object-shape + real-solver), `SketchOverlay.dimension.test.tsx` (+2: point+line pick, no grid/snap indicators
+     while dimensioning), `SketchRenderer.test.tsx` (+3: p2p/p2l/difference dimension rendering, the p2l case
+     proving the field-name bug fix).
+10. ✅ **Fixed: dimensioning showed two copies of the edited shape (2026-07-02).** Root cause: while in sketch
+    mode, `SketchOverlay` renders `sketch.elements` (the raw 2D drawing model) and `SketchRenderer` renders
+    `sketch.primitives` (the solved planegcs geometry) *simultaneously* — they'd always coincided exactly because
+    nothing previously moved geometry away from its as-drawn coordinates, so the overlap was invisible. Editing a
+    driving dimension moves `primitives` via the solver but `SketchSolver.solve` never touches `elements`, so the
+    two views diverge and visibly show two shapes. Fix: new pure `engine/sketch/syncElementsFromPrimitives.ts`
+    mirrors `mapElementsToPrimitives`'s id scheme in reverse (`${id}_p1`/`_p2`/`_center`/`_l{i}` etc.) to rewrite
+    each element's coordinates from its solved primitive(s); wired into `CADLayout`'s `onSketchBuilt` before
+    `updateSketchState` so `elements` and `primitives` stay in lockstep after every solve. Tests:
+    `syncElementsFromPrimitives.test.ts` (5: rectangle — the reported case —, line, construction-line passthrough,
+    circle, missing-primitive fallback).
+11. ✅ **Fixed: plain click multi-selected instead of replacing selection (2026-07-02).** Every sketch entity/point
+    click called `toggleSketchElementSelection` unconditionally (additive, never clearing), so two plain clicks
+    selected both entities instead of just the second. New `SketchOverlay.selectOrToggle(id, event)`: plain click
+    replaces the selection (`setSketchElementSelection([id])`); Shift/Ctrl/Cmd-click still toggles (additive, for
+    multi-entity constraints like Coincident/Distance) — matches the existing box-select's modifier convention.
+12. ✅ **Re-solve on sketch resume (2026-07-02).** `startSketchEdit` (both the tree "Edit" button and the
+    sketch-button-toggle path) now also calls `buildSketch(sketch)`, so a sketch saved before item 10's fix — or
+    otherwise left with `elements`/`primitives` diverged — self-heals the moment it's reopened, without requiring
+    an actual edit first.
+13. ✅ **Dimension labels are now selectable (2026-07-02).** Clicking a dimension's label (without dragging) toggles
+    it into `useViewportStore.selectedConstraintId` — the same field constraint badges use — turning the dimension
+    line/arrows/text orange (`#f97316`), and syncing with `SketchConstraintList` row highlighting. Click vs. drag
+    is disambiguated by a `DRAG_THRESHOLD`-px pointer-movement check (mirroring the box-select gesture in
+    `SketchOverlay`): pointerup with no meaningful movement selects/deselects; pointerup after real movement
+    commits the drag as before. Verified live in the browser (Playwright) that resizing a properly H/V-constrained
+    rectangle's dimension correctly repositions the *other* dimension and all constraint badges, and produces only
+    one rendered shape — confirming items 10 and 9 hold up end-to-end, not just under unit tests. Tests:
+    `SketchRenderer.test.tsx` (+2: click selects/deselects and recolors; a real drag does not select).
+14. ✅ **Fixed: constraint badges offset "up" regardless of entity orientation (2026-07-02).** `constraintIconPlacements`
+    (`engine/sketch/constraintAnchors.ts`) always nudged a badge by `(0, offset)` from its entity's anchor — correct
+    for a horizontal line/edge, but for a vertical line that's *along* the line (badge climbs higher up it) instead
+    of to the side. Now resolves the constrained edge's direction and offsets perpendicular to it; for rectangle/
+    polygon edges the perpendicular is additionally sign-corrected to face outward from the shape's center (a naive
+    90° rotation alternates inward/outward around a closed loop, colliding opposite edges' badges). Falls back to
+    `(0, 1)` when no single straight edge resolves (e.g. a circle constraint). Tests: `constraintAnchors.test.ts`
+    (+1: vertical line offsets sideways; rectangle 4-edges test reworked to assert outward placement instead of
+    an always-above assumption).
+15. ✅ **Extended the perpendicular-offset fix to distance dimensions, and centered badge stacking (2026-07-02).**
+    Two follow-ups to item 14:
+    - **Dimension labels.** `SketchRenderer.tsx`'s default label offset was a fixed diagonal `(10, 10)` fed through
+      `pointPointDimensionLayout`/`pointLineDimensionLayout`'s perpendicular projection — correct for axis-aligned
+      lines, but degenerate for a line near 45° (the projection of a `(10,10)` offset onto a `~(10,10)`-perpendicular
+      can collapse toward zero, sitting the label on the line). `labelOffsetFor` now takes a per-constraint default
+      *direction* (`perpUnit(p1, p2)` for `p2p_distance`/`p2l_distance`; the fixed axis normal for `difference`
+      h/v-distance dimensions) and scales it to a constant `DEFAULT_LABEL_DISTANCE`, so the default is always a
+      fixed-magnitude perpendicular offset regardless of the entity's angle.
+    - **Centered badge stacking.** `constraintIconPlacements` (`constraintAnchors.ts`) previously stacked badges
+      sharing an anchor by growing one-directionally from the base offset (`offset + idx*spacing`), drifting the
+      group away from the entity as more badges piled on. It now computes each badge's base position first, then
+      lays the group out centered on that point, spread by `spacing*(idx - (n-1)/2)`. `badgeOffsetDirection` is now
+      exported (same "offset perpendicular to the entity" principle as `SketchRenderer`'s new `perpUnit`, kept as
+      separate implementations since dimensions and badges resolve their entity geometry differently).
+    - **Follow-up: stacking must be axis-aligned, not diagonal (2026-07-02).** The centered stack from the previous
+      point spread along a fixed `y`-only axis, which is wrong for a vertical line's badges (their perpendicular
+      base offset is sideways, so a `y`-only spread pushes them back onto the line). Fixed by picking the spread
+      axis from the group's own perpendicular direction — `Math.abs(dir.x) >= Math.abs(dir.y)` decides horizontal
+      vs. vertical stacking — so a horizontal entity's badges stack vertically and a vertical entity's stack
+      horizontally, always axis-aligned, never diagonal. (Caught and fixed a sign inversion in the first pass at
+      this: the horizontal/vertical ternary branches for `x`/`y` were swapped, so the axis selection logic was
+      computing the *opposite* of what it decided — verified via an ad-hoc debug test before finding it, since the
+      unit tests alone hadn't caught it.) Tests: `constraintAnchors.test.ts` (+1: vertical line badges stack
+      horizontally, centered).
+16. ✅ **Fixed: dimension label defaults could land inward (on top of the shape) depending on point-click order, and
+    the Dimension tool stayed armed after completing a dimension (2026-07-02).**
+    - **Inward labels.** `perpUnit(p1, p2)`'s sign is arbitrary — it flips depending on which of the two points was
+      clicked first when creating the `distance`/`point-line-distance` constraint. Dimensioning a rectangle's left
+      edge top-to-bottom vs. bottom-to-top could put the default label to the left of the rectangle (fine) or
+      dead center on top of it (wrong), and the same ambiguity applied to the `difference` (horizontal/vertical
+      distance) axis normal for top/bottom/left/right edges. Added `sketchCentroid` (average of all point
+      primitives) and `outwardPerpUnit`/an axis-normal sign check in `SketchRenderer.tsx` that flip the default
+      direction to always face away from the rest of the sketch, independent of click order. Test:
+      `SketchRenderer.test.tsx` (+1: a left-edge dimension created "backwards" — top point first — still defaults
+      outward, not into the square).
+    - **Dimension tool stayed armed.** Completing a dimension (second point picked, constraint created) left
+      `SketchOperation.DIMENSION` active, so the tool immediately re-armed for another pick instead of returning to
+      selection — unlike a single-shot pick-and-create gesture should. `CADLayout.tsx`'s `handleApplyConstraint` now
+      calls `selectOperation(null)` after applying a dimension-tool-created constraint kind (`distance`,
+      `horizontal-distance`, `vertical-distance`, `point-line-distance`); left alone for the constraint-toolbar
+      kinds (`horizontal`, `parallel`, etc.), which aren't armed pick gestures and should stay available for
+      repeated use.
+17. ✅ **Fixed: stacked constraint badges still drifted diagonally on a vertical line (2026-07-02).** Item 15's
+    "axis-aligned, not diagonal" stacking picked its spread axis (`x` vs `y`) from the group's own perpendicular
+    direction — for a vertical line that perpendicular is horizontal, so the group was spread in `x`, which reads as
+    the badges walking sideways away from each other rather than reading as one clean list. Confirmed against the
+    live app (dimensioning a rectangle's left edge next to its vertical constraint) that this was wrong: badges
+    sharing an anchor should always stack in a vertical column with one shared `x` — never spread horizontally,
+    regardless of the entity's own orientation. Simplified `constraintIconPlacements` back to a single vertical
+    spread (`base.y + spacing*(idx - (n-1)/2)`, constant `x`), removing the per-group axis decision entirely.
+    Also fixed a related bug hit while investigating: `constraintAnchor`/`badgeOffsetDirection` only scanned
+    top-level `*_id` fields, so a `difference` constraint (horizontal/vertical-*distance* dimensions, which nest
+    their references as `param1.o_id`/`param2.o_id`) never resolved an anchor at all and was silently dropped from
+    the badge list — its perpendicular direction always fell back to the `(0, 1)` default too. Added a
+    `referencedIds` helper that also picks up nested `o_id` fields. Tests: `constraintAnchors.test.ts` (rewrote the
+    vertical-line stacking test for the always-vertical spread; +1 for `difference` anchor/direction resolution).
+18. ✅ **Fixed: rectangle-edge distance badges (both left and right) offset in the wrong direction (2026-07-02).**
+    Root cause was in `badgeOffsetDirection`, not the stacking logic touched by item 17: a `p2p_distance` constraint
+    dimensioning a rectangle edge references the two *corner point* ids (e.g. `R_p1`/`R_p4` for the left edge) — there
+    is no dedicated `R_l4` edge sub-id for a distance constraint to reference, that only exists for line-shaped
+    badges like `horizontal_l`. `resolveEdge` only recognized the canonical `l1..l4` edge suffixes, so it never
+    matched these corner-point references and silently fell through to the `(0, 1)` default direction for *every*
+    rectangle-edge dimension — not just the left edge as it first appeared, just more noticeable there. Added a
+    direct two-point path in `badgeOffsetDirection`: when a constraint references exactly two ids that both resolve
+    to points, derive the perpendicular straight from their difference (still outward-sign-corrected via the shared
+    owning shape's center, when the two points share one), instead of requiring a pre-named edge sub-id at all. This
+    also covers polygon edges dimensioned by their corner points, not just rectangles. Tests: `constraintAnchors.test.ts`
+    (+1: left- and right-edge corner-point dimensions both offset outward).
 
 ---
 

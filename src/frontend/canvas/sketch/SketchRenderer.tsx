@@ -1,24 +1,197 @@
-import { Sphere, Text } from '@react-three/drei';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Text } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
+import * as THREE from 'three';
+import { Sphere } from '@react-three/drei';
 import { Sketch, Point2D } from '@/cad/types';
-import { lift } from '@/cad/engine/sketch/coordinateSystem';
+import { lift, project } from '@/cad/engine/sketch/coordinateSystem';
+import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { pointPointDimensionLayout, pointLineDimensionLayout, axisDimensionLayout, type DimensionLayout } from '@/cad/engine/sketch/dimensionLayout';
 import { NativePolyline } from './NativePolyline';
 
 /** planegcs uses `c_id` for a circle/arc center; unsolved data may use `center_id`. */
 const centerPointId = (data: any): string | undefined => data.c_id ?? data.center_id;
 
+const DEFAULT_LABEL_DISTANCE = 10;
+
+/** Unit vector perpendicular to a->b, or straight up for a degenerate (zero-length)
+ *  segment. Used as the default dimension-label direction so it offsets to the side
+ *  of a vertical line instead of further along it (matching constraint badge placement). */
+function perpUnit(a: Point2D, b: Point2D): Point2D {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const l = Math.hypot(dx, dy);
+  return l === 0 ? { x: 0, y: 1 } : { x: -dy / l, y: dx / l };
+}
+
 interface SketchRendererProps {
   sketch: Sketch;
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
+  onUpdateLabelOffset?: (constraintId: string, offset: Point2D) => void;
 }
 
-export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRendererProps) {
+/** Draw a dimension's witness/extension lines, dimension line, arrowheads, and value label. */
+function DimensionAnnotation({
+  layout,
+  workplane,
+  color,
+  isSelected,
+  value,
+  onDoubleClick,
+  onDragStart,
+}: {
+  layout: DimensionLayout;
+  workplane: Sketch['workplane'];
+  color: string;
+  isSelected: boolean;
+  value: number;
+  onDoubleClick: () => void;
+  onDragStart: (e: any) => void;
+}) {
+  const to3 = (p: Point2D) => lift(p, workplane);
+  const v3 = (p: Point2D): [number, number, number] => {
+    const l = to3(p);
+    return [l.x, l.y, l.z];
+  };
+  const labelPos = to3(layout.labelPos);
+  // Selection takes priority over the driving/conflict color, matching how
+  // constraint badges and point handles show selection elsewhere in the sketch.
+  const lineColor = isSelected ? '#f97316' : color;
+
+  return (
+    <group>
+      <NativePolyline points={[v3(layout.ext1[0]), v3(layout.ext1[1])]} color="#64748b" opacity={0.6} />
+      <NativePolyline points={[v3(layout.ext2[0]), v3(layout.ext2[1])]} color="#64748b" opacity={0.6} />
+      <NativePolyline points={[v3(layout.dimLine[0]), v3(layout.dimLine[1])]} color={lineColor} />
+      <NativePolyline points={layout.arrow1.map(v3)} color={lineColor} />
+      <NativePolyline points={layout.arrow2.map(v3)} color={lineColor} />
+      {/* Invisible bigger hit-area behind the label so dragging/selecting is easy to grab. */}
+      <mesh position={[labelPos.x, labelPos.y, labelPos.z + 0.05]} onPointerDown={onDragStart}>
+        <planeGeometry args={[4, 2]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+      <Text
+        position={[labelPos.x, labelPos.y, labelPos.z + 0.1]}
+        fontSize={1.5}
+        color={isSelected ? '#f97316' : 'white'}
+        anchorX="center"
+        anchorY="middle"
+        onDoubleClick={onDoubleClick}
+      >
+        {value.toFixed(2)}
+      </Text>
+    </group>
+  );
+}
+
+export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelOffset }: SketchRendererProps) {
   const { workplane, primitives, constraints, visualMetadata, dof } = sketch;
   const isFullyConstrained = dof === 0;
   const defaultColor = isFullyConstrained ? "#10b981" : "#3b82f6"; // Green if full, Blue if under
 
+  const { camera, gl } = useThree();
+  const selectedConstraintId = useViewportStore((s) => s.selectedConstraintId);
+  const setSelectedConstraintId = useViewportStore((s) => s.setSelectedConstraintId);
+  // Live drag override, keyed by constraint id — followed the cursor at render
+  // rate without touching parent state/solver until the drag is released.
+  const [dragOffsets, setDragOffsets] = useState<Record<string, Point2D>>({});
+  // `moved` distinguishes a plain click (select/deselect) from an actual drag
+  // (reposition the label) — mirrors the DRAG_THRESHOLD pattern used for the
+  // sketch entity box-select gesture in SketchOverlay.
+  const dragRef = useRef<{ constraintId: string; mid2d: Point2D; startX: number; startY: number; moved: boolean } | null>(null);
+  const DRAG_THRESHOLD = 4;
+  // Rough sketch centroid (average of all point primitives), used only to pick
+  // which side of an edge a default dimension offset should face — outward, away
+  // from the rest of the sketch, rather than whichever side the perpendicular
+  // rotation happens to land on (which flips depending on click order and would
+  // otherwise sometimes point the label back into the shape).
+  const sketchCentroid = useMemo(() => {
+    const pts = primitives.filter((p) => p.type === 'point');
+    if (pts.length === 0) return { x: 0, y: 0 };
+    return {
+      x: pts.reduce((s, p) => s + p.data.x, 0) / pts.length,
+      y: pts.reduce((s, p) => s + p.data.y, 0) / pts.length,
+    };
+  }, [primitives]);
+
+  /** perpUnit(a, b), flipped if needed so it points away from the sketch centroid. */
+  const outwardPerpUnit = (a: Point2D, b: Point2D, mid: Point2D): Point2D => {
+    const perp = perpUnit(a, b);
+    const outward = { x: mid.x - sketchCentroid.x, y: mid.y - sketchCentroid.y };
+    if (perp.x * outward.x + perp.y * outward.y < 0) return { x: -perp.x, y: -perp.y };
+    return perp;
+  };
+
+  const worldPlane = useMemo(
+    () => new THREE.Plane().setFromNormalAndCoplanarPoint(
+      new THREE.Vector3(workplane.normal.x, workplane.normal.y, workplane.normal.z),
+      new THREE.Vector3(workplane.origin.x, workplane.origin.y, workplane.origin.z),
+    ),
+    [workplane],
+  );
+
+  const screenToLocal2D = useCallback((clientX: number, clientY: number): Point2D | null => {
+    const rect = gl.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, camera);
+    const hit = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(worldPlane, hit)) return null;
+    return project({ x: hit.x, y: hit.y, z: hit.z }, workplane);
+  }, [camera, gl, worldPlane, workplane]);
+
+  const onWindowMove = useCallback((e: PointerEvent) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > DRAG_THRESHOLD) {
+      drag.moved = true;
+    }
+    if (!drag.moved) return; // still just a click until the pointer actually moves
+    const local = screenToLocal2D(e.clientX, e.clientY);
+    if (!local) return;
+    setDragOffsets((prev) => ({ ...prev, [drag.constraintId]: { x: local.x - drag.mid2d.x, y: local.y - drag.mid2d.y } }));
+  }, [screenToLocal2D]);
+
+  const onWindowUp = useCallback(() => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    window.removeEventListener('pointermove', onWindowMove);
+    window.removeEventListener('pointerup', onWindowUp);
+    if (!drag) return;
+    if (!drag.moved) {
+      // A plain click (no drag): select/deselect this dimension, same store field
+      // constraint badges use, so SketchConstraintList highlighting stays in sync.
+      const current = useViewportStore.getState().selectedConstraintId;
+      setSelectedConstraintId(current === drag.constraintId ? null : drag.constraintId);
+      return;
+    }
+    setDragOffsets((prev) => {
+      const offset = prev[drag.constraintId];
+      if (offset) onUpdateLabelOffset?.(drag.constraintId, offset);
+      const next = { ...prev };
+      delete next[drag.constraintId];
+      return next;
+    });
+  }, [onWindowMove, onUpdateLabelOffset, setSelectedConstraintId]);
+
+  const startDrag = useCallback((constraintId: string, mid2d: Point2D) => (e: any) => {
+    e.stopPropagation();
+    dragRef.current = { constraintId, mid2d, startX: e.clientX, startY: e.clientY, moved: false };
+    window.addEventListener('pointermove', onWindowMove);
+    window.addEventListener('pointerup', onWindowUp);
+  }, [onWindowMove, onWindowUp]);
+
+  const labelOffsetFor = (constraintId: string, defaultDir: Point2D = { x: 0, y: 1 }): Point2D =>
+    dragOffsets[constraintId]
+    || visualMetadata[constraintId]?.labelOffset
+    || { x: defaultDir.x * DEFAULT_LABEL_DISTANCE, y: defaultDir.y * DEFAULT_LABEL_DISTANCE };
+
   const renderPrimitives = primitives.map((primitive) => {
     const color = primitive.isExternal ? "#4b5563" : defaultColor;
-    
+
     switch (primitive.type) {
       case 'line': {
         const p1Data = primitives.find(p => p.id === primitive.data.p1_id)?.data;
@@ -48,7 +221,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
       case 'circle': {
         const centerData = primitives.find(p => p.id === centerPointId(primitive.data))?.data;
         if (!centerData) return null;
-        
+
         const segments = 64;
         const points: [number, number, number][] = [];
         for (let i = 0; i <= segments; i++) {
@@ -71,11 +244,11 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
       case 'arc': {
         const centerData = primitives.find(p => p.id === centerPointId(primitive.data))?.data;
         if (!centerData) return null;
-        
+
         const segments = 32;
         const points: [number, number, number][] = [];
         const { start_angle, end_angle, radius } = primitive.data;
-        
+
         for (let i = 0; i <= segments; i++) {
           const angle = start_angle + (i / segments) * (end_angle - start_angle);
           const x = radius * Math.cos(angle);
@@ -101,91 +274,104 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue }: SketchRender
   // Render annotations (dimensions, etc.)
   const renderAnnotations = constraints.map((constraint) => {
     const meta = visualMetadata[constraint.id];
-    
+
     // Dimension color logic
     let dimColor = "#94a3b8"; // Default gray (non-driving)
     if (meta?.isDriving) dimColor = "#3b82f6"; // Blue (driving)
     if (meta?.conflictState === 'conflicting') dimColor = "#ef4444"; // Red (conflicting)
 
-    if (constraint.type === 'p2p_distance' || constraint.type === 'p2l_distance') {
+    if (constraint.type === 'p2p_distance') {
       const p1Data = primitives.find(p => p.id === constraint.p1_id)?.data;
       const p2Data = primitives.find(p => p.id === constraint.p2_id)?.data;
       if (!p1Data || !p2Data) return null;
 
-      const p1 = lift({ x: p1Data.x, y: p1Data.y }, workplane);
-      const p2 = lift({ x: p2Data.x, y: p2Data.y }, workplane);
-      
       const mid2d = { x: (p1Data.x + p2Data.x) / 2, y: (p1Data.y + p2Data.y) / 2 };
-      const labelOffset = meta?.labelOffset || { x: 10, y: 10 };
-      const labelPos = lift({ x: mid2d.x + labelOffset.x, y: mid2d.y + labelOffset.y }, workplane);
+      const offset = labelOffsetFor(constraint.id, outwardPerpUnit(p1Data, p2Data, mid2d));
+      const layout = pointPointDimensionLayout(p1Data, p2Data, offset);
 
       return (
-        <group key={constraint.id}>
-          {/* Dimension line */}
-          <NativePolyline
-            points={[[p1.x, p1.y, p1.z], [labelPos.x, labelPos.y, labelPos.z], [p2.x, p2.y, p2.z]]}
-            color={dimColor}
-          />
-          {/* Label */}
-          <Text
-            position={[labelPos.x, labelPos.y, labelPos.z + 0.1]}
-            fontSize={1.5}
-            color="white"
-            anchorX="center"
-            anchorY="middle"
-            onDoubleClick={() => {
-              const newValue = prompt("Enter distance:", constraint.distance);
-              if (newValue !== null && onUpdateConstraintValue) {
-                onUpdateConstraintValue(constraint.id, parseFloat(newValue));
-              }
-            }}
-          >
-            {constraint.distance.toFixed(2)}
-          </Text>
-        </group>
+        <DimensionAnnotation
+          isSelected={selectedConstraintId === constraint.id}
+          key={constraint.id}
+          layout={layout}
+          workplane={workplane}
+          color={dimColor}
+          value={constraint.distance}
+          onDragStart={startDrag(constraint.id, mid2d)}
+          onDoubleClick={() => {
+            const newValue = prompt("Enter distance:", constraint.distance);
+            if (newValue !== null && onUpdateConstraintValue) {
+              onUpdateConstraintValue(constraint.id, parseFloat(newValue));
+            }
+          }}
+        />
       );
     }
-    
+
+    if (constraint.type === 'p2l_distance') {
+      const pointData = primitives.find(p => p.id === constraint.p_id)?.data;
+      const linePrim = primitives.find(p => p.id === constraint.l_id);
+      const lineStart = linePrim ? primitives.find(p => p.id === linePrim.data.p1_id)?.data : undefined;
+      const lineEnd = linePrim ? primitives.find(p => p.id === linePrim.data.p2_id)?.data : undefined;
+      if (!pointData || !lineStart || !lineEnd) return null;
+
+      const lineMid = { x: (lineStart.x + lineEnd.x) / 2, y: (lineStart.y + lineEnd.y) / 2 };
+      const offset = labelOffsetFor(constraint.id, outwardPerpUnit(lineStart, lineEnd, lineMid));
+      const layout = pointLineDimensionLayout(pointData, lineStart, lineEnd, offset);
+      const mid2d = { x: (layout.dimLine[0].x + layout.dimLine[1].x) / 2, y: (layout.dimLine[0].y + layout.dimLine[1].y) / 2 };
+
+      return (
+        <DimensionAnnotation
+          isSelected={selectedConstraintId === constraint.id}
+          key={constraint.id}
+          layout={layout}
+          workplane={workplane}
+          color={dimColor}
+          value={constraint.distance}
+          onDragStart={startDrag(constraint.id, mid2d)}
+          onDoubleClick={() => {
+            const newValue = prompt("Enter distance:", constraint.distance);
+            if (newValue !== null && onUpdateConstraintValue) {
+              onUpdateConstraintValue(constraint.id, parseFloat(newValue));
+            }
+          }}
+        />
+      );
+    }
+
     if (constraint.type === 'difference') {
       const p1Data = primitives.find(p => p.id === constraint.param1?.o_id)?.data;
       const p2Data = primitives.find(p => p.id === constraint.param2?.o_id)?.data;
       if (!p1Data || !p2Data) return null;
-      const isHorizontal = constraint.param1?.prop === 'x';
+      const axis: 'x' | 'y' = constraint.param1?.prop === 'x' ? 'x' : 'y';
 
-      // Elbow point: shares the X (horizontal dim) or Y (vertical dim) axis with p1,
-      // and the other axis with p2 — matches the standard axis-aligned dimension leader shape.
-      const elbow2d = isHorizontal ? { x: p2Data.x, y: p1Data.y } : { x: p1Data.x, y: p2Data.y };
-
-      const p1 = lift({ x: p1Data.x, y: p1Data.y }, workplane);
-      const p2 = lift({ x: p2Data.x, y: p2Data.y }, workplane);
-      const elbow = lift(elbow2d, workplane);
-
-      const mid2d = { x: (p1Data.x + elbow2d.x) / 2, y: (p1Data.y + elbow2d.y) / 2 };
-      const labelOffset = meta?.labelOffset || { x: 10, y: 10 };
-      const labelPos = lift({ x: mid2d.x + labelOffset.x, y: mid2d.y + labelOffset.y }, workplane);
+      const mid2d = { x: (p1Data.x + p2Data.x) / 2, y: (p1Data.y + p2Data.y) / 2 };
+      // Axis-aligned normal (up/down for a horizontal-distance dim, left/right for
+      // vertical-distance), sign-corrected to face away from the sketch so the default
+      // doesn't land back on top of the geometry (e.g. a bottom edge's dimension
+      // should drop below it, not go "up" into the shape like a top edge's does).
+      const axisNormal: Point2D = axis === 'x' ? { x: 0, y: 1 } : { x: 1, y: 0 };
+      const facingIn = axisNormal.x * (mid2d.x - sketchCentroid.x) + axisNormal.y * (mid2d.y - sketchCentroid.y) < 0;
+      const defaultDir = facingIn ? { x: -axisNormal.x, y: -axisNormal.y } : axisNormal;
+      const offset = labelOffsetFor(constraint.id, defaultDir);
+      const layout = axisDimensionLayout(p1Data, p2Data, axis, offset);
 
       return (
-        <group key={constraint.id}>
-          <NativePolyline
-            points={[[p1.x, p1.y, p1.z], [elbow.x, elbow.y, elbow.z], [p2.x, p2.y, p2.z]]}
-            color={dimColor}
-          />
-          <Text
-            position={[labelPos.x, labelPos.y, labelPos.z + 0.1]}
-            fontSize={1.5}
-            color="white"
-            anchorX="center"
-            anchorY="middle"
-            onDoubleClick={() => {
-              const newValue = prompt('Enter distance:', constraint.difference);
-              if (newValue !== null && onUpdateConstraintValue) {
-                onUpdateConstraintValue(constraint.id, parseFloat(newValue));
-              }
-            }}
-          >
-            {constraint.difference.toFixed(2)}
-          </Text>
-        </group>
+        <DimensionAnnotation
+          isSelected={selectedConstraintId === constraint.id}
+          key={constraint.id}
+          layout={layout}
+          workplane={workplane}
+          color={dimColor}
+          value={constraint.difference}
+          onDragStart={startDrag(constraint.id, mid2d)}
+          onDoubleClick={() => {
+            const newValue = prompt('Enter distance:', constraint.difference);
+            if (newValue !== null && onUpdateConstraintValue) {
+              onUpdateConstraintValue(constraint.id, parseFloat(newValue));
+            }
+          }}
+        />
       );
     }
 

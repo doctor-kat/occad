@@ -16,6 +16,7 @@ import { FeatureTreeIcon, EntitiesIcon } from '@/frontend/shared/icons';
 import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
+import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
 import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/engine/sketch/originPoint';
 import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
 import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
@@ -123,7 +124,14 @@ export function CADLayout() {
   } = useOpenCascade({
     onSketchBuilt: (sketchId, meshData, solvedSketch) => {
       if (solvedSketch) {
-        updateSketchState(sketchId, solvedSketch);
+        // The solver only updates `primitives`; without this, `elements` (what
+        // SketchOverlay renders) stays at its pre-solve position and a driving
+        // dimension shows two copies of the shape — see syncElementsFromPrimitives.
+        const synced = {
+          ...solvedSketch,
+          elements: syncElementsFromPrimitives(solvedSketch.elements, solvedSketch.primitives),
+        };
+        updateSketchState(sketchId, synced);
       }
     },
     onFeatureBuilt: (featureId, meshData) => {
@@ -413,6 +421,11 @@ export function CADLayout() {
     const sketch = project.sketches.find((s) => s.id === id);
     if (sketch) {
       startSketchEdit(id);
+      // Re-solve on resume so `elements` (rendered by SketchOverlay) is synced with
+      // `primitives` (rendered by SketchRenderer) — a sketch saved before a fix to
+      // that sync, or edited in a session predating it, can otherwise show two
+      // copies of a shape until something re-triggers a solve.
+      buildSketch(sketch);
       notifications.show({ color: 'blue', message: `Editing ${sketch.name}` });
       return;
     }
@@ -627,8 +640,9 @@ export function CADLayout() {
     // Check if selected item is a sketch
     const selectedSketch = project.sketches.find((s) => s.id === selectedTreeItem);
     if (selectedSketch) {
-      // Edit the selected sketch
+      // Edit the selected sketch (re-solve to sync elements/primitives — see handleEditTreeItem)
       startSketchEdit(selectedSketch.id);
+      buildSketch(selectedSketch);
       notifications.show({ color: 'blue', message: `Editing ${selectedSketch.name}` });
       return;
     }
@@ -639,6 +653,7 @@ export function CADLayout() {
       // Edit the sketch associated with the feature
       startSketchEdit(selectedFeature.sketchId);
       const sketch = project.sketches.find((s) => s.id === selectedFeature.sketchId);
+      if (sketch) buildSketch(sketch);
       notifications.show({ color: 'blue', message: `Editing ${sketch?.name || 'sketch'}` });
       return;
     }
@@ -697,6 +712,13 @@ export function CADLayout() {
     addConstraint(activeSketchId, constraint); // persist + bump version
     buildSketch(updatedSketch);                // re-solve with the new constraint
     notifications.show({ color: 'blue', message: `Applied ${input.kind} constraint` });
+    // The Dimension tool (SketchOperation.DIMENSION) is a two-click pick-and-create
+    // gesture, not a toggleable multi-use mode like the constraint toolbar buttons —
+    // once it's produced a dimension, drop back to selection instead of staying armed
+    // for another pick.
+    if (input.kind === 'distance' || input.kind === 'horizontal-distance' || input.kind === 'vertical-distance' || input.kind === 'point-line-distance') {
+      selectOperation(null);
+    }
   };
 
   // Remove a constraint from the active sketch and re-solve.
@@ -729,6 +751,21 @@ export function CADLayout() {
         buildSketch(updatedSketch);
       }
     }
+  };
+
+  // Handle dragging a dimension label — pure display metadata, no re-solve needed.
+  const handleUpdateLabelOffset = (constraintId: string, offset: { x: number; y: number }) => {
+    if (!activeSketchId) return;
+    const sketch = project.sketches.find((s) => s.id === activeSketchId);
+    if (!sketch) return;
+    const updatedSketch = {
+      ...sketch,
+      visualMetadata: {
+        ...sketch.visualMetadata,
+        [constraintId]: { ...sketch.visualMetadata[constraintId], labelOffset: offset },
+      },
+    };
+    updateSketchState(activeSketchId, updatedSketch);
   };
 
   return (
@@ -1005,6 +1042,8 @@ export function CADLayout() {
             onVertexClick={handleVertexClick}
             onBackgroundClick={handleBackgroundClick}
             onUpdateConstraintValue={handleUpdateConstraintValue}
+            onCreateConstraint={handleApplyConstraint}
+            onUpdateLabelOffset={handleUpdateLabelOffset}
           />
           {activeSketchId && (() => {
             const activeSketch = project.sketches.find((s) => s.id === activeSketchId);

@@ -1,9 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /**
- * e2e for the remaining constraint types (tangent, angle, coincident, distance) and
- * the constraint-list delete. Asserts the real UI → createConstraint → addConstraint
+ * e2e for the remaining toolbar-driven constraint types (tangent, angle, coincident)
+ * and the constraint-list delete. Asserts the real UI → createConstraint → addConstraint
  * path produces the correct planegcs objects, and removeConstraint deletes them.
+ * (Distance is created via the Dimension tool's 2-point click pick, not a toolbar
+ * button — see SketchOverlay.dimension.test.tsx.)
  *
  * (The geometric *solve* for every kind is covered by the real-solver unit tests in
  * constraintFactory.test.ts; line + radius geometry round-trips are covered by the
@@ -123,39 +125,9 @@ test.describe('Sketch advanced constraints', () => {
     expect(await persistedConstraint(page)).toMatchObject({ type: 'p2p_coincident', p1_id: 'B', p2_id: 'E' });
   });
 
-  test('Distance (two points)', async ({ page }) => {
-    await seed(page);
-    await page.reload();
-    await page.waitForSelector('text=Front Plane', { timeout: 10000 });
-    await enterSketch(page);
-    await setValue(page, '25');
-    await applyWithSelection(page, 'distance', ['B', 'E']);
-    expect(await persistedConstraint(page)).toMatchObject({ type: 'p2p_distance', p1_id: 'B', p2_id: 'E', distance: 25 });
-  });
-
-  test('Horizontal Distance (two points)', async ({ page }) => {
-    await seed(page);
-    await page.reload();
-    await page.waitForSelector('text=Front Plane', { timeout: 10000 });
-    await enterSketch(page);
-    await setValue(page, '25');
-    await applyWithSelection(page, 'horizontal-distance', ['B', 'E']);
-    expect(await persistedConstraint(page)).toMatchObject({
-      type: 'difference', param1: { o_id: 'B', prop: 'x' }, param2: { o_id: 'E', prop: 'x' }, difference: 25,
-    });
-  });
-
-  test('Vertical Distance (two points)', async ({ page }) => {
-    await seed(page);
-    await page.reload();
-    await page.waitForSelector('text=Front Plane', { timeout: 10000 });
-    await enterSketch(page);
-    await setValue(page, '25');
-    await applyWithSelection(page, 'vertical-distance', ['B', 'E']);
-    expect(await persistedConstraint(page)).toMatchObject({
-      type: 'difference', param1: { o_id: 'B', prop: 'y' }, param2: { o_id: 'E', prop: 'y' }, difference: 25,
-    });
-  });
+  // Distance is now created via the always-visible Dimension tool (2-point click
+  // pick), not a toolbar button with pre-selection — see SketchOverlay.dimension.test.tsx
+  // for that flow (canvas point-handle clicks aren't reliable to drive in e2e).
 
   test('delete removes a constraint from the list', async ({ page }) => {
     await seed(page, [{ id: 'cx', type: 'horizontal_l', l_id: 'L1' }]);

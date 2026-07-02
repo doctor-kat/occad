@@ -1,6 +1,7 @@
 import { OpenCascadeViewport } from './opencascade/OpenCascadeViewport';
 import type { CADProject, SketchEdgeData, SketchOperation, MeshData } from '@/cad/types';
 import type { OCCStatus } from '@/worker/bridge/useOpenCascade';
+import type { ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 
 export interface CADViewportProps {
   project: CADProject;
@@ -27,6 +28,8 @@ export interface CADViewportProps {
   onSketchClick?: (sketchId: string) => void;
   onBackgroundClick?: () => void;
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
+  onCreateConstraint?: (input: ConstraintInput) => void;
+  onUpdateLabelOffset?: (constraintId: string, offset: { x: number; y: number }) => void;
 }
 
 /**
@@ -57,6 +60,8 @@ export function CADViewport({
   onSketchClick,
   onBackgroundClick,
   onUpdateConstraintValue,
+  onCreateConstraint,
+  onUpdateLabelOffset,
 }: CADViewportProps) {
   // Find the active sketch
   const activeSketch = activeSketchId
@@ -88,6 +93,8 @@ export function CADViewport({
       onFinishSketch={onFinishSketch}
       onCancelSketch={onCancelSketch}
       onUpdateConstraintValue={onUpdateConstraintValue}
+      onCreateConstraint={onCreateConstraint}
+      onUpdateLabelOffset={onUpdateLabelOffset}
     />
   );
 }

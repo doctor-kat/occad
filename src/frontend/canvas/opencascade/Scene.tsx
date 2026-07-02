@@ -10,6 +10,7 @@ import { SketchWireframes } from "./SketchWireframes";
 import { ExtrudeArrows } from "./ExtrudeArrows";
 import { SketchOverlay } from "../sketch/SketchOverlay";
 import { SketchCameraOrient } from "../sketch/SketchCameraOrient";
+import type { ConstraintInput } from "@/cad/engine/sketch/constraintFactory";
 
 export interface SceneProps {
   mesh: MeshData | null;
@@ -33,6 +34,8 @@ export interface SceneProps {
   onUpdateSketch?: (sketchId: string, elements: any[]) => void;
   /** Exit sketch editing (Esc in the overlay). */
   onExitSketch?: () => void;
+  /** Called when the Dimension tool completes a 2-point pick. */
+  onCreateConstraint?: (input: ConstraintInput) => void;
 }
 
 export function Scene({
@@ -54,7 +57,8 @@ export function Scene({
   onSketchClick,
   onBackgroundClick,
   onUpdateSketch,
-  onExitSketch
+  onExitSketch,
+  onCreateConstraint
 }: SceneProps) {
   const hoveredTreeItem = useViewportStore((state) => state.hoveredTreeItem);
   const setHoveredTreeItem = useViewportStore((state) => state.setHoveredTreeItem);
@@ -146,6 +150,7 @@ export function Scene({
           onElementsChange={onUpdateSketch}
           onBackgroundClick={onBackgroundClick}
           onExitSketch={onExitSketch}
+          onCreateConstraint={onCreateConstraint}
           occMesh={mesh}
           occSketchEdges={sketchEdges}
         />

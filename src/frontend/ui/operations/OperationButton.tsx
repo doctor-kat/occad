@@ -28,9 +28,10 @@ export interface OperationButtonProps {
   disabled?: boolean;
   /** Override the corner radius (e.g. 0 when nested inside a button group). */
   radius?: number | string;
+  'data-testid'?: string;
 }
 
-export function OperationButton({ icon, label, isActive, onClick, disabled = false, radius }: OperationButtonProps) {
+export function OperationButton({ icon, label, isActive, onClick, disabled = false, radius, 'data-testid': dataTestId }: OperationButtonProps) {
   const theme = useMantineTheme();
 
   // Enlarge the icon only for this large variant; the shared icon node from
@@ -46,6 +47,7 @@ export function OperationButton({ icon, label, isActive, onClick, disabled = fal
       radius={radius}
       disabled={disabled}
       onClick={onClick}
+      data-testid={dataTestId}
       style={{
         height: 72,
         width: 72,

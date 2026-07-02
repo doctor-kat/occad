@@ -1,4 +1,4 @@
-import { SketchModeIcon } from '@/frontend/shared/icons';
+import { SketchModeIcon, SmartLinearIcon } from '@/frontend/shared/icons';
 import { Tabs, Box, Group, useMantineTheme } from '@mantine/core';
 import { OperationCategory, Operation, SketchOperation } from '@/cad/types';
 import { OperationButton } from './OperationButton';
@@ -153,6 +153,15 @@ export function OperationsBar({ activeTab, activeOperation, selectedTreeItem, ac
                   operationId={null}
                   isActive={!!activeSketchId}
                   onClick={() => onSketchButtonClick?.()}
+                />
+                <OperationButton
+                  icon={<SmartLinearIcon size={16} />}
+                  label="Dimension"
+                  operationId={SketchOperation.DIMENSION}
+                  isActive={activeOperation === SketchOperation.DIMENSION}
+                  onClick={() => onOperationSelect(SketchOperation.DIMENSION)}
+                  disabled={!activeSketchId}
+                  data-testid="dimension-tool-button"
                 />
                 <OperationDivider />
                 {renderSketchTools()}

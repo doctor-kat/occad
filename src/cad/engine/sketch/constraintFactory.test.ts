@@ -54,6 +54,9 @@ describe('createConstraint — object shape', () => {
     expect(createConstraint('c', { kind: 'vertical-distance', p1Id: 'a', p2Id: 'b', distance: 5 })).toMatchObject({
       type: 'difference', param1: { o_id: 'a', prop: 'y' }, param2: { o_id: 'b', prop: 'y' }, difference: 5, driving: true,
     });
+    expect(createConstraint('c', { kind: 'point-line-distance', pointId: 'a', lineId: 'L', distance: 5 })).toMatchObject({
+      type: 'p2l_distance', p_id: 'a', l_id: 'L', distance: 5, driving: true,
+    });
     expect(createConstraint('c', { kind: 'radius', targetId: 'C', radius: 7 })).toMatchObject({ type: 'circle_radius', c_id: 'C', radius: 7 });
     expect(createConstraint('c', { kind: 'radius', targetId: 'A', radius: 7, isArc: true })).toMatchObject({ type: 'arc_radius', a_id: 'A' });
     expect(createConstraint('c', { kind: 'equal', l1Id: 'a', l2Id: 'b' })).toMatchObject({ type: 'equal_length' });
@@ -65,7 +68,7 @@ describe('createConstraint — object shape', () => {
     expect(Object.keys(CONSTRAINT_ARITY).sort()).toEqual(
       [
         'angle', 'coincident', 'distance', 'equal', 'horizontal', 'horizontal-distance',
-        'parallel', 'perpendicular', 'radius', 'tangent', 'vertical', 'vertical-distance',
+        'parallel', 'perpendicular', 'point-line-distance', 'radius', 'tangent', 'vertical', 'vertical-distance',
       ],
     );
   });
@@ -99,6 +102,18 @@ describe('createConstraint — real planegcs solve', () => {
     const { status, byId } = await solve(prims, [createConstraint('c', { kind: 'distance', p1Id: 'a', p2Id: 'b', distance: 20 })]);
     expect(status).toBe(0);
     expect(dist(byId.a, byId.b)).toBeCloseTo(20, 4);
+  });
+
+  it('point-line-distance: enforces perpendicular distance from a point to a fixed line', async () => {
+    const prims = [
+      pt('l1', 0, 0, true), pt('l2', 10, 0, true), line('L', 'l1', 'l2'),
+      pt('p', 3, 2),
+    ];
+    const { status, byId } = await solve(prims, [
+      createConstraint('c', { kind: 'point-line-distance', pointId: 'p', lineId: 'L', distance: 15 }),
+    ]);
+    expect(status).toBe(0);
+    expect(Math.abs(byId.p.y)).toBeCloseTo(15, 4); // line is horizontal (y=0); perpendicular distance is |y|
   });
 
   it('horizontal-distance: enforces X separation while leaving Y free', async () => {

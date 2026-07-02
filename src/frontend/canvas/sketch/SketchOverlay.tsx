@@ -44,6 +44,7 @@ import {
 } from '@/cad/engine/sketch/sketchBoxSelection';
 import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors';
 import { ORIGIN_POINT_ID } from '@/cad/engine/sketch/originPoint';
+import type { ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 
 /**
  * No-op raycast: makes a mesh/line render but never be an intersection target.
@@ -209,6 +210,8 @@ export interface SketchOverlayProps {
   onBackgroundClick?: () => void;
   /** Exit sketch editing (Esc when no draw is in progress). */
   onExitSketch?: () => void;
+  /** Called when the Dimension tool completes a 2-point pick. */
+  onCreateConstraint?: (input: ConstraintInput) => void;
 }
 
 /**
@@ -221,6 +224,7 @@ export function SketchOverlay({
   onElementsChange,
   onBackgroundClick,
   onExitSketch,
+  onCreateConstraint,
 }: SketchOverlayProps) {
   const [currentPoints, setCurrentPoints] = useState<Point2D[]>([]);
   // Mirror of `currentPoints` for the pointer handlers to read. The handlers are
@@ -241,6 +245,20 @@ export function SketchOverlay({
     },
     []
   );
+  // Dimension tool: the first entity (point primitive or line element) picked,
+  // waiting for a second pick to complete the pair. Mirrored into a ref for the
+  // same reason as currentPointsRef — the point-handle onClick callbacks must
+  // stay stable across the first/second click.
+  type DimTarget = { id: string; kind: 'point' | 'line' };
+  const [pendingDimTarget, setPendingDimTargetState] = useState<DimTarget | null>(null);
+  const pendingDimTargetRef = useRef<DimTarget | null>(null);
+  const setPendingDimTarget = useCallback((target: DimTarget | null) => {
+    pendingDimTargetRef.current = target;
+    setPendingDimTargetState(target);
+  }, []);
+  // Entity (point primitive or line element id) currently under the cursor while
+  // in Dimension mode — drives hover highlighting in place of grid/origin snapping.
+  const [hoveredDimTargetId, setHoveredDimTargetId] = useState<string | null>(null);
   const [previewElement, setPreviewElement] = useState<SketchElement | null>(null);
   const [hoverPoint, setHoverPoint] = useState<Point2D | null>(null);
   const [snapPoint2D, setSnapPoint2D] = useState<Point2D | null>(null);
@@ -260,6 +278,18 @@ export function SketchOverlay({
   const selectedConstraintId = useViewportStore((s) => s.selectedConstraintId);
   const setSelectedConstraintId = useViewportStore((s) => s.setSelectedConstraintId);
   const selectedElementIds = useMemo(() => new Set(selectedSketchElementIds), [selectedSketchElementIds]);
+  // Plain click selects only this entity (replaces the current selection);
+  // Shift/Ctrl/Cmd-click toggles it into/out of a multi-selection (for constraints).
+  const selectOrToggle = useCallback(
+    (id: string, e: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => {
+      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+        toggleSketchElementSelection(id);
+      } else {
+        setSketchElementSelection([id]);
+      }
+    },
+    [toggleSketchElementSelection, setSketchElementSelection]
+  );
   // Badge placement for each constraint: a tiny square just above the constrained
   // entity's midpoint. Clicking a badge selects that constraint.
   const constraintIcons = useMemo(
@@ -313,7 +343,57 @@ export function SketchOverlay({
       clearSketchSelection();
       setHoveredElementId(null);
     }
-  }, [activeOperation, clearSketchSelection]);
+    if (activeOperation !== SketchOperation.DIMENSION) {
+      setPendingDimTarget(null);
+      setHoveredDimTargetId(null);
+      setHoverPoint(null);
+      setSnapPoint2D(null);
+      setOriginSnap(false);
+    }
+  }, [activeOperation, clearSketchSelection, setPendingDimTarget]);
+
+  /** Complete a Dimension-tool pick: arm the first entity, or (on the second
+   *  pick) create the appropriate distance constraint between it and this one.
+   *  point+point -> p2p_distance; point+line -> p2l_distance (perpendicular);
+   *  line+line -> unsupported (no such planegcs primitive). */
+  const handleDimensionPick = useCallback(
+    (id: string, kind: 'point' | 'line') => {
+      const armed = pendingDimTargetRef.current;
+      if (!armed) {
+        setPendingDimTarget({ id, kind });
+        return;
+      }
+      if (armed.id === id && armed.kind === kind) return; // same target again — no-op
+
+      if (armed.kind === 'point' && kind === 'point') {
+        const p1 = sketch.primitives?.find((p) => p.id === armed.id)?.data;
+        const p2 = sketch.primitives?.find((p) => p.id === id)?.data;
+        if (p1 && p2) {
+          onCreateConstraint?.({
+            kind: 'distance',
+            p1Id: armed.id,
+            p2Id: id,
+            distance: Math.hypot(p2.x - p1.x, p2.y - p1.y),
+          });
+        }
+      } else if (armed.kind === 'line' && kind === 'line') {
+        console.warn('Dimension tool: line-to-line distance is not supported (no planegcs primitive).');
+      } else {
+        const pointId = armed.kind === 'point' ? armed.id : id;
+        const lineId = armed.kind === 'line' ? armed.id : id;
+        const pointData = sketch.primitives?.find((p) => p.id === pointId)?.data;
+        const linePrim = sketch.primitives?.find((p) => p.id === lineId && p.type === 'line');
+        const lineStart = linePrim ? sketch.primitives?.find((p) => p.id === linePrim.data.p1_id)?.data : undefined;
+        const lineEnd = linePrim ? sketch.primitives?.find((p) => p.id === linePrim.data.p2_id)?.data : undefined;
+        if (pointData && lineStart && lineEnd) {
+          const { distance } = projectPointOntoLineSegment(pointData, lineStart, lineEnd);
+          onCreateConstraint?.({ kind: 'point-line-distance', pointId, lineId, distance });
+        }
+      }
+      setPendingDimTarget(null);
+    },
+    [sketch.primitives, onCreateConstraint, setPendingDimTarget]
+  );
 
   // Complete polygon (for polygon operation)
   const handleCompletePolygon = useCallback(() => {
@@ -362,7 +442,9 @@ export function SketchOverlay({
       // exit sketch mode entirely (falls back to clearing selection if the sketch
       // can't be exited for some reason).
       if (e.key === 'Escape') {
-        if (currentPointsRef.current.length > 0) {
+        if (pendingDimTargetRef.current) {
+          setPendingDimTarget(null);
+        } else if (currentPointsRef.current.length > 0) {
           setPoints([]);
           setPreviewElement(null);
         } else if (onExitSketch) {
@@ -394,7 +476,7 @@ export function SketchOverlay({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints, onExitSketch, setHoveredElementId, setSketchElementSelection]);
+  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints, onExitSketch, setHoveredElementId, setSketchElementSelection, setPendingDimTarget]);
 
   // Left-button rubber-band box / crossing selection of sketch entities — active
   // only in selection mode (no draw tool). The camera is on the middle button, so
@@ -723,11 +805,29 @@ export function SketchOverlay({
           }
         }
         if (nearestId) {
-          toggleSketchElementSelection(nearestId);
+          selectOrToggle(nearestId, event);
         } else {
           // Clear selection on empty click
           clearSketchSelection();
         }
+        return;
+      }
+
+      // Dimension mode: points are picked via their handle mesh onClick (which
+      // stopPropagation's before reaching here); this only handles clicking a
+      // line, since no dedicated line-handle mesh exists.
+      if (activeOperation === SketchOperation.DIMENSION) {
+        let nearestLineId: string | null = null;
+        let minDistance = hoverThreshold;
+        for (const el of sketch.elements) {
+          if (el.type !== SketchElementType.LINE) continue;
+          const d = getDistanceToElement(point2D, el);
+          if (d < minDistance) {
+            minDistance = d;
+            nearestLineId = el.id;
+          }
+        }
+        if (nearestLineId) handleDimensionPick(nearestLineId, 'line');
         return;
       }
 
@@ -972,7 +1072,7 @@ export function SketchOverlay({
           console.warn(`Operation ${activeOperation} not yet implemented`);
       }
     },
-    [activeOperation, sketch, onElementsChange, snapPoint, planeTransform, toggleSketchElementSelection, clearSketchSelection, setPoints]
+    [activeOperation, sketch, onElementsChange, snapPoint, planeTransform, selectOrToggle, clearSketchSelection, setPoints, handleDimensionPick]
   );
 
   // Handle mouse move for preview
@@ -1000,6 +1100,42 @@ export function SketchOverlay({
         });
 
         setHoveredElementId(nearestElement ? (nearestElement as SketchElement).id : null);
+        return;
+      }
+
+      // Dimension mode: highlight the nearest pickable entity (point primitive,
+      // else line) instead of grid/origin snapping — nothing can be placed here.
+      if (activeOperation === SketchOperation.DIMENSION) {
+        setPreviewElement(null);
+        setHoverPoint(null);
+        setSnapPoint2D(null);
+        setOriginSnap(false);
+
+        let nearestId: string | null = null;
+        let minDistance = snapDistance;
+        for (const p of sketch.primitives || []) {
+          if (p.type !== 'point' || p.isExternal || !p.data || typeof p.data.x !== 'number') continue;
+          const d = Math.hypot(p.data.x - point2D.x, p.data.y - point2D.y);
+          if (d < minDistance) {
+            minDistance = d;
+            nearestId = p.id;
+          }
+        }
+        const dOrigin = Math.hypot(point2D.x, point2D.y);
+        if (dOrigin < minDistance) nearestId = ORIGIN_POINT_ID;
+
+        if (!nearestId) {
+          let lineMinDistance = hoverThreshold;
+          for (const el of sketch.elements) {
+            if (el.type !== SketchElementType.LINE) continue;
+            const d = getDistanceToElement(point2D, el);
+            if (d < lineMinDistance) {
+              lineMinDistance = d;
+              nearestId = el.id;
+            }
+          }
+        }
+        setHoveredDimTargetId(nearestId);
         return;
       }
 
@@ -1176,8 +1312,12 @@ export function SketchOverlay({
           break;
       }
     },
-    [activeOperation, snapPoint, planeTransform, hoverThreshold, sketch.elements]
+    [activeOperation, snapPoint, planeTransform, hoverThreshold, snapDistance, sketch.elements, sketch.primitives]
   );
+
+  const originHighlighted = selectedElementIds.has(ORIGIN_POINT_ID)
+    || (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === ORIGIN_POINT_ID)
+    || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === ORIGIN_POINT_ID);
 
   return (
     <group matrix={planeTransform} matrixAutoUpdate={false}>
@@ -1233,29 +1373,35 @@ export function SketchOverlay({
       <mesh
         position={[0, 0, 0.03]}
         renderOrder={1001}
-        raycast={activeOperation ? NO_RAYCAST : undefined}
+        raycast={activeOperation && activeOperation !== SketchOperation.DIMENSION ? NO_RAYCAST : undefined}
         onClick={
-          activeOperation
+          activeOperation && activeOperation !== SketchOperation.DIMENSION
             ? undefined
             : (e) => {
                 e.stopPropagation();
-                toggleSketchElementSelection(ORIGIN_POINT_ID);
+                if (activeOperation === SketchOperation.DIMENSION) {
+                  handleDimensionPick(ORIGIN_POINT_ID, 'point');
+                } else {
+                  selectOrToggle(ORIGIN_POINT_ID, e);
+                }
               }
         }
       >
-        <circleGeometry args={[selectedElementIds.has(ORIGIN_POINT_ID) ? 2 : 1.5, 24]} />
+        <circleGeometry args={[originHighlighted ? 2 : 1.5, 24]} />
         <meshBasicMaterial
-          color={selectedElementIds.has(ORIGIN_POINT_ID) ? '#f97316' : '#ffffff'}
+          color={originHighlighted ? '#f97316' : '#ffffff'}
           transparent
-          opacity={selectedElementIds.has(ORIGIN_POINT_ID) ? 0.95 : 0.6}
+          opacity={originHighlighted ? 0.95 : 0.6}
           depthTest={false}
         />
       </mesh>
 
       {/* Render existing sketch elements */}
       {sketch.elements.map((element) => {
-        const isHovered = hoveredElementId === element.id;
-        const isSelected = selectedElementIds.has(element.id);
+        const isHovered = hoveredElementId === element.id
+          || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === element.id);
+        const isSelected = selectedElementIds.has(element.id)
+          || (activeOperation === SketchOperation.DIMENSION && pendingDimTarget?.kind === 'line' && pendingDimTarget.id === element.id);
         return (
           <SketchElementRenderer3D
             key={element.id}
@@ -1270,10 +1416,12 @@ export function SketchOverlay({
 
       {/* Endpoint/center handles for point-level selection (coincident/distance).
           Only in selection mode (no active drawing operation). */}
-      {!activeOperation && sketch.primitives
+      {(!activeOperation || activeOperation === SketchOperation.DIMENSION) && sketch.primitives
         ?.filter((p) => p.type === 'point' && !p.isExternal && p.data && typeof p.data.x === 'number')
         .map((p) => {
-          const isSel = selectedElementIds.has(p.id);
+          const isSel = selectedElementIds.has(p.id)
+            || (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === p.id)
+            || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === p.id);
           return (
             <mesh
               key={`handle-${p.id}`}
@@ -1281,7 +1429,11 @@ export function SketchOverlay({
               renderOrder={1002}
               onClick={(e) => {
                 e.stopPropagation();
-                toggleSketchElementSelection(p.id);
+                if (activeOperation === SketchOperation.DIMENSION) {
+                  handleDimensionPick(p.id, 'point');
+                } else {
+                  selectOrToggle(p.id, e);
+                }
               }}
             >
               <circleGeometry args={[isSel ? 1.6 : 1.1, 20]} />

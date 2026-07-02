@@ -16,6 +16,7 @@ export type ConstraintKind =
   | 'distance'
   | 'horizontal-distance'
   | 'vertical-distance'
+  | 'point-line-distance'
   | 'radius'
   | 'equal'
   | 'tangent'
@@ -31,6 +32,7 @@ export type ConstraintInput =
   | { kind: 'distance'; p1Id: string; p2Id: string; distance: number }
   | { kind: 'horizontal-distance'; p1Id: string; p2Id: string; distance: number }
   | { kind: 'vertical-distance'; p1Id: string; p2Id: string; distance: number }
+  | { kind: 'point-line-distance'; pointId: string; lineId: string; distance: number }
   | { kind: 'radius'; targetId: string; radius: number; isArc?: boolean }
   | { kind: 'equal'; l1Id: string; l2Id: string }
   | { kind: 'tangent'; lineId: string; circleId: string }
@@ -84,6 +86,9 @@ export function createConstraint(id: string, input: ConstraintInput): PlanegcsCo
         driving: true,
       };
 
+    case 'point-line-distance':
+      return { id, type: 'p2l_distance', p_id: input.pointId, l_id: input.lineId, distance: input.distance, driving: true };
+
     case 'radius':
       return input.isArc
         ? { id, type: 'arc_radius', a_id: input.targetId, radius: input.radius, driving: true }
@@ -116,6 +121,7 @@ export const CONSTRAINT_ARITY: Record<ConstraintKind, number> = {
   distance: 2,
   'horizontal-distance': 2,
   'vertical-distance': 2,
+  'point-line-distance': 2,
   radius: 1,
   equal: 2,
   tangent: 2,

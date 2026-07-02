@@ -91,30 +91,152 @@ function resolveSuffix(el: SketchElement, suffix: string): Point2D | null {
   return null;
 }
 
+/** The source element a primitive sub-id (`elId`, `elId_p2`, `elId_l1`, …) belongs to. */
+function ownerElement(id: string, elements: SketchElement[]): SketchElement | null {
+  const exact = elements.find((e) => e.id === id);
+  if (exact) return exact;
+  return (
+    elements
+      .filter((e) => id.startsWith(`${e.id}_`))
+      .sort((a, b) => b.id.length - a.id.length)[0] ?? null
+  );
+}
+
 /** Resolve any primitive id used in a constraint to a point on its source element. */
 export function resolveEntityPoint(id: string, elements: SketchElement[]): Point2D | null {
   const exact = elements.find((e) => e.id === id);
   if (exact) return elementCenter(exact);
 
-  // Longest element-id prefix wins (ids are `${elementId}_${suffix}`).
-  const owner = elements
-    .filter((e) => id.startsWith(`${e.id}_`))
-    .sort((a, b) => b.id.length - a.id.length)[0];
+  const owner = ownerElement(id, elements);
   if (!owner) return null;
   return resolveSuffix(owner, id.slice(owner.id.length + 1));
 }
 
-/** Average of the points referenced by a constraint's `*_id` fields (its anchor). */
+interface ResolvedEdge {
+  dir: Point2D;
+  mid: Point2D;
+  /** Center of the multi-edge shape this edge belongs to, for picking the
+   *  outward-facing perpendicular (rectangles/polygons have edges running in
+   *  all directions, so "rotate 90°" alone can point inward). Undefined for a
+   *  standalone line, where either side is equally valid. */
+  shapeCenter?: Point2D;
+}
+
+/** The straight edge a primitive sub-id refers to (whole line or one
+ *  rectangle/polygon edge), used to offset badges perpendicular to the entity
+ *  instead of always "up" — a vertical line's badge should sit beside it, not
+ *  further up the line. */
+function resolveEdge(id: string, elements: SketchElement[]): ResolvedEdge | null {
+  const exact = elements.find((e) => e.id === id);
+  if (exact?.type === SketchElementType.LINE) {
+    return { dir: sub(exact.end, exact.start), mid: mid(exact.start, exact.end) };
+  }
+
+  const owner = elements
+    .filter((e) => id.startsWith(`${e.id}_`))
+    .sort((a, b) => b.id.length - a.id.length)[0];
+  if (!owner) return null;
+  const suffix = id.slice(owner.id.length + 1);
+
+  if (owner.type === SketchElementType.LINE) {
+    if (suffix === 'p1' || suffix === 'p2') return { dir: sub(owner.end, owner.start), mid: mid(owner.start, owner.end) };
+    return null;
+  }
+  if (owner.type === SketchElementType.RECTANGLE) {
+    const corners = rectCorners(owner);
+    const lm = suffix.match(/^l([1-4])$/);
+    if (lm) {
+      const i = Number(lm[1]) - 1;
+      const a = corners[i];
+      const b = corners[(i + 1) % 4];
+      return { dir: sub(b, a), mid: mid(a, b), shapeCenter: elementCenter(owner) ?? undefined };
+    }
+  }
+  if (owner.type === SketchElementType.POLYGON) {
+    const lm = suffix.match(/^l(\d+)$/);
+    if (lm) {
+      const i = Number(lm[1]);
+      const a = owner.points[i];
+      const b = owner.points[(i + 1) % owner.points.length];
+      return a && b ? { dir: sub(b, a), mid: mid(a, b), shapeCenter: elementCenter(owner) ?? undefined } : null;
+    }
+  }
+  return null;
+}
+
+const sub = (a: Point2D, b: Point2D): Point2D => ({ x: a.x - b.x, y: a.y - b.y });
+
+/** Primitive ids a constraint references — direct `*_id` fields (`l_id`, `p1_id`, …)
+ *  plus the nested `o_id` planegcs uses inside `param1`/`param2` for `difference`
+ *  (horizontal/vertical-distance) constraints, which otherwise resolve no entity at all. */
+function referencedIds(constraint: Record<string, any>): string[] {
+  const ids: string[] = [];
+  for (const [key, value] of Object.entries(constraint)) {
+    if (key.endsWith('_id') && typeof value === 'string') ids.push(value);
+    else if (value && typeof value === 'object' && typeof value.o_id === 'string') ids.push(value.o_id);
+  }
+  return ids;
+}
+
+/** Unit vector perpendicular to `dir`, flipped to face away from `shapeCenter`
+ *  (when given) so a shape's edges all offset outward instead of alternating
+ *  in/out depending on winding. */
+function outwardPerp(dir: Point2D, edgeMid: Point2D, shapeCenter?: Point2D): Point2D | null {
+  const l = Math.hypot(dir.x, dir.y);
+  if (l === 0) return null;
+  let perp: Point2D = { x: -dir.y / l, y: dir.x / l };
+  if (shapeCenter) {
+    const outward = sub(edgeMid, shapeCenter);
+    if (perp.x * outward.x + perp.y * outward.y < 0) perp = { x: -perp.x, y: -perp.y };
+  }
+  return perp;
+}
+
+/** Unit vector perpendicular to the constrained entity's edge — facing outward
+ *  from the shape when the edge belongs to one — or straight up `(0, 1)` when
+ *  no single straight edge can be resolved (e.g. a circle). */
+export function badgeOffsetDirection(constraint: Record<string, any>, elements: SketchElement[]): Point2D {
+  const ids = referencedIds(constraint);
+
+  // A distance-style constraint referencing exactly two points (e.g. a p2p_distance
+  // dimensioning a rectangle's edge by its corner points, `R_p1`/`R_p4`) has no
+  // dedicated edge sub-id (`R_l4`) to look up — resolveEdge below only recognizes
+  // the canonical `l1..l4`/`li` edge suffixes. Derive the direction straight from
+  // the two points themselves instead, which works regardless of how they're named.
+  if (ids.length === 2) {
+    const [a, b] = ids.map((id) => resolveEntityPoint(id, elements));
+    if (a && b) {
+      const ownerA = ownerElement(ids[0], elements);
+      const ownerB = ownerElement(ids[1], elements);
+      const sharedMultiEdgeOwner =
+        ownerA && ownerA === ownerB
+        && (ownerA.type === SketchElementType.RECTANGLE || ownerA.type === SketchElementType.POLYGON)
+          ? (elementCenter(ownerA) ?? undefined)
+          : undefined;
+      const perp = outwardPerp(sub(b, a), mid(a, b), sharedMultiEdgeOwner);
+      if (perp) return perp;
+    }
+  }
+
+  for (const id of ids) {
+    const edge = resolveEdge(id, elements);
+    if (edge) {
+      const perp = outwardPerp(edge.dir, edge.mid, edge.shapeCenter);
+      if (perp) return perp;
+    }
+  }
+  return { x: 0, y: 1 };
+}
+
+/** Average of the points referenced by a constraint (its anchor). */
 export function constraintAnchor(
   constraint: Record<string, any>,
   elements: SketchElement[]
 ): Point2D | null {
   const points: Point2D[] = [];
-  for (const [key, value] of Object.entries(constraint)) {
-    if (key.endsWith('_id') && typeof value === 'string') {
-      const p = resolveEntityPoint(value, elements);
-      if (p) points.push(p);
-    }
+  for (const id of referencedIds(constraint)) {
+    const p = resolveEntityPoint(id, elements);
+    if (p) points.push(p);
   }
   if (points.length === 0) return null;
   return {
@@ -131,10 +253,12 @@ export interface ConstraintIconPlacement {
 }
 
 /**
- * Placement for each constraint's badge: slightly above its entity midpoint.
- * Constraints sharing an anchor (e.g. several relations on one edge) are stacked
- * upward by `spacing` so their squares don't overlap. Constraints whose entities
- * can't be resolved (e.g. a deleted element) are dropped.
+ * Placement for each constraint's badge: offset from its entity midpoint, perpendicular
+ * to the entity (so a vertical line's badge sits beside it, not further up the line).
+ * Constraints sharing an anchor (e.g. several relations on one edge) stack in a vertical
+ * column centered on that offset point — same `x`, evenly spread `y` — so a group of
+ * badges reads as a clean list beside its entity instead of drifting diagonally.
+ * Constraints whose entities can't be resolved (e.g. a deleted element) are dropped.
  */
 export function constraintIconPlacements(
   constraints: Array<Record<string, any>>,
@@ -142,16 +266,33 @@ export function constraintIconPlacements(
   opts: { offset?: number; spacing?: number } = {}
 ): ConstraintIconPlacement[] {
   const { offset = 3, spacing = 3 } = opts;
-  const stack = new Map<string, number>();
-  const out: ConstraintIconPlacement[] = [];
+  const groups = new Map<string, { id: string; type: string; base: Point2D }[]>();
 
   for (const c of constraints) {
     const anchor = constraintAnchor(c, elements);
     if (!anchor || typeof c.id !== 'string') continue;
+    const dir = badgeOffsetDirection(c, elements);
+    const base = { x: anchor.x + dir.x * offset, y: anchor.y + dir.y * offset };
     const key = `${Math.round(anchor.x)},${Math.round(anchor.y)}`;
-    const idx = stack.get(key) ?? 0;
-    stack.set(key, idx + 1);
-    out.push({ id: c.id, type: String(c.type), x: anchor.x, y: anchor.y + offset + idx * spacing });
+    const group = groups.get(key) ?? [];
+    group.push({ id: c.id, type: String(c.type), base });
+    groups.set(key, group);
+  }
+
+  const placementById = new Map<string, ConstraintIconPlacement>();
+  for (const group of groups.values()) {
+    const n = group.length;
+    // Stack straight up/down, centered on the (perpendicular) base offset point, so
+    // every badge in the group shares the same x — never a diagonal drift.
+    group.forEach((item, i) => {
+      const y = item.base.y + spacing * (i - (n - 1) / 2);
+      placementById.set(item.id, { id: item.id, type: item.type, x: item.base.x, y });
+    });
+  }
+
+  const out: ConstraintIconPlacement[] = [];
+  for (const c of constraints) {
+    if (typeof c.id === 'string' && placementById.has(c.id)) out.push(placementById.get(c.id)!);
   }
 
   return out;

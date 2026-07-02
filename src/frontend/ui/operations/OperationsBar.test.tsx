@@ -43,9 +43,29 @@ describe("OperationsBar — sketch tab", () => {
     expect(circle).toHaveStyle({ width: "116px" });
     expect(polygon).toHaveStyle({ width: "116px" });
 
-    // The only big (72px) button on the sketch tab is the Sketch button itself.
+    // The only big (72px) buttons on the sketch tab are Sketch and Dimension.
     const sketch = screen.getByRole("button", { name: "Sketch" });
     expect(sketch).toHaveStyle({ width: "72px" });
+    const dimension = screen.getByRole("button", { name: "Dimension" });
+    expect(dimension).toHaveStyle({ width: "72px" });
+  });
+
+  it("Dimension button is disabled until a sketch is active, then selects DIMENSION", async () => {
+    const onOperationSelect = vi.fn();
+    const { rerender } = renderWithProviders(
+      <OperationsBar {...defaultProps} onOperationSelect={onOperationSelect} />,
+    );
+
+    expect(screen.getByRole("button", { name: "Dimension" })).toBeDisabled();
+
+    rerender(
+      <OperationsBar {...defaultProps} activeSketchId="s1" onOperationSelect={onOperationSelect} />,
+    );
+
+    const dimension = screen.getByRole("button", { name: "Dimension" });
+    expect(dimension).toBeEnabled();
+    await userEvent.click(dimension);
+    expect(onOperationSelect).toHaveBeenCalledWith(SketchOperation.DIMENSION);
   });
 
   it("selects the operation when a stacked group body is clicked", async () => {

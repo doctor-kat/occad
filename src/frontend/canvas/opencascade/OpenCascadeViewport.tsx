@@ -9,6 +9,7 @@ import { Scene } from "./Scene";
 import { SelectionDisplay } from "./SelectionDisplay";
 import { LoadingOverlay } from "./LoadingOverlay";
 import { ErrorOverlay } from "./ErrorOverlay";
+import type { ConstraintInput } from "@/cad/engine/sketch/constraintFactory";
 
 export interface OpenCascadeViewportProps {
   /** CAD project to render (if provided, enables parametric mode) */
@@ -54,6 +55,8 @@ export interface OpenCascadeViewportProps {
   /** Callback when sketch editing is cancelled */
   onCancelSketch?: () => void;
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
+  onCreateConstraint?: (input: ConstraintInput) => void;
+  onUpdateLabelOffset?: (constraintId: string, offset: { x: number; y: number }) => void;
 }
 
 import { SketchRenderer } from '../sketch/SketchRenderer'; // New import
@@ -80,7 +83,9 @@ export function OpenCascadeViewport({
   onUpdateSketch,
   onFinishSketch,
   onCancelSketch,
-  onUpdateConstraintValue
+  onUpdateConstraintValue,
+  onCreateConstraint,
+  onUpdateLabelOffset
 }: OpenCascadeViewportProps) {
   // Get viewport interaction state from store
   const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
@@ -142,11 +147,13 @@ export function OpenCascadeViewport({
             onBackgroundClick={onBackgroundClick}
             onUpdateSketch={onUpdateSketch}
             onExitSketch={onCancelSketch}
+            onCreateConstraint={onCreateConstraint}
           />
           {activeSketch && (
-            <SketchRenderer 
-              sketch={activeSketch as Sketch} 
+            <SketchRenderer
+              sketch={activeSketch as Sketch}
               onUpdateConstraintValue={onUpdateConstraintValue}
+              onUpdateLabelOffset={onUpdateLabelOffset}
             />
           )} {/* Render SketchRenderer when activeSketch is present */}
         </Suspense>
