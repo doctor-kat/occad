@@ -30,6 +30,7 @@ export interface CADViewportProps {
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
   onCreateConstraint?: (input: ConstraintInput) => void;
   onUpdateLabelOffset?: (constraintId: string, offset: { x: number; y: number }) => void;
+  onToggleArrowFlip?: (constraintId: string, arrow: 'arrow1' | 'arrow2') => void;
 }
 
 /**
@@ -62,6 +63,7 @@ export function CADViewport({
   onUpdateConstraintValue,
   onCreateConstraint,
   onUpdateLabelOffset,
+  onToggleArrowFlip,
 }: CADViewportProps) {
   // Find the active sketch
   const activeSketch = activeSketchId
@@ -95,6 +97,7 @@ export function CADViewport({
       onUpdateConstraintValue={onUpdateConstraintValue}
       onCreateConstraint={onCreateConstraint}
       onUpdateLabelOffset={onUpdateLabelOffset}
+      onToggleArrowFlip={onToggleArrowFlip}
     />
   );
 }

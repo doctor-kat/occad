@@ -57,6 +57,7 @@ export interface OpenCascadeViewportProps {
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
   onCreateConstraint?: (input: ConstraintInput) => void;
   onUpdateLabelOffset?: (constraintId: string, offset: { x: number; y: number }) => void;
+  onToggleArrowFlip?: (constraintId: string, arrow: 'arrow1' | 'arrow2') => void;
 }
 
 import { SketchRenderer } from '../sketch/SketchRenderer'; // New import
@@ -85,7 +86,8 @@ export function OpenCascadeViewport({
   onCancelSketch,
   onUpdateConstraintValue,
   onCreateConstraint,
-  onUpdateLabelOffset
+  onUpdateLabelOffset,
+  onToggleArrowFlip
 }: OpenCascadeViewportProps) {
   // Get viewport interaction state from store
   const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
@@ -154,6 +156,7 @@ export function OpenCascadeViewport({
               sketch={activeSketch as Sketch}
               onUpdateConstraintValue={onUpdateConstraintValue}
               onUpdateLabelOffset={onUpdateLabelOffset}
+              onToggleArrowFlip={onToggleArrowFlip}
             />
           )} {/* Render SketchRenderer when activeSketch is present */}
         </Suspense>

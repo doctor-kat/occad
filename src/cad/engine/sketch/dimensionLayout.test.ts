@@ -69,3 +69,38 @@ describe('axisDimensionLayout', () => {
     expect(dist(layout.dimLine[0], layout.dimLine[1])).toBeCloseTo(10);
   });
 });
+
+describe('arrow flip', () => {
+  it('defaults to arrows pointing inward, toward each other', () => {
+    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 });
+    // arrow1's tip is at dimLine[0], and its wings trail toward smaller x — i.e. the
+    // chevron opens toward dimLine[1] (rightward, into the dimension). Flipping it
+    // should mirror that: wings trail toward larger x instead.
+    expect(layout.arrow1[0].x).toBeLessThan(layout.dimLine[0].x);
+    expect(layout.arrow2[0].x).toBeGreaterThan(layout.dimLine[1].x);
+  });
+
+  it('flips arrow1 to point outward independently of arrow2', () => {
+    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 }, { arrow1: true });
+    // Tip stays anchored at the same witness point; only the chevron direction mirrors.
+    expect(layout.arrow1[1]).toEqual(layout.dimLine[0]);
+    expect(layout.arrow1[0].x).toBeGreaterThan(layout.dimLine[0].x);
+    expect(layout.arrow1[2].x).toBeGreaterThan(layout.dimLine[0].x);
+    // arrow2 is untouched.
+    expect(layout.arrow2[0].x).toBeGreaterThan(layout.dimLine[1].x);
+  });
+
+  it('flips arrow2 to point outward independently of arrow1', () => {
+    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 }, { arrow2: true });
+    expect(layout.arrow2[1]).toEqual(layout.dimLine[1]);
+    expect(layout.arrow2[0].x).toBeLessThan(layout.dimLine[1].x);
+    expect(layout.arrow2[2].x).toBeLessThan(layout.dimLine[1].x);
+    expect(layout.arrow1[0].x).toBeLessThan(layout.dimLine[0].x); // untouched
+  });
+
+  it('flips both arrows to point fully outward', () => {
+    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 }, { arrow1: true, arrow2: true });
+    expect(layout.arrow1[0].x).toBeGreaterThan(layout.dimLine[0].x);
+    expect(layout.arrow2[0].x).toBeLessThan(layout.dimLine[1].x);
+  });
+});

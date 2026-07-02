@@ -135,6 +135,39 @@ describe('SketchRenderer', () => {
     expect(renderer.scene.findAllByType('Mesh').find((m) => m.instance.userData.text === '10.00')).toBeDefined();
   });
 
+  it('clicking an arrowhead reports which one via onToggleArrowFlip, and visualMetadata.arrowFlip flips its direction', async () => {
+    const constraint = { id: 'c1', type: 'p2p_distance', p1_id: 'p1', p2_id: 'p2', distance: 10 };
+    const onToggleArrowFlip = vi.fn();
+    const renderer = await ReactThreeTestRenderer.create(
+      <SketchRenderer
+        sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint])}
+        onToggleArrowFlip={onToggleArrowFlip}
+      />
+    );
+    // Arrow hit-targets are the two CircleGeometry meshes (the label hit-area is a
+    // PlaneGeometry); order matches arrow1 then arrow2.
+    const arrowHits = renderer.scene.findAllByType('Mesh').filter((m) => m.instance.geometry.type === 'CircleGeometry');
+    expect(arrowHits).toHaveLength(2);
+
+    await renderer.fireEvent(arrowHits[0], 'click');
+    expect(onToggleArrowFlip).toHaveBeenCalledWith('c1', 'arrow1');
+
+    await renderer.fireEvent(arrowHits[1], 'click');
+    expect(onToggleArrowFlip).toHaveBeenCalledWith('c1', 'arrow2');
+
+    // With arrow1 flipped via visualMetadata, its chevron should mirror to point
+    // outward (wings trail toward larger x instead of smaller x).
+    const flipped = await ReactThreeTestRenderer.create(
+      <SketchRenderer
+        sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint], { c1: { isDriving: false, arrowFlip: { arrow1: true } } })}
+      />
+    );
+    const lines = flipped.scene.findAllByType('Line');
+    // ext1, ext2, dimLine, arrow1, arrow2 — arrow1 is index 3.
+    const arrow1Points = lines[3].instance.geometry.attributes.position.array;
+    expect(arrow1Points[0]).toBeGreaterThan(arrow1Points[3]); // wing[0].x > tip.x now (flipped)
+  });
+
   it('renders a p2l_distance dimension (previously silently rendered nothing)', async () => {
     const constraint = { id: 'c1', type: 'p2l_distance', p_id: 'p', l_id: 'L', distance: 8 };
     const renderer = await ReactThreeTestRenderer.create(

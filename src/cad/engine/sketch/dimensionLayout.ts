@@ -16,6 +16,13 @@ export interface DimensionLayout {
   arrow2: [Point2D, Point2D, Point2D];
 }
 
+/** Per-arrowhead override: flip that arrow to point outward (away from the
+ *  dimension's interior) instead of the default inward. */
+export interface ArrowFlip {
+  arrow1?: boolean;
+  arrow2?: boolean;
+}
+
 /** How far an extension line overshoots past the dimension line (typical CAD look). */
 const EXT_OVERSHOOT = 2;
 const ARROW_LENGTH = 1.5;
@@ -49,7 +56,9 @@ function perpOffset(p1: Point2D, p2: Point2D, offset: Point2D): Point2D {
   return scale(n, dist);
 }
 
-function fromShiftedEndpoints(p1: Point2D, p2: Point2D, d1: Point2D, d2: Point2D, overshootDir: Point2D): DimensionLayout {
+function fromShiftedEndpoints(
+  p1: Point2D, p2: Point2D, d1: Point2D, d2: Point2D, overshootDir: Point2D, flip: ArrowFlip = {},
+): DimensionLayout {
   const overshoot = scale(overshootDir, EXT_OVERSHOOT);
   const dir = normalize(sub(d2, d1));
   return {
@@ -57,16 +66,16 @@ function fromShiftedEndpoints(p1: Point2D, p2: Point2D, d1: Point2D, d2: Point2D
     ext2: [p2, add(d2, overshoot)],
     dimLine: [d1, d2],
     labelPos: scale(add(d1, d2), 0.5),
-    arrow1: arrowAt(d1, dir),
-    arrow2: arrowAt(d2, scale(dir, -1)),
+    arrow1: arrowAt(d1, flip.arrow1 ? scale(dir, -1) : dir),
+    arrow2: arrowAt(d2, flip.arrow2 ? dir : scale(dir, -1)),
   };
 }
 
 /** Point-to-point distance dimension: extension lines perpendicular to p1->p2. */
-export function pointPointDimensionLayout(p1: Point2D, p2: Point2D, offset: Point2D): DimensionLayout {
+export function pointPointDimensionLayout(p1: Point2D, p2: Point2D, offset: Point2D, flip: ArrowFlip = {}): DimensionLayout {
   const shift = perpOffset(p1, p2, offset);
   const overshootDir = len(shift) === 0 ? perp(normalize(sub(p2, p1))) : normalize(shift);
-  return fromShiftedEndpoints(p1, p2, add(p1, shift), add(p2, shift), overshootDir);
+  return fromShiftedEndpoints(p1, p2, add(p1, shift), add(p2, shift), overshootDir, flip);
 }
 
 /** Foot of the perpendicular from `point` onto the infinite line through lineStart/lineEnd. */
@@ -78,21 +87,25 @@ function footOfPerpendicular(point: Point2D, lineStart: Point2D, lineEnd: Point2
 
 /** Point-to-line perpendicular distance dimension: reduces to point-point against
  *  the foot of the perpendicular, since that segment IS the shortest distance. */
-export function pointLineDimensionLayout(point: Point2D, lineStart: Point2D, lineEnd: Point2D, offset: Point2D): DimensionLayout {
-  return pointPointDimensionLayout(point, footOfPerpendicular(point, lineStart, lineEnd), offset);
+export function pointLineDimensionLayout(
+  point: Point2D, lineStart: Point2D, lineEnd: Point2D, offset: Point2D, flip: ArrowFlip = {},
+): DimensionLayout {
+  return pointPointDimensionLayout(point, footOfPerpendicular(point, lineStart, lineEnd), offset, flip);
 }
 
 /** Axis-aligned (horizontal/vertical) dimension: extension lines run along the
  *  OTHER axis out to a dimension line parallel to `axis`. */
-export function axisDimensionLayout(p1: Point2D, p2: Point2D, axis: 'x' | 'y', offset: Point2D): DimensionLayout {
+export function axisDimensionLayout(
+  p1: Point2D, p2: Point2D, axis: 'x' | 'y', offset: Point2D, flip: ArrowFlip = {},
+): DimensionLayout {
   if (axis === 'x') {
     const dimY = p1.y + offset.y;
     const d1: Point2D = { x: p1.x, y: dimY };
     const d2: Point2D = { x: p2.x, y: dimY };
-    return fromShiftedEndpoints(p1, p2, d1, d2, { x: 0, y: Math.sign(offset.y) || 1 });
+    return fromShiftedEndpoints(p1, p2, d1, d2, { x: 0, y: Math.sign(offset.y) || 1 }, flip);
   }
   const dimX = p1.x + offset.x;
   const d1: Point2D = { x: dimX, y: p1.y };
   const d2: Point2D = { x: dimX, y: p2.y };
-  return fromShiftedEndpoints(p1, p2, d1, d2, { x: Math.sign(offset.x) || 1, y: 0 });
+  return fromShiftedEndpoints(p1, p2, d1, d2, { x: Math.sign(offset.x) || 1, y: 0 }, flip);
 }

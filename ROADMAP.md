@@ -446,6 +446,23 @@ the tree/entity-list shows the group as an expandable folder.
     owning shape's center, when the two points share one), instead of requiring a pre-named edge sub-id at all. This
     also covers polygon edges dimensioned by their corner points, not just rectangles. Tests: `constraintAnchors.test.ts`
     (+1: left- and right-edge corner-point dimensions both offset outward).
+19. ✅ **Added: click an arrowhead to flip it between inward and outward (2026-07-02).** Standard CAD dimension
+    convention — `›|------|‹` flips to `|‹---→|` (or fully to `|‹---→‹|` per arrow) when a dimension is too tight
+    for both arrowheads to sit inside the witness lines. Each arrowhead flips independently, click by click:
+    - `dimensionLayout.ts`: `pointPointDimensionLayout`/`pointLineDimensionLayout`/`axisDimensionLayout` all take an
+      optional `ArrowFlip` (`{ arrow1?, arrow2? }`); the chevron for a flipped arrow mirrors 180° about its tip
+      (`arrowAt(tip, flip ? -inward : inward)`), so the tip stays anchored at the witness line and only the
+      direction it points changes.
+    - `SketchRenderer.tsx`: each `DimensionAnnotation` renders an invisible `CircleGeometry` click target
+      (`ARROW_HIT_RADIUS`) centered on each arrow's tip, wired to a new `onToggleArrow1`/`onToggleArrow2` pair;
+      the flip state itself reads from `sketch.visualMetadata[constraintId].arrowFlip`, same storage pattern as
+      the existing drag-to-reposition `labelOffset`.
+    - New `SketchVisualMetadata.arrowFlip` field, and a `handleToggleArrowFlip` in `CADLayout.tsx` (mirrors
+      `handleUpdateLabelOffset`) threaded down through `CADViewport` → `OpenCascadeViewport` → `SketchRenderer` as
+      `onToggleArrowFlip`. Pure display metadata — no re-solve needed, same as label dragging.
+    - Tests: `dimensionLayout.test.ts` (+4: default inward direction, each arrow flips independently, both flip
+      together), `SketchRenderer.test.tsx` (+1: clicking each arrow's hit target reports the right one via
+      `onToggleArrowFlip`, and `visualMetadata.arrowFlip` actually mirrors the rendered chevron).
 
 ---
 
