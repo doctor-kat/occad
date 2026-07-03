@@ -491,6 +491,14 @@ the tree/entity-list shows the group as an expandable folder.
     boolean. Tests: `dimensionLayout.test.ts` (collapsed the three independent-flip tests into one "both flip
     together" test), `SketchRenderer.test.tsx` (clicking either arrow reports the same toggle; setting `arrowFlip:
     true` mirrors both chevrons, not just one).
+23. ✅ **Added: a gap in the dimension line around the value label, so it doesn't run through the text (2026-07-02).**
+    `DimensionLayout` gained `dimLineSegments: [[Point2D,Point2D],[Point2D,Point2D]]` — `dimLine` split into two
+    pieces symmetric around `labelPos`, each stopping `LABEL_GAP_HALF` (3 units) short, clamped to shrink (not
+    invert) for a dimension shorter than the gap width. `dimLine` itself is untouched (still anchors the arrows, the
+    drag midpoint, and existing tests) — only the *rendered* line in `SketchRenderer.tsx` now draws the two segments
+    instead of one continuous line. Tests: `dimensionLayout.test.ts` (+2: segments leave a real, centered gap; a
+    short dimension shrinks rather than inverts), `SketchRenderer.test.tsx` (Line-count assertions bumped by one
+    per dimension for the extra segment).
 
 ---
 

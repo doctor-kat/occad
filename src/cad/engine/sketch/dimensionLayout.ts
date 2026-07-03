@@ -9,7 +9,14 @@ import type { Point2D } from '@/cad/types';
 export interface DimensionLayout {
   ext1: [Point2D, Point2D];
   ext2: [Point2D, Point2D];
+  /** Full dimension line from arrow tip to arrow tip — kept intact (not gapped) since
+   *  it anchors the arrows, the drag midpoint, and existing consumers/tests. */
   dimLine: [Point2D, Point2D];
+  /** `dimLine` split into two segments around `labelPos`, so drawing them (instead of
+   *  `dimLine` itself) leaves a gap for the value text instead of running through it.
+   *  Collapses toward two touching segments (no visible gap) rather than inverting
+   *  when the dimension is shorter than the gap. */
+  dimLineSegments: [[Point2D, Point2D], [Point2D, Point2D]];
   labelPos: Point2D;
   /** 3-point chevron (wing, tip, wing) — draw as a polyline. */
   arrow1: [Point2D, Point2D, Point2D];
@@ -20,6 +27,9 @@ export interface DimensionLayout {
 const EXT_OVERSHOOT = 2;
 const ARROW_LENGTH = 1.5;
 const ARROW_SPREAD = Math.PI / 8; // 22.5°
+/** Half-width of the gap left in the dimension line for the value label — roughly
+ *  matches the label's rendered width for a short (2-3 digit) value at its font size. */
+const LABEL_GAP_HALF = 3;
 
 const sub = (a: Point2D, b: Point2D): Point2D => ({ x: a.x - b.x, y: a.y - b.y });
 const add = (a: Point2D, b: Point2D): Point2D => ({ x: a.x + b.x, y: a.y + b.y });
@@ -42,6 +52,17 @@ function arrowAt(tip: Point2D, inward: Point2D): [Point2D, Point2D, Point2D] {
   return [add(tip, rotate(back, ARROW_SPREAD)), tip, add(tip, rotate(back, -ARROW_SPREAD))];
 }
 
+/** Split [d1, d2] into two segments leaving a `LABEL_GAP_HALF`-wide gap centered on
+ *  the midpoint, clamped so short dimension lines shrink the gap rather than invert. */
+function dimLineSegments(d1: Point2D, d2: Point2D): [[Point2D, Point2D], [Point2D, Point2D]] {
+  const dir = normalize(sub(d2, d1));
+  const half = Math.min(LABEL_GAP_HALF, len(sub(d2, d1)) / 2);
+  const mid = scale(add(d1, d2), 0.5);
+  const gapStart = sub(mid, scale(dir, half));
+  const gapEnd = add(mid, scale(dir, half));
+  return [[d1, gapStart], [gapEnd, d2]];
+}
+
 /** Component of `offset` perpendicular to the p1->p2 direction. */
 function perpOffset(p1: Point2D, p2: Point2D, offset: Point2D): Point2D {
   const n = perp(normalize(sub(p2, p1)));
@@ -61,6 +82,7 @@ function fromShiftedEndpoints(
     ext1: [p1, add(d1, overshoot)],
     ext2: [p2, add(d2, overshoot)],
     dimLine: [d1, d2],
+    dimLineSegments: dimLineSegments(d1, d2),
     labelPos: scale(add(d1, d2), 0.5),
     arrow1: arrowAt(d1, flip ? scale(dir, -1) : dir),
     arrow2: arrowAt(d2, flip ? dir : scale(dir, -1)),

@@ -134,8 +134,8 @@ describe('SketchRenderer', () => {
         sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint])}
       />
     );
-    // 2 extension lines + 1 dimension line + 2 arrows = 5 Line instances for the dimension.
-    expect(renderer.scene.findAllByType('Line')).toHaveLength(5);
+    // 2 extension lines + 2 dimension-line segments (gapped around the label) + 2 arrows = 6.
+    expect(renderer.scene.findAllByType('Line')).toHaveLength(6);
     expect(renderer.scene.findAllByType('Mesh').find((m) => m.instance.userData.text === '10.00')).toBeDefined();
   });
 
@@ -168,9 +168,10 @@ describe('SketchRenderer', () => {
       />
     );
     const lines = flipped.scene.findAllByType('Line');
-    // ext1, ext2, dimLine, arrow1, arrow2 — arrow1 is index 3, arrow2 is index 4.
-    const arrow1Points = lines[3].instance.geometry.attributes.position.array;
-    const arrow2Points = lines[4].instance.geometry.attributes.position.array;
+    // ext1, ext2, dimLine segment 1, dimLine segment 2, arrow1, arrow2 — arrow1 is
+    // index 4, arrow2 is index 5.
+    const arrow1Points = lines[4].instance.geometry.attributes.position.array;
+    const arrow2Points = lines[5].instance.geometry.attributes.position.array;
     expect(arrow1Points[0]).toBeGreaterThan(arrow1Points[3]); // wing[0].x > tip.x now (flipped)
     expect(arrow2Points[0]).toBeLessThan(arrow2Points[3]); // wing[0].x < tip.x now (flipped)
   });
@@ -186,8 +187,8 @@ describe('SketchRenderer', () => {
         )}
       />
     );
-    // 1 for the referenced line primitive itself + 5 for the dimension annotation.
-    expect(renderer.scene.findAllByType('Line')).toHaveLength(6);
+    // 1 for the referenced line primitive itself + 6 for the dimension annotation.
+    expect(renderer.scene.findAllByType('Line')).toHaveLength(7);
     expect(renderer.scene.findAllByType('Mesh').find((m) => m.instance.userData.text === '8.00')).toBeDefined();
   });
 
@@ -196,7 +197,7 @@ describe('SketchRenderer', () => {
     const renderer = await ReactThreeTestRenderer.create(
       <SketchRenderer sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 5)], 1, [constraint])} />
     );
-    expect(renderer.scene.findAllByType('Line')).toHaveLength(5);
+    expect(renderer.scene.findAllByType('Line')).toHaveLength(6);
     expect(renderer.scene.findAllByType('Mesh').find((m) => m.instance.userData.text === '10.00')).toBeDefined();
   });
 

@@ -19,6 +19,25 @@ describe('pointPointDimensionLayout', () => {
     expect(layout.labelPos).toEqual({ x: 5, y: 5 });
   });
 
+  it('splits the dimension line into two segments leaving a gap around the label, for a dimension long enough to fit one', () => {
+    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 });
+    const [seg1, seg2] = layout.dimLineSegments;
+    expect(seg1[0]).toEqual(layout.dimLine[0]); // starts at the same place the old single line did
+    expect(seg2[1]).toEqual(layout.dimLine[1]); // ends at the same place
+    // A real gap: segment 1 ends strictly before the label, segment 2 starts strictly after.
+    expect(seg1[1].x).toBeLessThan(layout.labelPos.x);
+    expect(seg2[0].x).toBeGreaterThan(layout.labelPos.x);
+    // Symmetric around the label.
+    expect(layout.labelPos.x - seg1[1].x).toBeCloseTo(seg2[0].x - layout.labelPos.x);
+  });
+
+  it('shrinks the gap (does not invert the segments) for a dimension shorter than the gap width', () => {
+    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 5 });
+    const [seg1, seg2] = layout.dimLineSegments;
+    // Still ordered correctly — segment 1's end must not overshoot past segment 2's start.
+    expect(seg1[1].x).toBeLessThanOrEqual(seg2[0].x);
+  });
+
   it('extension lines start at the original points', () => {
     const p1 = { x: 0, y: 0 };
     const p2 = { x: 10, y: 0 };

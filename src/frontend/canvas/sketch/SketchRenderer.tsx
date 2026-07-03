@@ -72,7 +72,10 @@ function DimensionAnnotation({
     <group>
       <NativePolyline points={[v3(layout.ext1[0]), v3(layout.ext1[1])]} color="#64748b" opacity={0.6} />
       <NativePolyline points={[v3(layout.ext2[0]), v3(layout.ext2[1])]} color="#64748b" opacity={0.6} />
-      <NativePolyline points={[v3(layout.dimLine[0]), v3(layout.dimLine[1])]} color={lineColor} />
+      {/* Two segments with a gap around the label, instead of one line running
+          through the value text. */}
+      <NativePolyline points={[v3(layout.dimLineSegments[0][0]), v3(layout.dimLineSegments[0][1])]} color={lineColor} />
+      <NativePolyline points={[v3(layout.dimLineSegments[1][0]), v3(layout.dimLineSegments[1][1])]} color={lineColor} />
       <NativePolyline points={layout.arrow1.map(v3)} color={lineColor} />
       <NativePolyline points={layout.arrow2.map(v3)} color={lineColor} />
       {/* Invisible click targets over each arrowhead — clicking either one flips
