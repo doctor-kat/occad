@@ -1047,6 +1047,42 @@ pass — flagged for whoever tackles the next overlapping-gesture case). Also ad
 `.claude/settings.local.json` hook: `/code-review` + `/verify` run automatically after every
 `git commit` in this repo.
 
+_Also 2026-07-03 — ran `/simplify the entire repo` (same 4-agent review, scoped to the whole `src/`
+tree instead of a diff). Applied only mechanical, test-verified fixes: extracted `src/cad/engine/sketch/vec2.ts`
+(shared `add`/`sub`/`scale`/`dot`/`mid`/`length`/`normalize`/`perp`) to replace identical one-line
+vector helpers duplicated across `dimensionLayout.ts`, `sketchShapeBuilders.ts`, and
+`constraintAnchors.ts`; collapsed `SketchRenderer.tsx`'s three near-identical p2p/p2l/difference
+`DimensionAnnotation` JSX blocks into one `renderDimension` helper; merged `CADLayout.tsx`'s
+`handleUpdateLabelOffset`/`handleToggleArrowFlip` into a shared `patchVisualMetadata`, and its two
+separate `activeSketch` IIFE lookups into one derived value; moved `ConstraintKind`/`ConstraintInput`
+out of the engine layer into `src/cad/types` (the only layer other layers may import from),
+re-exported from `constraintFactory.ts` for existing callers; hoisted `ReferencePlanes.tsx`'s shared
+plane-outline/crosshair `BufferGeometry` to module scope (was rebuilt 3x/render) and `useCallback`'d
+its click/hover handlers. Verified with `bun run build` + full test suite (453/453) after each step.
+
+**Flagged but deliberately not touched** — each needs its own pass with real e2e/browser
+verification, not a blind mechanical edit, because the mocked OCC unit tests wouldn't catch a
+regression (see "Gotchas" above) or the change reaches into interaction behavior:
+- **Constraint-solver pipeline runs in the UI layer** (`CADLayout.tsx`: `mapElementsToPrimitives`,
+  `inferAutoConstraints`, `createConstraint`, etc.) instead of behind `src/worker/bridge` — a real
+  layering violation per this file's own architecture doc, but moving solver logic into the worker
+  is a substantial, behavior-sensitive change.
+- **`viewportStore.ts` special-case flags** (`draggingDimensionLabel`, and structurally-identical
+  `pendingSketchOnFace`/`extrudePreview`) are three independent "something is happening on the
+  canvas" slots where a generalized `interactionMode` union would scale better as more gestures
+  are added.
+- **`operations.ts`'s `handleRebuild`** re-implements extrude/revolve construction already in
+  `handleExtrudeSketch`/`handleRevolveSketch`, and separately re-derives boss-vs-cut behavior by
+  re-testing `feature.type` rather than carrying an `isCut` flag from where the shape was built —
+  both are core rebuild-path changes that need e2e coverage, not just unit tests, to touch safely.
+- **`OCCModel.tsx`'s per-edge hover cylinders and highlight-geometry rebuild** are unmemoized and
+  recompute on every hover/selection change — real perf cost, but this is the central viewport
+  selection-rendering path and needs interactive browser verification before changing, per this
+  project's own "3D model changes require tests" rule.
+- **Selection/hover color logic duplicated across ~8 canvas components** with hardcoded hex that
+  drifts from the actual Mantine theme palette — a real design-system gap, but consolidating it is
+  a visual-design decision, not a mechanical dedup.
+
 _Last updated: 2026-06-30 — evaluated replacing the OCC kernel with CadQuery/OCP and decided
 **against** it (§9): same OCCT kernel, no client-side runtime, and we already beat CadQuery on
 constraints. Captured three kernel-staying improvements it surfaced — selector system (§9.1),
