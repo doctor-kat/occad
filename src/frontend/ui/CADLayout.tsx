@@ -13,7 +13,7 @@ import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Grou
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { FeatureTreeIcon, EntitiesIcon } from '@/frontend/shared/icons';
-import type { SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
+import type { Sketch, SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
@@ -96,6 +96,10 @@ export function CADLayout() {
     setItemError,
     clearAllItemErrors,
   } = useCADState();
+
+  // The currently-edited sketch, if any — looked up once and reused wherever the
+  // active sketch's data (not just its id) is needed.
+  const activeSketch = activeSketchId ? project.sketches.find((s) => s.id === activeSketchId) : undefined;
 
   // Viewport interaction state (from Zustand store)
   const pendingSketchOnFace = useViewportStore((state) => state.pendingSketchOnFace);
@@ -753,24 +757,12 @@ export function CADLayout() {
     }
   };
 
-  // Handle dragging a dimension label — pure display metadata, no re-solve needed.
-  const handleUpdateLabelOffset = (constraintId: string, offset: { x: number; y: number }) => {
-    if (!activeSketchId) return;
-    const sketch = project.sketches.find((s) => s.id === activeSketchId);
-    if (!sketch) return;
-    const updatedSketch = {
-      ...sketch,
-      visualMetadata: {
-        ...sketch.visualMetadata,
-        [constraintId]: { ...sketch.visualMetadata[constraintId], labelOffset: offset },
-      },
-    };
-    updateSketchState(activeSketchId, updatedSketch);
-  };
-
-  // Handle clicking a dimension's arrowhead — flips both arrows together between
-  // pointing inward (default) and outward. Pure display metadata, no re-solve needed.
-  const handleToggleArrowFlip = (constraintId: string) => {
+  // Pure display-metadata update (no re-solve needed) shared by the dimension-label-drag
+  // and arrow-flip handlers, which otherwise differed only in what patch they applied.
+  const patchVisualMetadata = (
+    constraintId: string,
+    patch: (meta: Sketch['visualMetadata'][string] | undefined) => Partial<Sketch['visualMetadata'][string]>,
+  ) => {
     if (!activeSketchId) return;
     const sketch = project.sketches.find((s) => s.id === activeSketchId);
     if (!sketch) return;
@@ -779,11 +771,20 @@ export function CADLayout() {
       ...sketch,
       visualMetadata: {
         ...sketch.visualMetadata,
-        [constraintId]: { ...meta, arrowFlip: !meta?.arrowFlip },
+        [constraintId]: { ...meta, ...patch(meta) },
       },
     };
     updateSketchState(activeSketchId, updatedSketch);
   };
+
+  // Handle dragging a dimension label.
+  const handleUpdateLabelOffset = (constraintId: string, offset: { x: number; y: number }) =>
+    patchVisualMetadata(constraintId, () => ({ labelOffset: offset }));
+
+  // Handle clicking a dimension's arrowhead — flips both arrows together between
+  // pointing inward (default) and outward.
+  const handleToggleArrowFlip = (constraintId: string) =>
+    patchVisualMetadata(constraintId, (meta) => ({ arrowFlip: !meta?.arrowFlip }));
 
   return (
     <AppShell
@@ -994,15 +995,12 @@ export function CADLayout() {
                           </Tooltip>
                         </Stack>
                       ) : activeSketchId ? (
-                        (() => {
-                          const activeSketch = project.sketches.find((s) => s.id === activeSketchId);
-                          return activeSketch ? (
-                            <SketchEntitiesPanel
-                              sketch={activeSketch}
-                              onRemoveElement={handleRemoveSketchElement}
-                            />
-                          ) : null;
-                        })()
+                        activeSketch ? (
+                          <SketchEntitiesPanel
+                            sketch={activeSketch}
+                            onRemoveElement={handleRemoveSketchElement}
+                          />
+                        ) : null
                       ) : (
                         <EntitiesPanel
                           mesh={occMesh}
@@ -1063,15 +1061,12 @@ export function CADLayout() {
             onUpdateLabelOffset={handleUpdateLabelOffset}
             onToggleArrowFlip={handleToggleArrowFlip}
           />
-          {activeSketchId && (() => {
-            const activeSketch = project.sketches.find((s) => s.id === activeSketchId);
-            return activeSketch ? (
-              <>
-                <SketchConstraintToolbar sketch={activeSketch} onApply={handleApplyConstraint} />
-                <SketchConstraintList sketch={activeSketch} onRemove={handleRemoveConstraint} />
-              </>
-            ) : null;
-          })()}
+          {activeSketchId && activeSketch && (
+            <>
+              <SketchConstraintToolbar sketch={activeSketch} onApply={handleApplyConstraint} />
+              <SketchConstraintList sketch={activeSketch} onRemove={handleRemoveConstraint} />
+            </>
+          )}
         </Box>
       </AppShell.Main>
     </AppShell>

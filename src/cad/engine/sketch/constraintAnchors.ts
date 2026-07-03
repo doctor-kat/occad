@@ -1,5 +1,6 @@
 import type { Point2D, SketchElement } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
+import { sub, mid } from './vec2';
 
 /**
  * Screen anchors for constraint badges. Each sketch constraint (a planegcs object
@@ -43,8 +44,6 @@ function elementCenter(el: SketchElement): Point2D | null {
       return null;
   }
 }
-
-const mid = (a: Point2D, b: Point2D): Point2D => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 
 /** The four corners of a rectangle, in the same order mapElementsToPrimitives mints p1..p4. */
 function rectCorners(el: Extract<SketchElement, { type: SketchElementType.RECTANGLE }>): Point2D[] {
@@ -163,8 +162,6 @@ function resolveEdge(id: string, elements: SketchElement[]): ResolvedEdge | null
   }
   return null;
 }
-
-const sub = (a: Point2D, b: Point2D): Point2D => ({ x: a.x - b.x, y: a.y - b.y });
 
 /** Primitive ids a constraint references — direct `*_id` fields (`l_id`, `p1_id`, …)
  *  plus the nested `o_id` planegcs uses inside `param1`/`param2` for `difference`

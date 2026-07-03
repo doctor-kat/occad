@@ -317,6 +317,34 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
     }
   });
 
+  // Renders a dimension's shared JSX — only the layout/value/prompt-copy/mid2d differ
+  // per constraint type (p2p_distance, p2l_distance, difference).
+  const renderDimension = (
+    constraintId: string,
+    layout: DimensionLayout,
+    dimColor: string,
+    value: number,
+    mid2d: Point2D,
+    promptLabel: string,
+  ) => (
+    <DimensionAnnotation
+      isSelected={isHighlighted(constraintId)}
+      key={constraintId}
+      layout={layout}
+      workplane={workplane}
+      color={dimColor}
+      value={value}
+      onDragStart={startDrag(constraintId, mid2d)}
+      onToggleArrows={toggleArrowFlip(constraintId)}
+      onDoubleClick={() => {
+        const newValue = prompt(promptLabel, value);
+        if (newValue !== null && onUpdateConstraintValue) {
+          onUpdateConstraintValue(constraintId, parseFloat(newValue));
+        }
+      }}
+    />
+  );
+
   // Render annotations (dimensions, etc.)
   const renderAnnotations = constraints.map((constraint) => {
     const meta = visualMetadata[constraint.id];
@@ -335,24 +363,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
       const offset = labelOffsetFor(constraint.id, outwardPerpUnit(p1Data, p2Data, mid2d));
       const layout = pointPointDimensionLayout(p1Data, p2Data, offset, arrowFlipFor(constraint.id));
 
-      return (
-        <DimensionAnnotation
-          isSelected={isHighlighted(constraint.id)}
-          key={constraint.id}
-          layout={layout}
-          workplane={workplane}
-          color={dimColor}
-          value={constraint.distance}
-          onDragStart={startDrag(constraint.id, mid2d)}
-          onToggleArrows={toggleArrowFlip(constraint.id)}
-          onDoubleClick={() => {
-            const newValue = prompt("Enter distance:", constraint.distance);
-            if (newValue !== null && onUpdateConstraintValue) {
-              onUpdateConstraintValue(constraint.id, parseFloat(newValue));
-            }
-          }}
-        />
-      );
+      return renderDimension(constraint.id, layout, dimColor, constraint.distance, mid2d, "Enter distance:");
     }
 
     if (constraint.type === 'p2l_distance') {
@@ -367,24 +378,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
       const layout = pointLineDimensionLayout(pointData, lineStart, lineEnd, offset, arrowFlipFor(constraint.id));
       const mid2d = { x: (layout.dimLine[0].x + layout.dimLine[1].x) / 2, y: (layout.dimLine[0].y + layout.dimLine[1].y) / 2 };
 
-      return (
-        <DimensionAnnotation
-          isSelected={isHighlighted(constraint.id)}
-          key={constraint.id}
-          layout={layout}
-          workplane={workplane}
-          color={dimColor}
-          value={constraint.distance}
-          onDragStart={startDrag(constraint.id, mid2d)}
-          onToggleArrows={toggleArrowFlip(constraint.id)}
-          onDoubleClick={() => {
-            const newValue = prompt("Enter distance:", constraint.distance);
-            if (newValue !== null && onUpdateConstraintValue) {
-              onUpdateConstraintValue(constraint.id, parseFloat(newValue));
-            }
-          }}
-        />
-      );
+      return renderDimension(constraint.id, layout, dimColor, constraint.distance, mid2d, "Enter distance:");
     }
 
     if (constraint.type === 'difference') {
@@ -404,24 +398,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
       const offset = labelOffsetFor(constraint.id, defaultDir);
       const layout = axisDimensionLayout(p1Data, p2Data, axis, offset, arrowFlipFor(constraint.id));
 
-      return (
-        <DimensionAnnotation
-          isSelected={isHighlighted(constraint.id)}
-          key={constraint.id}
-          layout={layout}
-          workplane={workplane}
-          color={dimColor}
-          value={constraint.difference}
-          onDragStart={startDrag(constraint.id, mid2d)}
-          onToggleArrows={toggleArrowFlip(constraint.id)}
-          onDoubleClick={() => {
-            const newValue = prompt('Enter distance:', constraint.difference);
-            if (newValue !== null && onUpdateConstraintValue) {
-              onUpdateConstraintValue(constraint.id, parseFloat(newValue));
-            }
-          }}
-        />
-      );
+      return renderDimension(constraint.id, layout, dimColor, constraint.difference, mid2d, "Enter distance:");
     }
 
     if (constraint.type === 'parallel' || constraint.type === 'perpendicular' || constraint.type === 'tangent') {

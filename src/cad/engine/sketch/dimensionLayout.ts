@@ -1,4 +1,5 @@
 import type { Point2D } from '@/cad/types';
+import { add, sub, scale, length as len, normalize, perp } from './vec2';
 
 /**
  * Pure 2D geometry for rendering a CAD-style dimension: two extension (witness)
@@ -31,15 +32,6 @@ const ARROW_SPREAD = Math.PI / 8; // 22.5°
  *  matches the label's rendered width for a short (2-3 digit) value at its font size. */
 const LABEL_GAP_HALF = 3;
 
-const sub = (a: Point2D, b: Point2D): Point2D => ({ x: a.x - b.x, y: a.y - b.y });
-const add = (a: Point2D, b: Point2D): Point2D => ({ x: a.x + b.x, y: a.y + b.y });
-const scale = (a: Point2D, s: number): Point2D => ({ x: a.x * s, y: a.y * s });
-const len = (a: Point2D): number => Math.hypot(a.x, a.y);
-const normalize = (a: Point2D): Point2D => {
-  const l = len(a);
-  return l === 0 ? { x: 0, y: 0 } : { x: a.x / l, y: a.y / l };
-};
-const perp = (a: Point2D): Point2D => ({ x: -a.y, y: a.x });
 const rotate = (a: Point2D, theta: number): Point2D => {
   const c = Math.cos(theta);
   const s = Math.sin(theta);

@@ -21,6 +21,7 @@ export * from './sketch/SketchPlane/PlaneType';
 export * from './sketch/SketchPlane/SketchPlane';
 export * from './sketch/Sketch';
 export * from './sketch/SketchEdgeData';
+export * from './sketch/ConstraintInput';
 
 // Operations
 export * from './operations/ExtrudeParams';

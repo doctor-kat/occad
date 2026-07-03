@@ -1,4 +1,5 @@
 import type { Point2D } from '@/cad/types';
+import { add, sub, scale, dot, perp, normalize } from './vec2';
 
 /**
  * Pure geometry for the sketch line/rectangle variants. Each helper maps the raw
@@ -9,17 +10,6 @@ import type { Point2D } from '@/cad/types';
  * by an axis-aligned {@link SketchRectangle} (corner1/corner2), so they're emitted
  * as 4-point polygons.
  */
-
-const sub = (a: Point2D, b: Point2D): Point2D => ({ x: a.x - b.x, y: a.y - b.y });
-const add = (a: Point2D, b: Point2D): Point2D => ({ x: a.x + b.x, y: a.y + b.y });
-const scale = (a: Point2D, s: number): Point2D => ({ x: a.x * s, y: a.y * s });
-const dot = (a: Point2D, b: Point2D): number => a.x * b.x + a.y * b.y;
-/** 90° CCW perpendicular. */
-const perp = (a: Point2D): Point2D => ({ x: -a.y, y: a.x });
-const normalize = (a: Point2D): Point2D => {
-  const len = Math.hypot(a.x, a.y);
-  return len === 0 ? { x: 0, y: 0 } : { x: a.x / len, y: a.y / len };
-};
 
 /**
  * Midpoint line: the first click is the line's midpoint, the second is an endpoint;

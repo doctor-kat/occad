@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import * as THREE from "three";
 import { ThreeEvent } from "@react-three/fiber";
 import { Text as Text3D } from "@react-three/drei";
@@ -76,24 +77,53 @@ export function createPlaneCrosshair(planeSize = PLANE_SIZE): THREE.BufferGeomet
   return geometry;
 }
 
+/**
+ * Build the square outline shared by all three reference planes (all use `PLANE_SIZE`).
+ */
+function createPlaneEdges(planeSize = PLANE_SIZE): THREE.BufferGeometry {
+  const halfSize = planeSize / 2;
+  const geometry = new THREE.BufferGeometry();
+  const vertices = new Float32Array([
+    // Four corners making a square outline
+    -halfSize, -halfSize, 0,
+    halfSize, -halfSize, 0,
+
+    halfSize, -halfSize, 0,
+    halfSize, halfSize, 0,
+
+    halfSize, halfSize, 0,
+    -halfSize, halfSize, 0,
+
+    -halfSize, halfSize, 0,
+    -halfSize, -halfSize, 0,
+  ]);
+  geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  return geometry;
+}
+
+// All three planes share the same size, so their outline/crosshair geometry is
+// identical — built once at module scope instead of 3x per render.
+const sharedPlaneEdgesGeometry = createPlaneEdges();
+const sharedCrosshairGeometry = createPlaneCrosshair();
+
 export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap, showAllPlanes, onPlaneClick, onPlaneHover }: ReferencePlanesProps) {
   const planeSize = PLANE_SIZE;
 
-  const handlePlaneClick = (e: ThreeEvent<MouseEvent>, planeId: string) => {
+  const handlePlaneClick = useCallback((e: ThreeEvent<MouseEvent>, planeId: string) => {
     e.stopPropagation();
     onPlaneClick?.(planeId);
-  };
+  }, [onPlaneClick]);
 
-  const handlePlaneOver = (e: ThreeEvent<PointerEvent>, planeId: string) => {
+  const handlePlaneOver = useCallback((e: ThreeEvent<PointerEvent>, planeId: string) => {
     e.stopPropagation();
     onPlaneHover?.(planeId);
-  };
+  }, [onPlaneHover]);
 
-  const handlePlaneOut = (e: ThreeEvent<PointerEvent>, planeId: string) => {
+  const handlePlaneOut = useCallback((e: ThreeEvent<PointerEvent>, planeId: string) => {
     e.stopPropagation();
     // Only clear if we're still the hovered plane (avoids races between planes)
     if (hoveredPlaneId === planeId) onPlaneHover?.(null);
-  };
+  }, [hoveredPlaneId, onPlaneHover]);
 
   // Get color for plane outline
   const getPlaneColor = (planeId: string) => {
@@ -121,35 +151,13 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
   const planeVisible = (planeId: string) =>
     isPlaneVisible(planeId, { selectedPlaneId, hoveredPlaneId, visibilityMap, showAllPlanes });
 
-  // Create plane outline edges
-  const createPlaneEdges = () => {
-    const halfSize = planeSize / 2;
-    const geometry = new THREE.BufferGeometry();
-    const vertices = new Float32Array([
-      // Four corners making a square outline
-      -halfSize, -halfSize, 0,
-      halfSize, -halfSize, 0,
-
-      halfSize, -halfSize, 0,
-      halfSize, halfSize, 0,
-
-      halfSize, halfSize, 0,
-      -halfSize, halfSize, 0,
-
-      -halfSize, halfSize, 0,
-      -halfSize, -halfSize, 0,
-    ]);
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    return geometry;
-  };
-
   return (
     <group>
       {/* Front Plane (XY plane at Z=0) - Outline only */}
       {planeVisible('front-plane') && (
         <group>
           {/* Plane outline */}
-          <lineSegments geometry={createPlaneEdges()} position={[0, 0, 0]} renderOrder={planeRenderOrder('front-plane')}>
+          <lineSegments geometry={sharedPlaneEdgesGeometry} position={[0, 0, 0]} renderOrder={planeRenderOrder('front-plane')}>
             <lineBasicMaterial
               color={getPlaneColor('front-plane')}
               linewidth={2}
@@ -158,7 +166,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
             />
           </lineSegments>
           {/* Dashed crosshair through the origin */}
-          <lineSegments geometry={createPlaneCrosshair()} position={[0, 0, 0]} renderOrder={planeRenderOrder('front-plane')}>
+          <lineSegments geometry={sharedCrosshairGeometry} position={[0, 0, 0]} renderOrder={planeRenderOrder('front-plane')}>
             <lineDashedMaterial
               color={getCrosshairColor('front-plane')}
               dashSize={0.5}
@@ -196,7 +204,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
         <group>
           {/* Plane outline */}
           <lineSegments
-            geometry={createPlaneEdges()}
+            geometry={sharedPlaneEdgesGeometry}
             position={[0, 0, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
             renderOrder={planeRenderOrder('top-plane')}
@@ -210,7 +218,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
           </lineSegments>
           {/* Dashed crosshair through the origin */}
           <lineSegments
-            geometry={createPlaneCrosshair()}
+            geometry={sharedCrosshairGeometry}
             position={[0, 0, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
             renderOrder={planeRenderOrder('top-plane')}
@@ -254,7 +262,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
         <group>
           {/* Plane outline */}
           <lineSegments
-            geometry={createPlaneEdges()}
+            geometry={sharedPlaneEdgesGeometry}
             position={[0, 0, 0]}
             rotation={[0, Math.PI / 2, 0]}
             renderOrder={planeRenderOrder('right-plane')}
@@ -268,7 +276,7 @@ export function ReferencePlanes({ selectedPlaneId, hoveredPlaneId, visibilityMap
           </lineSegments>
           {/* Dashed crosshair through the origin */}
           <lineSegments
-            geometry={createPlaneCrosshair()}
+            geometry={sharedCrosshairGeometry}
             position={[0, 0, 0]}
             rotation={[0, Math.PI / 2, 0]}
             renderOrder={planeRenderOrder('right-plane')}
