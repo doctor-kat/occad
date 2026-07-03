@@ -20,6 +20,9 @@ interface ViewportState {
   /** Sketch constraint currently selected (via its viewport icon or list row). */
   selectedConstraintId: string | null;
 
+  /** Sketch constraint currently hovered (via its viewport icon or list row). */
+  hoveredConstraintId: string | null;
+
   /**
    * Live rubber-band rectangle for sketch box-select, in canvas-local CSS px.
    * `mode` is 'window' (drag right → fully enclosed) or 'crossing' (drag left →
@@ -64,6 +67,7 @@ interface ViewportState {
   setHoveredSketchElementId: (id: string | null) => void;
   setSketchSelectionBox: (box: ViewportState['sketchSelectionBox']) => void;
   setSelectedConstraintId: (id: string | null) => void;
+  setHoveredConstraintId: (id: string | null) => void;
   setDraggingDimensionLabel: (dragging: boolean) => void;
   clearSelection: () => void;
   clearHover: () => void;
@@ -80,6 +84,7 @@ export const useViewportStore = create<ViewportState>((set) => ({
   selectedSketchElementIds: [],
   hoveredSketchElementId: null,
   selectedConstraintId: null,
+  hoveredConstraintId: null,
   sketchSelectionBox: null,
   draggingDimensionLabel: false,
   pendingSketchOnFace: null,
@@ -101,10 +106,11 @@ export const useViewportStore = create<ViewportState>((set) => ({
       : [...state.selectedSketchElementIds, id],
   })),
   setSketchElementSelection: (ids) => set({ selectedSketchElementIds: ids }),
-  clearSketchSelection: () => set({ selectedSketchElementIds: [], selectedConstraintId: null }),
+  clearSketchSelection: () => set({ selectedSketchElementIds: [], selectedConstraintId: null, hoveredConstraintId: null }),
   setHoveredSketchElementId: (id) => set({ hoveredSketchElementId: id }),
   setSketchSelectionBox: (box) => set({ sketchSelectionBox: box }),
   setSelectedConstraintId: (id) => set({ selectedConstraintId: id }),
+  setHoveredConstraintId: (id) => set({ hoveredConstraintId: id }),
   setDraggingDimensionLabel: (dragging) => set({ draggingDimensionLabel: dragging }),
 
   clearSelection: () => set({
@@ -114,6 +120,7 @@ export const useViewportStore = create<ViewportState>((set) => ({
     selectedSketchElementIds: [],
     hoveredSketchElementId: null,
     selectedConstraintId: null,
+    hoveredConstraintId: null,
   }),
 
   clearHover: () => set({

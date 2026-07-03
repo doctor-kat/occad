@@ -40,6 +40,8 @@ export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListP
   const theme = useMantineTheme();
   const selectedConstraintId = useViewportStore((s) => s.selectedConstraintId);
   const setSelectedConstraintId = useViewportStore((s) => s.setSelectedConstraintId);
+  const hoveredConstraintId = useViewportStore((s) => s.hoveredConstraintId);
+  const setHoveredConstraintId = useViewportStore((s) => s.setHoveredConstraintId);
   const constraints = sketch.constraints || [];
   if (constraints.length === 0) return null;
 
@@ -69,6 +71,7 @@ export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListP
       <Stack gap={2}>
         {constraints.map((c: any) => {
           const isSel = selectedConstraintId === c.id;
+          const isHovered = hoveredConstraintId === c.id;
           return (
           <Group
             key={c.id}
@@ -77,16 +80,29 @@ export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListP
             wrap="nowrap"
             data-testid={`constraint-row-${c.id}`}
             data-selected={isSel}
+            data-hovered={isHovered}
             onClick={() => setSelectedConstraintId(isSel ? null : c.id)}
+            onMouseEnter={() => setHoveredConstraintId(c.id)}
+            onMouseLeave={() => setHoveredConstraintId(null)}
             style={{
               cursor: 'pointer',
               borderRadius: theme.radius.sm,
               padding: '2px 4px',
-              backgroundColor: isSel ? `${theme.colors.orange[5]}26` : 'transparent',
-              border: `1px solid ${isSel ? `${theme.colors.orange[5]}66` : 'transparent'}`,
+              backgroundColor: isSel
+                ? `${theme.colors.orange[5]}26`
+                : isHovered
+                  ? `${theme.colors.cyan[5]}26`
+                  : 'transparent',
+              border: `1px solid ${
+                isSel ? `${theme.colors.orange[5]}66` : isHovered ? `${theme.colors.cyan[5]}66` : 'transparent'
+              }`,
             }}
           >
-            <Text size="xs" c={theme.other.colors.foreground} truncate>
+            <Text
+              size="xs"
+              c={isHovered && !isSel ? theme.colors.cyan[4] : theme.other.colors.foreground}
+              truncate
+            >
               {constraintLabel(c)}
             </Text>
             <Tooltip label="Delete constraint" position="left" withArrow>

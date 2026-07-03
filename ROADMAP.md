@@ -850,8 +850,13 @@ component exists for the in-sketch toolbar/overlay, see §1.2, but is not yet re
 > badge, and a delete (X). Rows are two-way wired to the viewport via `viewportStore`: clicking toggles the
 > entity in `selectedSketchElementIds` (so the box/crossing selection shows here too); hovering sets the new
 > shared `hoveredSketchElementId`, which `SketchOverlay` now reads for its hover highlight (replacing local
-> hover state). Tests: `SketchEntitiesPanel.test.tsx` (7). **Still planned:** relocate the constraint list
-> into the sidebar and wire its hover to the overlay.
+> hover state). Tests: `SketchEntitiesPanel.test.tsx` (7).
+
+> **Done (2026-07-03) — constraint list ↔ viewport hover sync.** `SketchConstraintList` rows and
+> `SketchOverlay`'s constraint badges now share `viewportStore.hoveredConstraintId` two-way: hovering a row
+> highlights the badge (cyan hover fill) in the viewport, and hovering a badge highlights its row (cyan
+> tint + label color), mirroring the existing `selectedConstraintId` pattern. **Still planned:** relocate
+> the constraint list itself into the sidebar (it currently renders near the in-sketch toolbar/overlay).
 
 ### Target behavior
 

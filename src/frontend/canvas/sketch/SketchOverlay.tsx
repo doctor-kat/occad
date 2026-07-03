@@ -276,6 +276,8 @@ export function SketchOverlay({
   const clearSketchSelection = useViewportStore((s) => s.clearSketchSelection);
   const setSketchSelectionBox = useViewportStore((s) => s.setSketchSelectionBox);
   const selectedConstraintId = useViewportStore((s) => s.selectedConstraintId);
+  const hoveredConstraintId = useViewportStore((s) => s.hoveredConstraintId);
+  const setHoveredConstraintId = useViewportStore((s) => s.setHoveredConstraintId);
   const setSelectedConstraintId = useViewportStore((s) => s.setSelectedConstraintId);
   const selectedElementIds = useMemo(() => new Set(selectedSketchElementIds), [selectedSketchElementIds]);
   // Plain click selects only this entity (replaces the current selection);
@@ -1452,6 +1454,7 @@ export function SketchOverlay({
           constraint. Selection mode only, so they don't interfere with drawing. */}
       {!activeOperation && constraintIcons.map((icon) => {
         const isSel = selectedConstraintId === icon.id;
+        const isHovered = hoveredConstraintId === icon.id;
         const Icon = CONSTRAINT_ICONS[icon.type] ?? DotsThree;
         return (
           <Html
@@ -1463,19 +1466,22 @@ export function SketchOverlay({
           >
             <div
               data-testid={`constraint-badge-${icon.id}`}
+              data-hovered={isHovered}
               title={icon.type}
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedConstraintId(isSel ? null : icon.id);
               }}
+              onMouseEnter={() => setHoveredConstraintId(icon.id)}
+              onMouseLeave={() => setHoveredConstraintId(null)}
               style={{
                 width: 18,
                 height: 18,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: isSel ? '#f97316' : '#22d3ee',
-                border: `1.5px solid ${isSel ? '#fdba74' : '#0e7490'}`,
+                background: isSel ? '#f97316' : isHovered ? '#67e8f9' : '#22d3ee',
+                border: `1.5px solid ${isSel ? '#fdba74' : isHovered ? '#22d3ee' : '#0e7490'}`,
                 borderRadius: 4,
                 boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
                 cursor: 'pointer',
