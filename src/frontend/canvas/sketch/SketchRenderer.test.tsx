@@ -255,4 +255,22 @@ describe('SketchRenderer', () => {
 
     expect(useViewportStore.getState().selectedConstraintId).toBe(null);
   });
+
+  it('sets viewportStore.draggingDimensionLabel while a label drag is in progress, so SketchOverlay box-select can bail out', async () => {
+    const constraint = { id: 'c1', type: 'p2p_distance', p1_id: 'p1', p2_id: 'p2', distance: 10 };
+    const renderer = await ReactThreeTestRenderer.create(
+      <SketchRenderer sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint])} />
+    );
+    const dragHitMesh = renderer.scene
+      .findAllByType('Mesh')
+      .find((m) => m.instance.geometry.type === 'PlaneGeometry')!;
+
+    expect(useViewportStore.getState().draggingDimensionLabel).toBe(false);
+    await renderer.fireEvent(dragHitMesh, 'pointerDown', { clientX: 100, clientY: 100 });
+    expect(useViewportStore.getState().draggingDimensionLabel).toBe(true);
+
+    window.dispatchEvent(new MouseEvent('pointerup', { clientX: 100, clientY: 100 }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(useViewportStore.getState().draggingDimensionLabel).toBe(false);
+  });
 });

@@ -510,6 +510,10 @@ export function SketchOverlay({
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0) return;            // left button only
       if (activeOperationRef.current) return; // a draw tool owns the left button
+      // A dimension label/arrowhead drag owns this gesture instead — r3f dispatches
+      // to that mesh's onPointerDown (which sets this flag) before this raw canvas
+      // listener runs, so box-select doesn't also start for the same pointer-down.
+      if (useViewportStore.getState().draggingDimensionLabel) return;
       pressed = true;
       dragging = false;
       additive = e.ctrlKey || e.metaKey || e.shiftKey;

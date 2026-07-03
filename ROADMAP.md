@@ -463,6 +463,14 @@ the tree/entity-list shows the group as an expandable folder.
     - Tests: `dimensionLayout.test.ts` (+4: default inward direction, each arrow flips independently, both flip
       together), `SketchRenderer.test.tsx` (+1: clicking each arrow's hit target reports the right one via
       `onToggleArrowFlip`, and `visualMetadata.arrowFlip` actually mirrors the rendered chevron).
+20. ✅ **Fixed: dragging a dimension label also started the sketch box-select rubber-band (2026-07-02).**
+    `SketchOverlay`'s box-select drag is a raw `dom.addEventListener('pointerdown', ...)` on the canvas — it fires
+    on *every* pointerdown regardless of which mesh r3f's raycasting dispatched to, so it couldn't distinguish
+    "start dragging a dimension label" from "start a box-select" and both fired for the same gesture. Added
+    `viewportStore.draggingDimensionLabel`: `SketchRenderer`'s `startDrag` sets it `true` synchronously on
+    pointerdown (r3f's own listener runs before `SketchOverlay`'s, since it's attached first, so this is set before
+    the box-select handler checks it) and `onWindowUp` clears it; `SketchOverlay`'s `onDown` now bails out early
+    when it's set. Tests: `SketchRenderer.test.tsx` (+1: the flag flips true on pointerdown and false on pointerup).
 
 ---
 

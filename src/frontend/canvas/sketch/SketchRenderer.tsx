@@ -182,6 +182,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
     dragRef.current = null;
     window.removeEventListener('pointermove', onWindowMove);
     window.removeEventListener('pointerup', onWindowUp);
+    useViewportStore.getState().setDraggingDimensionLabel(false);
     if (!drag) return;
     if (!drag.moved) {
       // A plain click (no drag): select/deselect this dimension, same store field
@@ -201,6 +202,10 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
 
   const startDrag = useCallback((constraintId: string, mid2d: Point2D) => (e: any) => {
     e.stopPropagation();
+    // Set synchronously, before SketchOverlay's raw canvas pointerdown listener runs
+    // (r3f dispatches to this handler first), so its box-select rubber-band doesn't
+    // also start for what's actually a label drag.
+    useViewportStore.getState().setDraggingDimensionLabel(true);
     dragRef.current = { constraintId, mid2d, startX: e.clientX, startY: e.clientY, moved: false };
     window.addEventListener('pointermove', onWindowMove);
     window.addEventListener('pointerup', onWindowUp);
