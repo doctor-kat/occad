@@ -1033,6 +1033,20 @@ Each has a co-located `*.test.ts`.
 
 ---
 
+_Last updated: 2026-07-03 — ran `/simplify` (4 parallel cleanup-angle agents: reuse, simplification,
+efficiency, altitude) over the recent dimension-drag/arrow-flip/hover-sync commits
+(`12829c0`..`6545ddb`). Applied: `dimensionLayout.ts`'s `dimLineSegments` no longer recomputes the
+d1→d2 direction `fromShiftedEndpoints` already normalized; `SketchRenderer.tsx`'s two now-identical
+arrowhead hit-target meshes collapsed to one `.map`. Deliberately skipped: merging `activeDragId` into
+`dragOffsets` (intentional — highlight shouldn't depend on the raycast `dragOffsets` needs), unifying
+`SketchOverlay`'s raw-hex hover colors with `SketchConstraintList`'s Mantine theme tokens (different
+rendering contexts — WebGL material vs. themed DOM — forcing one abstraction would lose dark/light
+adaptivity on one side), and generalizing `viewportStore`'s `draggingDimensionLabel` gesture-ownership
+flag into a proper claim/release mechanism (real architectural fix, but out of scope for a cleanup
+pass — flagged for whoever tackles the next overlapping-gesture case). Also added a personal
+`.claude/settings.local.json` hook: `/code-review` + `/verify` run automatically after every
+`git commit` in this repo.
+
 _Last updated: 2026-06-30 — evaluated replacing the OCC kernel with CadQuery/OCP and decided
 **against** it (§9): same OCCT kernel, no client-side runtime, and we already beat CadQuery on
 constraints. Captured three kernel-staying improvements it surfaced — selector system (§9.1),
