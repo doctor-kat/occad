@@ -53,9 +53,9 @@ function arrowAt(tip: Point2D, inward: Point2D): [Point2D, Point2D, Point2D] {
 }
 
 /** Split [d1, d2] into two segments leaving a `LABEL_GAP_HALF`-wide gap centered on
- *  the midpoint, clamped so short dimension lines shrink the gap rather than invert. */
-function dimLineSegments(d1: Point2D, d2: Point2D): [[Point2D, Point2D], [Point2D, Point2D]] {
-  const dir = normalize(sub(d2, d1));
+ *  the midpoint, clamped so short dimension lines shrink the gap rather than invert.
+ *  Takes the already-normalized d1->d2 direction so callers that computed it don't redo the work. */
+function dimLineSegments(d1: Point2D, d2: Point2D, dir: Point2D): [[Point2D, Point2D], [Point2D, Point2D]] {
   const half = Math.min(LABEL_GAP_HALF, len(sub(d2, d1)) / 2);
   const mid = scale(add(d1, d2), 0.5);
   const gapStart = sub(mid, scale(dir, half));
@@ -82,7 +82,7 @@ function fromShiftedEndpoints(
     ext1: [p1, add(d1, overshoot)],
     ext2: [p2, add(d2, overshoot)],
     dimLine: [d1, d2],
-    dimLineSegments: dimLineSegments(d1, d2),
+    dimLineSegments: dimLineSegments(d1, d2, dir),
     labelPos: scale(add(d1, d2), 0.5),
     arrow1: arrowAt(d1, flip ? scale(dir, -1) : dir),
     arrow2: arrowAt(d2, flip ? dir : scale(dir, -1)),

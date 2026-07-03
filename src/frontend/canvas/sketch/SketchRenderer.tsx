@@ -82,14 +82,12 @@ function DimensionAnnotation({
           BOTH arrows together, toggling the whole dimension between pointing
           inward (default) and outward (the standard CAD "inside"/"outside" style,
           not two independently-flippable arrows). */}
-      <mesh position={[arrow1Tip.x, arrow1Tip.y, arrow1Tip.z + 0.05]} onClick={onToggleArrows}>
-        <circleGeometry args={[ARROW_HIT_RADIUS, 12]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      <mesh position={[arrow2Tip.x, arrow2Tip.y, arrow2Tip.z + 0.05]} onClick={onToggleArrows}>
-        <circleGeometry args={[ARROW_HIT_RADIUS, 12]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
+      {[arrow1Tip, arrow2Tip].map((tip, i) => (
+        <mesh key={i} position={[tip.x, tip.y, tip.z + 0.05]} onClick={onToggleArrows}>
+          <circleGeometry args={[ARROW_HIT_RADIUS, 12]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      ))}
       {/* Invisible bigger hit-area behind the label so dragging/selecting is easy to grab. */}
       <mesh position={[labelPos.x, labelPos.y, labelPos.z + 0.05]} onPointerDown={onDragStart}>
         <planeGeometry args={[4, 2]} />
