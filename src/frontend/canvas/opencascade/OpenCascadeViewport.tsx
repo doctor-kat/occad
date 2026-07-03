@@ -57,7 +57,7 @@ export interface OpenCascadeViewportProps {
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
   onCreateConstraint?: (input: ConstraintInput) => void;
   onUpdateLabelOffset?: (constraintId: string, offset: { x: number; y: number }) => void;
-  onToggleArrowFlip?: (constraintId: string, arrow: 'arrow1' | 'arrow2') => void;
+  onToggleArrowFlip?: (constraintId: string) => void;
 }
 
 import { SketchRenderer } from '../sketch/SketchRenderer'; // New import

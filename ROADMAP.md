@@ -480,6 +480,17 @@ the tree/entity-list shows the group as an expandable folder.
     highlight itself unreliable) and cleared on release; `isHighlighted = selectedConstraintId === id ||
     activeDragId === id` now drives the label/line color instead of the bare `selectedConstraintId` check. Tests:
     `SketchRenderer.test.tsx` (+1: dragging past the threshold colors the dimension orange before pointerup).
+22. ✅ **Changed: dimension arrow flip is now a single whole-dimension toggle, not two independently-flippable
+    arrows (2026-07-02).** Item 19 let each arrowhead flip on its own — but the actual CAD convention this was
+    modeling (arrows moving inside/outside the witness lines when a dimension is too tight) always flips both arrows
+    together as one style choice, not one arrow at a time. Simplified end-to-end: `ArrowFlip` (`{ arrow1?, arrow2?
+    }`) is gone — `pointPointDimensionLayout`/`pointLineDimensionLayout`/`axisDimensionLayout` now take a plain
+    `flip = false` boolean applied to both arrows; `SketchVisualMetadata.arrowFlip` is now `boolean` instead of a
+    per-arrow object; `SketchRenderer`'s two arrow click-targets both call the same `onToggleArrows`/
+    `onToggleArrowFlip(constraintId)` (no `arrow` argument); `CADLayout.handleToggleArrowFlip` flips the single
+    boolean. Tests: `dimensionLayout.test.ts` (collapsed the three independent-flip tests into one "both flip
+    together" test), `SketchRenderer.test.tsx` (clicking either arrow reports the same toggle; setting `arrowFlip:
+    true` mirrors both chevrons, not just one).
 
 ---
 

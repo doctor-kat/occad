@@ -28,7 +28,7 @@ interface SketchRendererProps {
   sketch: Sketch;
   onUpdateConstraintValue?: (constraintId: string, value: number) => void;
   onUpdateLabelOffset?: (constraintId: string, offset: Point2D) => void;
-  onToggleArrowFlip?: (constraintId: string, arrow: 'arrow1' | 'arrow2') => void;
+  onToggleArrowFlip?: (constraintId: string) => void;
 }
 
 /** Radius of the invisible click target centered on each arrowhead — bigger than the
@@ -45,8 +45,7 @@ function DimensionAnnotation({
   value,
   onDoubleClick,
   onDragStart,
-  onToggleArrow1,
-  onToggleArrow2,
+  onToggleArrows,
 }: {
   layout: DimensionLayout;
   workplane: Sketch['workplane'];
@@ -55,8 +54,7 @@ function DimensionAnnotation({
   value: number;
   onDoubleClick: () => void;
   onDragStart: (e: any) => void;
-  onToggleArrow1: (e: any) => void;
-  onToggleArrow2: (e: any) => void;
+  onToggleArrows: (e: any) => void;
 }) {
   const to3 = (p: Point2D) => lift(p, workplane);
   const v3 = (p: Point2D): [number, number, number] => {
@@ -77,13 +75,15 @@ function DimensionAnnotation({
       <NativePolyline points={[v3(layout.dimLine[0]), v3(layout.dimLine[1])]} color={lineColor} />
       <NativePolyline points={layout.arrow1.map(v3)} color={lineColor} />
       <NativePolyline points={layout.arrow2.map(v3)} color={lineColor} />
-      {/* Invisible click targets over each arrowhead — clicking either flips it
-          between pointing inward (default) and outward, independent of the other. */}
-      <mesh position={[arrow1Tip.x, arrow1Tip.y, arrow1Tip.z + 0.05]} onClick={onToggleArrow1}>
+      {/* Invisible click targets over each arrowhead — clicking either one flips
+          BOTH arrows together, toggling the whole dimension between pointing
+          inward (default) and outward (the standard CAD "inside"/"outside" style,
+          not two independently-flippable arrows). */}
+      <mesh position={[arrow1Tip.x, arrow1Tip.y, arrow1Tip.z + 0.05]} onClick={onToggleArrows}>
         <circleGeometry args={[ARROW_HIT_RADIUS, 12]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
-      <mesh position={[arrow2Tip.x, arrow2Tip.y, arrow2Tip.z + 0.05]} onClick={onToggleArrow2}>
+      <mesh position={[arrow2Tip.x, arrow2Tip.y, arrow2Tip.z + 0.05]} onClick={onToggleArrows}>
         <circleGeometry args={[ARROW_HIT_RADIUS, 12]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
@@ -227,11 +227,11 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
     || visualMetadata[constraintId]?.labelOffset
     || { x: defaultDir.x * DEFAULT_LABEL_DISTANCE, y: defaultDir.y * DEFAULT_LABEL_DISTANCE };
 
-  const arrowFlipFor = (constraintId: string) => visualMetadata[constraintId]?.arrowFlip ?? {};
+  const arrowFlipFor = (constraintId: string) => visualMetadata[constraintId]?.arrowFlip ?? false;
 
-  const toggleArrowFlip = useCallback((constraintId: string, arrow: 'arrow1' | 'arrow2') => (e: any) => {
+  const toggleArrowFlip = useCallback((constraintId: string) => (e: any) => {
     e.stopPropagation();
-    onToggleArrowFlip?.(constraintId, arrow);
+    onToggleArrowFlip?.(constraintId);
   }, [onToggleArrowFlip]);
 
   const renderPrimitives = primitives.map((primitive) => {
@@ -343,8 +343,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
           color={dimColor}
           value={constraint.distance}
           onDragStart={startDrag(constraint.id, mid2d)}
-          onToggleArrow1={toggleArrowFlip(constraint.id, 'arrow1')}
-          onToggleArrow2={toggleArrowFlip(constraint.id, 'arrow2')}
+          onToggleArrows={toggleArrowFlip(constraint.id)}
           onDoubleClick={() => {
             const newValue = prompt("Enter distance:", constraint.distance);
             if (newValue !== null && onUpdateConstraintValue) {
@@ -376,8 +375,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
           color={dimColor}
           value={constraint.distance}
           onDragStart={startDrag(constraint.id, mid2d)}
-          onToggleArrow1={toggleArrowFlip(constraint.id, 'arrow1')}
-          onToggleArrow2={toggleArrowFlip(constraint.id, 'arrow2')}
+          onToggleArrows={toggleArrowFlip(constraint.id)}
           onDoubleClick={() => {
             const newValue = prompt("Enter distance:", constraint.distance);
             if (newValue !== null && onUpdateConstraintValue) {
@@ -414,8 +412,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
           color={dimColor}
           value={constraint.difference}
           onDragStart={startDrag(constraint.id, mid2d)}
-          onToggleArrow1={toggleArrowFlip(constraint.id, 'arrow1')}
-          onToggleArrow2={toggleArrowFlip(constraint.id, 'arrow2')}
+          onToggleArrows={toggleArrowFlip(constraint.id)}
           onDoubleClick={() => {
             const newValue = prompt('Enter distance:', constraint.difference);
             if (newValue !== null && onUpdateConstraintValue) {

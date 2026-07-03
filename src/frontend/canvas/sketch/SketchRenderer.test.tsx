@@ -72,6 +72,10 @@ const hexOf = (instance: { material: { color: THREE.Color } }) =>
 describe('SketchRenderer', () => {
   beforeEach(() => {
     useViewportStore.getState().setSelectedConstraintId(null);
+    // draggingDimensionLabel is a module-level zustand store, not component state —
+    // reset it too so a test that ends mid-drag (or whose pointerup assertions run
+    // out of order) can't leak `true` into a later test in this file.
+    useViewportStore.getState().setDraggingDimensionLabel(false);
   });
 
   it('renders line + circle primitives as native lines (not fat Line2)', async () => {
@@ -135,7 +139,7 @@ describe('SketchRenderer', () => {
     expect(renderer.scene.findAllByType('Mesh').find((m) => m.instance.userData.text === '10.00')).toBeDefined();
   });
 
-  it('clicking an arrowhead reports which one via onToggleArrowFlip, and visualMetadata.arrowFlip flips its direction', async () => {
+  it('clicking either arrowhead reports the constraint via onToggleArrowFlip, and visualMetadata.arrowFlip mirrors both arrows together', async () => {
     const constraint = { id: 'c1', type: 'p2p_distance', p1_id: 'p1', p2_id: 'p2', distance: 10 };
     const onToggleArrowFlip = vi.fn();
     const renderer = await ReactThreeTestRenderer.create(
@@ -145,27 +149,30 @@ describe('SketchRenderer', () => {
       />
     );
     // Arrow hit-targets are the two CircleGeometry meshes (the label hit-area is a
-    // PlaneGeometry); order matches arrow1 then arrow2.
+    // PlaneGeometry); order matches arrow1 then arrow2. Either one toggles the same
+    // whole-dimension flip — there's no per-arrow argument.
     const arrowHits = renderer.scene.findAllByType('Mesh').filter((m) => m.instance.geometry.type === 'CircleGeometry');
     expect(arrowHits).toHaveLength(2);
 
     await renderer.fireEvent(arrowHits[0], 'click');
-    expect(onToggleArrowFlip).toHaveBeenCalledWith('c1', 'arrow1');
+    expect(onToggleArrowFlip).toHaveBeenNthCalledWith(1, 'c1');
 
     await renderer.fireEvent(arrowHits[1], 'click');
-    expect(onToggleArrowFlip).toHaveBeenCalledWith('c1', 'arrow2');
+    expect(onToggleArrowFlip).toHaveBeenNthCalledWith(2, 'c1');
 
-    // With arrow1 flipped via visualMetadata, its chevron should mirror to point
-    // outward (wings trail toward larger x instead of smaller x).
+    // With arrowFlip set via visualMetadata, BOTH chevrons should mirror to point
+    // outward (wings trail away from the interior on both ends).
     const flipped = await ReactThreeTestRenderer.create(
       <SketchRenderer
-        sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint], { c1: { isDriving: false, arrowFlip: { arrow1: true } } })}
+        sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint], { c1: { isDriving: false, arrowFlip: true } })}
       />
     );
     const lines = flipped.scene.findAllByType('Line');
-    // ext1, ext2, dimLine, arrow1, arrow2 — arrow1 is index 3.
+    // ext1, ext2, dimLine, arrow1, arrow2 — arrow1 is index 3, arrow2 is index 4.
     const arrow1Points = lines[3].instance.geometry.attributes.position.array;
+    const arrow2Points = lines[4].instance.geometry.attributes.position.array;
     expect(arrow1Points[0]).toBeGreaterThan(arrow1Points[3]); // wing[0].x > tip.x now (flipped)
+    expect(arrow2Points[0]).toBeLessThan(arrow2Points[3]); // wing[0].x < tip.x now (flipped)
   });
 
   it('renders a p2l_distance dimension (previously silently rendered nothing)', async () => {

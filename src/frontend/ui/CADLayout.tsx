@@ -768,9 +768,9 @@ export function CADLayout() {
     updateSketchState(activeSketchId, updatedSketch);
   };
 
-  // Handle clicking a dimension's arrowhead — flips that arrow between pointing
-  // inward (default) and outward. Pure display metadata, no re-solve needed.
-  const handleToggleArrowFlip = (constraintId: string, arrow: 'arrow1' | 'arrow2') => {
+  // Handle clicking a dimension's arrowhead — flips both arrows together between
+  // pointing inward (default) and outward. Pure display metadata, no re-solve needed.
+  const handleToggleArrowFlip = (constraintId: string) => {
     if (!activeSketchId) return;
     const sketch = project.sketches.find((s) => s.id === activeSketchId);
     if (!sketch) return;
@@ -779,7 +779,7 @@ export function CADLayout() {
       ...sketch,
       visualMetadata: {
         ...sketch.visualMetadata,
-        [constraintId]: { ...meta, arrowFlip: { ...meta?.arrowFlip, [arrow]: !meta?.arrowFlip?.[arrow] } },
+        [constraintId]: { ...meta, arrowFlip: !meta?.arrowFlip },
       },
     };
     updateSketchState(activeSketchId, updatedSketch);

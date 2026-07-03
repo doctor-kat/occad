@@ -80,26 +80,11 @@ describe('arrow flip', () => {
     expect(layout.arrow2[0].x).toBeGreaterThan(layout.dimLine[1].x);
   });
 
-  it('flips arrow1 to point outward independently of arrow2', () => {
-    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 }, { arrow1: true });
-    // Tip stays anchored at the same witness point; only the chevron direction mirrors.
+  it('flips both arrows together as a single inside/outside toggle for the whole dimension', () => {
+    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 }, true);
+    // Tips stay anchored at the same witness points; only the chevron direction mirrors.
     expect(layout.arrow1[1]).toEqual(layout.dimLine[0]);
-    expect(layout.arrow1[0].x).toBeGreaterThan(layout.dimLine[0].x);
-    expect(layout.arrow1[2].x).toBeGreaterThan(layout.dimLine[0].x);
-    // arrow2 is untouched.
-    expect(layout.arrow2[0].x).toBeGreaterThan(layout.dimLine[1].x);
-  });
-
-  it('flips arrow2 to point outward independently of arrow1', () => {
-    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 }, { arrow2: true });
     expect(layout.arrow2[1]).toEqual(layout.dimLine[1]);
-    expect(layout.arrow2[0].x).toBeLessThan(layout.dimLine[1].x);
-    expect(layout.arrow2[2].x).toBeLessThan(layout.dimLine[1].x);
-    expect(layout.arrow1[0].x).toBeLessThan(layout.dimLine[0].x); // untouched
-  });
-
-  it('flips both arrows to point fully outward', () => {
-    const layout = pointPointDimensionLayout({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 5 }, { arrow1: true, arrow2: true });
     expect(layout.arrow1[0].x).toBeGreaterThan(layout.dimLine[0].x);
     expect(layout.arrow2[0].x).toBeLessThan(layout.dimLine[1].x);
   });
