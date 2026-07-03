@@ -471,6 +471,15 @@ the tree/entity-list shows the group as an expandable folder.
     pointerdown (r3f's own listener runs before `SketchOverlay`'s, since it's attached first, so this is set before
     the box-select handler checks it) and `onWindowUp` clears it; `SketchOverlay`'s `onDown` now bails out early
     when it's set. Tests: `SketchRenderer.test.tsx` (+1: the flag flips true on pointerdown and false on pointerup).
+21. ✅ **Added: a dimension highlights with the selection color as soon as its label drag starts, not just after
+    release (2026-07-02).** Previously the orange "selected" color only applied once `selectedConstraintId` was set
+    on pointerup, so mid-drag the dimension stayed its normal (gray/blue/green) color, and there was no visual
+    confirmation of *which* dimension was moving until you let go. Added `activeDragId` state, set as soon as the
+    drag crosses `DRAG_THRESHOLD` (independent of whether `dragOffsets`' screen-to-sketch-plane raycast succeeds —
+    that raycast is unreliable enough in headless/off-canvas contexts that basing the highlight on it would make the
+    highlight itself unreliable) and cleared on release; `isHighlighted = selectedConstraintId === id ||
+    activeDragId === id` now drives the label/line color instead of the bare `selectedConstraintId` check. Tests:
+    `SketchRenderer.test.tsx` (+1: dragging past the threshold colors the dimension orange before pointerup).
 
 ---
 

@@ -273,4 +273,23 @@ describe('SketchRenderer', () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(useViewportStore.getState().draggingDimensionLabel).toBe(false);
   });
+
+  it('highlights the dimension with the selection color while it is being dragged, even before pointerup commits a selection', async () => {
+    const constraint = { id: 'c1', type: 'p2p_distance', p1_id: 'p1', p2_id: 'p2', distance: 10 };
+    const renderer = await ReactThreeTestRenderer.create(
+      <SketchRenderer sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint])} />
+    );
+    const dimLine = () => renderer.scene.findAllByType('Line')[2];
+    const dragHitMesh = renderer.scene
+      .findAllByType('Mesh')
+      .find((m) => m.instance.geometry.type === 'PlaneGeometry')!;
+
+    await renderer.fireEvent(dragHitMesh, 'pointerDown', { clientX: 100, clientY: 100 });
+    window.dispatchEvent(new MouseEvent('pointermove', { clientX: 140, clientY: 140 }));
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Not yet released/selected, but already dragging — should already read as orange.
+    expect(useViewportStore.getState().selectedConstraintId).toBe(null);
+    expect(hexOf(dimLine().instance)).toBe('f97316');
+  });
 });

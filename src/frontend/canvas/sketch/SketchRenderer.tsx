@@ -117,11 +117,20 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
   // Live drag override, keyed by constraint id — followed the cursor at render
   // rate without touching parent state/solver until the drag is released.
   const [dragOffsets, setDragOffsets] = useState<Record<string, Point2D>>({});
+  // Which dimension has crossed DRAG_THRESHOLD and is actively being repositioned —
+  // set as soon as the drag "moved" flag flips, independent of whether the
+  // screen-to-sketch-plane raycast that computes the actual offset succeeds, so the
+  // highlight doesn't depend on that raycast (unlike `dragOffsets`, which does).
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   // `moved` distinguishes a plain click (select/deselect) from an actual drag
   // (reposition the label) — mirrors the DRAG_THRESHOLD pattern used for the
   // sketch entity box-select gesture in SketchOverlay.
   const dragRef = useRef<{ constraintId: string; mid2d: Point2D; startX: number; startY: number; moved: boolean } | null>(null);
   const DRAG_THRESHOLD = 4;
+  // Highlight with the selection color both when formally selected AND while a
+  // drag is actively in progress — the user shouldn't have to release the pointer
+  // first to see which dimension they're moving.
+  const isHighlighted = (constraintId: string) => selectedConstraintId === constraintId || activeDragId === constraintId;
   // Rough sketch centroid (average of all point primitives), used only to pick
   // which side of an edge a default dimension offset should face — outward, away
   // from the rest of the sketch, rather than whichever side the perpendicular
@@ -170,6 +179,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
     if (!drag) return;
     if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > DRAG_THRESHOLD) {
       drag.moved = true;
+      setActiveDragId(drag.constraintId);
     }
     if (!drag.moved) return; // still just a click until the pointer actually moves
     const local = screenToLocal2D(e.clientX, e.clientY);
@@ -183,6 +193,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
     window.removeEventListener('pointermove', onWindowMove);
     window.removeEventListener('pointerup', onWindowUp);
     useViewportStore.getState().setDraggingDimensionLabel(false);
+    setActiveDragId(null);
     if (!drag) return;
     if (!drag.moved) {
       // A plain click (no drag): select/deselect this dimension, same store field
@@ -325,7 +336,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
 
       return (
         <DimensionAnnotation
-          isSelected={selectedConstraintId === constraint.id}
+          isSelected={isHighlighted(constraint.id)}
           key={constraint.id}
           layout={layout}
           workplane={workplane}
@@ -358,7 +369,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
 
       return (
         <DimensionAnnotation
-          isSelected={selectedConstraintId === constraint.id}
+          isSelected={isHighlighted(constraint.id)}
           key={constraint.id}
           layout={layout}
           workplane={workplane}
@@ -396,7 +407,7 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
 
       return (
         <DimensionAnnotation
-          isSelected={selectedConstraintId === constraint.id}
+          isSelected={isHighlighted(constraint.id)}
           key={constraint.id}
           layout={layout}
           workplane={workplane}
