@@ -89,18 +89,18 @@ export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListP
               borderRadius: theme.radius.sm,
               padding: '2px 4px',
               backgroundColor: isSel
-                ? `${theme.colors.orange[5]}26`
+                ? `${theme.colors.blue[5]}26`
                 : isHovered
-                  ? `${theme.colors.cyan[5]}26`
+                  ? `${theme.colors.orange[5]}26`
                   : 'transparent',
               border: `1px solid ${
-                isSel ? `${theme.colors.orange[5]}66` : isHovered ? `${theme.colors.cyan[5]}66` : 'transparent'
+                isSel ? `${theme.colors.blue[5]}66` : isHovered ? `${theme.colors.orange[5]}66` : 'transparent'
               }`,
             }}
           >
             <Text
               size="xs"
-              c={isHovered && !isSel ? theme.colors.cyan[4] : theme.other.colors.foreground}
+              c={isHovered && !isSel ? theme.colors.orange[4] : theme.other.colors.foreground}
               truncate
             >
               {constraintLabel(c)}

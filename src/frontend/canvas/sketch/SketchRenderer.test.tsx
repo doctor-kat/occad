@@ -222,13 +222,13 @@ describe('SketchRenderer', () => {
     expect(labelHitMesh.instance.position.x).toBeLessThan(0); // left of the square, not into it
   });
 
-  it('a plain click (no drag) selects the dimension and turns it orange; clicking again deselects', async () => {
+  it('a plain click (no drag) selects the dimension and turns it blue; clicking again deselects', async () => {
     const constraint = { id: 'c1', type: 'p2p_distance', p1_id: 'p1', p2_id: 'p2', distance: 10 };
     const renderer = await ReactThreeTestRenderer.create(
       <SketchRenderer sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint])} />
     );
     const dimLine = () => renderer.scene.findAllByType('Line')[2]; // ext1, ext2, then the dimension line itself
-    expect(hexOf(dimLine().instance)).not.toBe('f97316');
+    expect(hexOf(dimLine().instance)).not.toBe('3b82f6');
 
     const dragHitMesh = renderer.scene
       .findAllByType('Mesh')
@@ -238,7 +238,7 @@ describe('SketchRenderer', () => {
     window.dispatchEvent(new MouseEvent('pointerup', { clientX: 100, clientY: 100 }));
     await new Promise((r) => setTimeout(r, 0));
     expect(useViewportStore.getState().selectedConstraintId).toBe('c1');
-    expect(hexOf(dimLine().instance)).toBe('f97316');
+    expect(hexOf(dimLine().instance)).toBe('3b82f6');
 
     await renderer.fireEvent(dragHitMesh, 'pointerDown', { clientX: 100, clientY: 100 });
     window.dispatchEvent(new MouseEvent('pointerup', { clientX: 100, clientY: 100 }));
@@ -311,6 +311,6 @@ describe('SketchRenderer', () => {
 
     // Not yet released/selected, but already dragging — should already read as orange.
     expect(useViewportStore.getState().selectedConstraintId).toBe(null);
-    expect(hexOf(dimLine().instance)).toBe('f97316');
+    expect(hexOf(dimLine().instance)).toBe('3b82f6');
   });
 });

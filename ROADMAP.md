@@ -879,9 +879,15 @@ component exists for the in-sketch toolbar/overlay, see §1.2, but is not yet re
 
 > **Done (2026-07-03) — constraint list ↔ viewport hover sync.** `SketchConstraintList` rows and
 > `SketchOverlay`'s constraint badges now share `viewportStore.hoveredConstraintId` two-way: hovering a row
-> highlights the badge (cyan hover fill) in the viewport, and hovering a badge highlights its row (cyan
-> tint + label color), mirroring the existing `selectedConstraintId` pattern. **Still planned:** relocate
-> the constraint list itself into the sidebar (it currently renders near the in-sketch toolbar/overlay).
+> highlights the badge in the viewport, and hovering a badge highlights its row, mirroring the existing
+> `selectedConstraintId` pattern. **Still planned:** relocate the constraint list itself into the sidebar
+> (it currently renders near the in-sketch toolbar/overlay).
+
+> **Fixed (2026-07-04) — hover/selection color consistency.** The rest of the app uses orange = hover,
+> blue = selected (see `EntitiesPanel`/`TreeItem`), but the sketch system had drifted: `SketchConstraintList`
+> rows used orange for *selected* and cyan for *hover*; `SketchOverlay`'s constraint badges and point/origin
+> handles used orange for selected; `SketchRenderer`'s dimension line/label used orange for selected. All
+> now follow the app-wide orange-hover/blue-selected convention.
 
 ### Target behavior
 
@@ -1087,7 +1093,7 @@ its click/hover handlers. Verified with `bun run build` + full test suite (453/4
 
 **Flagged but deliberately not touched** — each needs its own pass with real e2e/browser
 verification, not a blind mechanical edit, because the mocked OCC unit tests wouldn't catch a
-regression (see "Gotchas" above) or the change reaches into interaction behavior:
+regression (see "Gotchas" above) or thes change reaches into interaction behavior:
 - **Constraint-solver pipeline runs in the UI layer** (`CADLayout.tsx`: `mapElementsToPrimitives`,
   `inferAutoConstraints`, `createConstraint`, etc.) instead of behind `src/worker/bridge` — a real
   layering violation per this file's own architecture doc, but moving solver logic into the worker

@@ -1332,9 +1332,10 @@ export function SketchOverlay({
     [activeOperation, snapPoint, planeTransform, hoverThreshold, snapDistance, sketch.elements, sketch.primitives]
   );
 
-  const originHighlighted = selectedElementIds.has(ORIGIN_POINT_ID)
-    || (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === ORIGIN_POINT_ID)
+  const originSelected = selectedElementIds.has(ORIGIN_POINT_ID);
+  const originHoverTarget = (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === ORIGIN_POINT_ID)
     || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === ORIGIN_POINT_ID);
+  const originHighlighted = originSelected || originHoverTarget;
 
   return (
     <group matrix={planeTransform} matrixAutoUpdate={false}>
@@ -1406,7 +1407,7 @@ export function SketchOverlay({
       >
         <circleGeometry args={[originHighlighted ? 2 : 1.5, 24]} />
         <meshBasicMaterial
-          color={originHighlighted ? '#f97316' : '#ffffff'}
+          color={originSelected ? '#3b82f6' : originHoverTarget ? '#f97316' : '#ffffff'}
           transparent
           opacity={originHighlighted ? 0.95 : 0.6}
           depthTest={false}
@@ -1436,9 +1437,11 @@ export function SketchOverlay({
       {(!activeOperation || activeOperation === SketchOperation.DIMENSION) && sketch.primitives
         ?.filter((p) => p.type === 'point' && !p.isExternal && p.data && typeof p.data.x === 'number')
         .map((p) => {
-          const isSel = selectedElementIds.has(p.id)
-            || (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === p.id)
+          const isSelected = selectedElementIds.has(p.id);
+          const isHoverTarget = (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === p.id)
             || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === p.id);
+          const isSel = isSelected || isHoverTarget;
+          const color = isSelected ? '#3b82f6' : isHoverTarget ? '#f97316' : '#94a3b8';
           return (
             <mesh
               key={`handle-${p.id}`}
@@ -1454,7 +1457,7 @@ export function SketchOverlay({
               }}
             >
               <circleGeometry args={[isSel ? 1.6 : 1.1, 20]} />
-              <meshBasicMaterial color={isSel ? '#f97316' : '#94a3b8'} transparent opacity={isSel ? 0.95 : 0.6} depthTest={false} />
+              <meshBasicMaterial color={color} transparent opacity={isSel ? 0.95 : 0.6} depthTest={false} />
             </mesh>
           );
         })}
@@ -1491,8 +1494,8 @@ export function SketchOverlay({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: isSel ? '#f97316' : isHovered ? '#67e8f9' : '#22d3ee',
-                border: `1.5px solid ${isSel ? '#fdba74' : isHovered ? '#22d3ee' : '#0e7490'}`,
+                background: isSel ? '#3b82f6' : isHovered ? '#f97316' : '#22d3ee',
+                border: `1.5px solid ${isSel ? '#60a5fa' : isHovered ? '#fdba74' : '#0e7490'}`,
                 borderRadius: 4,
                 boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
                 cursor: 'pointer',

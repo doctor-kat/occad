@@ -69,7 +69,7 @@ function DimensionAnnotation({
   const arrow2Tip = to3(layout.dimLine[1]);
   // Selection takes priority over the driving/conflict color, matching how
   // constraint badges and point handles show selection elsewhere in the sketch.
-  const lineColor = isSelected ? '#f97316' : color;
+  const lineColor = isSelected ? '#3b82f6' : color;
 
   return (
     <group>
@@ -99,7 +99,7 @@ function DimensionAnnotation({
       <Text
         position={[labelPos.x, labelPos.y, labelPos.z + 0.1]}
         fontSize={1.5}
-        color={isSelected ? '#f97316' : 'white'}
+        color={isSelected ? '#3b82f6' : 'white'}
         anchorX="center"
         anchorY="middle"
         onDoubleClick={onDoubleClick}

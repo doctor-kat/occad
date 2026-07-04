@@ -104,14 +104,14 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
                   paddingLeft: 16,
                   paddingRight: 4,
                   backgroundColor: isSelected
-                    ? `${theme.colors.yellow[5]}1f`
+                    ? `${theme.colors.blue[5]}1f`
                     : isHovered
-                      ? `${theme.colors.blue[5]}15`
+                      ? `${theme.colors.orange[5]}15`
                       : 'transparent',
                   border: isSelected
-                    ? `1px solid ${theme.colors.yellow[5]}55`
+                    ? `1px solid ${theme.colors.blue[5]}55`
                     : isHovered
-                      ? `1px solid ${theme.colors.blue[5]}33`
+                      ? `1px solid ${theme.colors.orange[5]}33`
                       : '1px solid transparent',
                   borderRadius: theme.radius.sm,
                   cursor: 'pointer',
@@ -123,7 +123,7 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
               >
                 <Icon
                   size={16}
-                  color={isSelected ? theme.colors.yellow[4] : theme.colors.cyan[5]}
+                  color={isSelected ? theme.colors.blue[4] : theme.colors.cyan[5]}
                 />
                 <Text size="xs" fw={500} style={{ color: theme.other.colors.foreground, flex: 1 }}>
                   {label}
