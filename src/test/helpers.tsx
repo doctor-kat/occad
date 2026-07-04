@@ -37,6 +37,7 @@ export function createMockUseOpenCascade() {
     rebuild: vi.fn(),
     deleteShape: vi.fn(),
     getFaceGeometry: vi.fn(),
+    resolveSelector: vi.fn(),
     clearMesh: vi.fn(),
   };
 }

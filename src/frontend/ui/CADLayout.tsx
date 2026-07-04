@@ -13,7 +13,7 @@ import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Grou
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { FeatureTreeIcon, EntitiesIcon } from '@/frontend/shared/icons';
-import type { Sketch, SketchElement, SketchPlane, ExtrudeParams } from '@/cad/types';
+import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
@@ -111,6 +111,10 @@ export function CADLayout() {
   const setSelectedEdgeIndex = useViewportStore((state) => state.setSelectedEdgeIndex);
   const setSelectedVertexIndex = useViewportStore((state) => state.setSelectedVertexIndex);
 
+  // Resolves to the pending Promise for each in-flight resolveSelector request
+  // (see onSelectorResolved below / resolveSelectorAsync).
+  const pendingSelectorResolutions = useRef(new Map<string, (refs: StableRef[]) => void>());
+
   // Single consolidated OpenCascade worker instance — shared by layout & viewport
   const {
     status: occStatus,
@@ -122,6 +126,7 @@ export function CADLayout() {
     clearMesh,
     extrudeSketch,
     getFaceGeometry,
+    resolveSelector,
     currentFeatureShapeId,
     buildSketch,
     sketchEdges: occSketchEdges,
@@ -181,6 +186,13 @@ export function CADLayout() {
         setPendingSketchOnFace(null);
       }
     },
+    onSelectorResolved: (requestId, refs) => {
+      const resolve = pendingSelectorResolutions.current.get(requestId);
+      if (resolve) {
+        pendingSelectorResolutions.current.delete(requestId);
+        resolve(refs);
+      }
+    },
     onRefsEnriched: (enrichments) => {
       // Persist lazily-captured fingerprints (no version bump -> no rebuild loop).
       applyRefEnrichments(enrichments);
@@ -202,6 +214,21 @@ export function CADLayout() {
       }
     },
   });
+
+  // Promise-based wrapper around the worker's request/response resolveSelector
+  // bridge method, for the OperationPanel "select by rule" input (ROADMAP §9.1
+  // Phase 3). Resolves to [] if there's no live body to select against yet.
+  const resolveSelectorAsync = useCallback(
+    (kind: SubShapeKind, selector: string): Promise<StableRef[]> => {
+      if (!currentFeatureShapeId) return Promise.resolve([]);
+      return new Promise((resolve) => {
+        const requestId = crypto.randomUUID();
+        pendingSelectorResolutions.current.set(requestId, resolve);
+        resolveSelector(requestId, currentFeatureShapeId, kind, selector);
+      });
+    },
+    [currentFeatureShapeId, resolveSelector]
+  );
 
   // Track last rebuilt version / project ID (moved from OpenCascadeViewport)
   const lastRebuiltVersion = useRef<number>(0);
@@ -866,6 +893,7 @@ export function CADLayout() {
                       initialParams={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.parameters) : undefined}
                       initialSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : undefined}
                       selectedTreeItem={selectedTreeItem}
+                      onResolveSelector={resolveSelectorAsync}
                       onConfirm={handleOperationConfirm}
                       onCancel={handleOperationCancel}
                     />

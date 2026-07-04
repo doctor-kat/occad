@@ -18,12 +18,26 @@ import type {
   OffsetParams,
   TransformParams,
   OperationParams,
-  SketchPlane, 
+  SketchPlane,
   Vector3D,
   Point3D,
-  CADProject
+  CADProject,
+  StableRef,
+  SubShapeKind,
 } from '@/cad/types';
 import { PlaneType, FeatureOperation, TransformOperation, SketchOperation, refLabel } from '@/cad/types';
+
+/** Common presets for the selector-rule input — discoverable without learning the DSL. */
+const EDGE_SELECTOR_PRESETS = [
+  { label: 'All vertical edges', selector: '|Z' },
+  { label: 'Top edges', selector: '>Z' },
+  { label: 'Bottom edges', selector: '<Z' },
+];
+const FACE_SELECTOR_PRESETS = [
+  { label: 'Top face', selector: '>Z' },
+  { label: 'Bottom face', selector: '<Z' },
+  { label: 'Side faces', selector: '#Z' },
+];
 
 /**
  * Helper to get the normal vector for a sketch plane
@@ -46,6 +60,8 @@ interface OperationPanelProps {
   initialParams?: OperationParams;
   initialSketchId?: string;
   selectedTreeItem?: string | null;
+  /** Materializes a selector string (ROADMAP §9.1) against the live body's sub-shapes. */
+  onResolveSelector?: (kind: SubShapeKind, selector: string) => Promise<StableRef[]>;
   onConfirm: (params: OperationParams, sketchId?: string) => void;
   onCancel: () => void;
 }
@@ -57,6 +73,7 @@ export function OperationPanel({
   initialParams,
   initialSketchId,
   selectedTreeItem,
+  onResolveSelector,
   onConfirm,
   onCancel,
 }: OperationPanelProps) {
@@ -91,6 +108,10 @@ export function OperationPanel({
   const [selectedFaces, setSelectedFaces] = useState<string[]>([]);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [thickness, setThickness] = useState<number>(2);
+
+  // --- Selector-rule state (ROADMAP §9.1 Phase 3) ---
+  const [selectorText, setSelectorText] = useState('');
+  const [selectorStatus, setSelectorStatus] = useState<'idle' | 'loading' | 'matched' | 'no-match' | 'error'>('idle');
 
   // --- Transform State ---
   const [translateX, setTranslateX] = useState<number>(0);
@@ -336,6 +357,63 @@ export function OperationPanel({
     }
   };
 
+  // Resolve a selector rule (typed or preset) and merge the matches into the
+  // manual edge/face selection — materialize-once (Phase A), so it behaves just
+  // like clicking each matched sub-shape in the viewport.
+  const applySelector = async (kind: SubShapeKind, selector: string) => {
+    if (!onResolveSelector || !selector.trim()) return;
+    setSelectorStatus('loading');
+    try {
+      const refs = await onResolveSelector(kind, selector);
+      if (refs.length === 0) {
+        setSelectorStatus('no-match');
+        return;
+      }
+      const labels = refs.map(refLabel);
+      const merge = (prev: string[]) => Array.from(new Set([...prev, ...labels]));
+      if (kind === 'edge') setSelectedEdges(merge);
+      else setSelectedFaces(merge);
+      setSelectorStatus('matched');
+    } catch {
+      setSelectorStatus('error');
+    }
+  };
+
+  // Selector-rule input + preset chips, shared by fillet/chamfer (edges) and
+  // shell (faces). Typing a rule and pressing Enter (or a preset chip) fills
+  // the manual selection below with the matched sub-shapes.
+  const renderSelectorInput = (kind: SubShapeKind, presets: { label: string; selector: string }[]) => {
+    if (!onResolveSelector) return null;
+    return (
+      <Stack gap={4}>
+        <TextInput
+          label="Select by rule"
+          placeholder={kind === 'edge' ? 'e.g. |Z (all vertical edges)' : 'e.g. >Z (top face)'}
+          value={selectorText}
+          onChange={(e) => { setSelectorText(e.currentTarget.value); setSelectorStatus('idle'); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') applySelector(kind, selectorText); }}
+          size="sm"
+        />
+        <Group gap={4}>
+          {presets.map((p) => (
+            <Button
+              key={p.selector}
+              size="compact-xs"
+              variant="light"
+              onClick={() => { setSelectorText(p.selector); applySelector(kind, p.selector); }}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </Group>
+        {selectorStatus === 'loading' && <Text size="xs" c="dimmed">Resolving…</Text>}
+        {selectorStatus === 'matched' && <Text size="xs" c="green">Matched — added to selection below.</Text>}
+        {selectorStatus === 'no-match' && <Text size="xs" c="yellow">No sub-shapes matched that rule.</Text>}
+        {selectorStatus === 'error' && <Text size="xs" c="red">Couldn't resolve that rule.</Text>}
+      </Stack>
+    );
+  };
+
   // Sync extrude preview to viewport store
   const setExtrudePreview = useViewportStore((state) => state.setExtrudePreview);
   useEffect(() => {
@@ -501,6 +579,7 @@ export function OperationPanel({
         return (
           <>
             <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
+            {renderSelectorInput('edge', EDGE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Edges"
               placeholder="Select edges"
@@ -518,6 +597,7 @@ export function OperationPanel({
         return (
           <>
             <NumberInput label="Distance" value={distance} onChange={(val) => setDistance(Number(val))} min={0.1} size="sm" />
+            {renderSelectorInput('edge', EDGE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Edges"
               placeholder="Select edges"
@@ -535,6 +615,7 @@ export function OperationPanel({
         return (
           <>
             <NumberInput label="Thickness" value={thickness} onChange={(val) => setThickness(Number(val))} min={0.1} size="sm" />
+            {renderSelectorInput('face', FACE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Faces to Remove"
               placeholder="Select faces"

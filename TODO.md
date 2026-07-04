@@ -110,14 +110,21 @@ call site (edges for fillet/chamfer, faces for shell) but a leading `%kind` may 
       (asserts `kind`/`index`/`fingerprint` shape, not bare indices), scoped error on missing shape,
       `|Z` multi-match. **459/459 tests green; `bun run build` clean.**
 
-### Phase 3 — UI: "select by rule" for fillet/chamfer/shell  ❌
-- [ ] In `OperationPanel` (modification params), add a selector `TextInput` beside the manual
-      edge/face list: typing a rule calls `resolveSelector` and **fills** `params.edges`/`.faces`
-      with the returned `StableRef[]` (Phase A = materialize-once). Show match count + a "couldn't
-      match" state. Highlight resolved sub-shapes in the viewport (reuse hover/selection highlight).
-- [ ] A few **preset chips** for the common cases (`|Z` all vertical edges, `>Z` top face,
-      `#Z` side faces) so it's discoverable without learning the DSL.
-- [ ] Tests: `OperationPanel.test.tsx` (rule input fills refs, empty-match state).
+### Phase 3 — UI: "select by rule" for fillet/chamfer/shell  ✅ (materialize-once; viewport highlight deferred)
+- [x] `CADLayout.tsx`: `resolveSelectorAsync(kind, selector)` wraps the worker's request/response
+      `resolveSelector` bridge method in a `Promise<StableRef[]>` (via a `requestId -> resolve` map,
+      resolved from `onSelectorResolved`), passed to `OperationPanel` as `onResolveSelector`.
+- [x] `OperationPanel`: selector `TextInput` (Enter to apply) beside the manual edge/face
+      `MultiSelect` for FILLET/CHAMFER (`kind: 'edge'`) and SHELL (`kind: 'face'`) — resolves and
+      **merges** matches into the existing selection (Phase A = materialize-once, same lazy
+      fingerprint-capture-on-rebuild path manual picks already use). Shows loading / matched /
+      no-match / error state text.
+- [x] Preset chips: `|Z`/`>Z`/`<Z` for edges, `>Z`/`<Z`/`#Z` for faces — click applies immediately.
+- [x] `OperationPanel.test.tsx` (4): rule input fills the edge selection, no-match state, preset chip
+      applies immediately, selector UI omitted entirely when `onResolveSelector` isn't passed.
+      **460/460 tests green; `bun run build` clean.**
+- [ ] Deferred: highlighting resolved sub-shapes in the viewport (reuse hover/selection highlight) —
+      needs a "highlighted set" concept in `viewportStore`, not just a selection list.
 
 ### Phase 4 — (stretch) Persistent parametric selectors  ❌ — Phase B
 - [ ] Optional `selector?: string` on `FilletParams`/`ChamferParams`/`ShellParams`. When present,
