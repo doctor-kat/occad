@@ -1130,12 +1130,19 @@ CLAUDE.md conventions). ~45 raw candidates surfaced; 14 reported as findings, mo
 - Removed the stray `package-lock.json` (both it and `bun.lockb` were tracked, already drifted) —
   CLAUDE.md states Bun is the sole package manager.
 
+**Fixed since the flagged list below was written:**
+- `createWorkplane`'s XZ-plane branch (`useCADState.ts`) built a left-handed basis: `xAxis × yAxis`
+  worked out to `(0,-1,0)` while the branch claimed `finalNormal = (0,1,0)`. Root-caused (not just an
+  e2e symptom) by checking the cross product against XY/YZ, which are both right-handed. Fixed by
+  flipping the stated normal to `(0,-1,0)` — keeps `xAxis`/`yAxis` (and therefore the existing
+  sketch-plane rendering in `getPlaneTransform.ts`, which maps sketch X/Y to world X/Z) unchanged, so
+  this only corrects which side of the Top Plane the face/extrude normal points to. Updated the one
+  test that asserted the old (wrong) `+Y` value (`useCADState.test.ts`). Full suite (453 tests) and
+  `bun run build` both pass; no e2e/browser check was run for the extrude-direction symptom itself.
+
 **Flagged but deliberately not fixed** (each needs either real geometry/e2e verification per this
 repo's own "3D model changes require tests" rule, or a genuine architectural change — not a mechanical
 review-time edit):
-- `createWorkplane`'s XZ-plane branch (`useCADState.ts`) builds a left-handed basis (mirrored relative
-  to its own stated normal), while XY/YZ/CUSTOM are right-handed — plausible root cause of an inverted
-  extrude direction specifically on the Top Plane. Needs a geometry/e2e check before touching.
 - `useOpenCascade.ts` dispatches `buildSketch`/`extrudeSketch`/`revolveSketch`/`rebuild` with no
   request-id correlation, so a targeted sketch build and a version-bump-triggered rebuild can race
   against the same worker-side `shapeStorage`; similarly `getFaceGeometry` responses are correlated

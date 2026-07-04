@@ -40,7 +40,9 @@ function createWorkplane(type: PlaneType, origin?: Point3D, normal?: Vector3D, o
     yAxis = { x: 0, y: 1, z: 0 };
     finalOrigin = { x: 0, y: 0, z: offset };
   } else if (type === PlaneType.XZ) {
-    finalNormal = { x: 0, y: 1, z: 0 };
+    // normal must equal xAxis × yAxis to keep the basis right-handed (matches XY/YZ below);
+    // with xAxis=+X and yAxis=+Z that cross product is -Y, not +Y.
+    finalNormal = { x: 0, y: -1, z: 0 };
     xAxis = { x: 1, y: 0, z: 0 };
     yAxis = { x: 0, y: 0, z: 1 };
     finalOrigin = { x: 0, y: offset, z: 0 };

@@ -563,13 +563,13 @@ describe("useCADState", () => {
       expect(s.workplane.normal).toEqual({ x: 0, y: 0, z: 1 });
     });
 
-    it("gives an XZ (Top Plane) sketch a +Y normal", () => {
+    it("gives an XZ (Top Plane) sketch a -Y normal (right-handed with X/Z axes)", () => {
       const { result } = renderHook(() => useCADState());
       let s: any;
       act(() => {
         s = result.current.addSketch("Top", { type: "xz" as any, planeRef: "top-plane", offset: 0 });
       });
-      expect(s.workplane.normal).toEqual({ x: 0, y: 1, z: 0 });
+      expect(s.workplane.normal).toEqual({ x: 0, y: -1, z: 0 });
     });
 
     it("gives a YZ (Right Plane) sketch a +X normal", () => {
