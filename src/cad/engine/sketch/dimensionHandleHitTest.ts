@@ -17,8 +17,19 @@ import * as THREE from 'three';
  */
 export const DIMENSION_HANDLE_USERDATA_KEY = 'isDimensionHandle';
 
-/** True if the nearest object the raycaster hits is tagged as a dimension handle. */
+/**
+ * True if the raycaster hits a dimension handle anywhere along the ray —
+ * not just the nearest hit. The sketch's own semi-transparent background
+ * click-plane (`SketchOverlay`'s plane mesh, used for drawing/face clicks)
+ * sits at a small z-offset from the workplane, and dimension handles sit at
+ * a slightly different small z-offset on the *other* side of it depending on
+ * the workplane's normal direction — so which one is "nearer the camera" is
+ * not consistent across workplane orientations. These are all invisible
+ * hit-test proxies stacked at nearly the same spot, not opaque geometry that
+ * actually occludes one another, so "nearest wins" is the wrong model here:
+ * any tagged hit along the ray means the gesture belongs to that handle.
+ */
 export function hitsDimensionHandle(raycaster: THREE.Raycaster, scene: THREE.Object3D): boolean {
   const hits = raycaster.intersectObjects(scene.children, true);
-  return hits.length > 0 && !!hits[0].object.userData?.[DIMENSION_HANDLE_USERDATA_KEY];
+  return hits.some((hit) => !!hit.object.userData?.[DIMENSION_HANDLE_USERDATA_KEY]);
 }

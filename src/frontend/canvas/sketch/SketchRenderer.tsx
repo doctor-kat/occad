@@ -103,6 +103,8 @@ function DimensionAnnotation({
         anchorX="center"
         anchorY="middle"
         onDoubleClick={onDoubleClick}
+        onPointerDown={onDragStart}
+        userData={DIMENSION_HANDLE_USERDATA}
       >
         {value.toFixed(2)}
       </Text>

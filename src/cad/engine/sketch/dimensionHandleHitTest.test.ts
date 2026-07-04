@@ -14,6 +14,16 @@ import { hitsDimensionHandle, DIMENSION_HANDLE_USERDATA_KEY } from './dimensionH
  * `hitsDimensionHandle` sidesteps event ordering entirely: it raycasts straight
  * against the scene using the same camera/pointer math SketchOverlay already
  * has, so there's nothing to race.
+ *
+ * It also had to move off a "nearest hit wins" model: SketchOverlay's own
+ * semi-transparent background click-plane sits at a small z-offset from the
+ * workplane, and dimension handles sit at a different small z-offset on
+ * whichever side of it the workplane's normal happens to put them — so for
+ * some workplane orientations the background plane (untagged) is *nearer*
+ * the camera than the dimension handle it's stacked on top of, and a
+ * nearest-only check picked the wrong one. These are invisible hit-test
+ * proxies, not opaque occluding geometry, so any tagged hit along the ray
+ * counts, regardless of distance.
  */
 function camera() {
   const cam = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
@@ -52,7 +62,7 @@ describe('hitsDimensionHandle', () => {
     expect(hitsDimensionHandle(centeredRaycaster(), scene)).toBe(false);
   });
 
-  it('only considers the nearest hit — an untagged mesh in front of a tagged one behind it wins', () => {
+  it('returns true for a tagged hit behind an untagged one — nearest-hit-only would miss this', () => {
     const scene = new THREE.Scene();
     const back = new THREE.Mesh(new THREE.PlaneGeometry(10, 10));
     back.position.z = -5;
@@ -61,6 +71,18 @@ describe('hitsDimensionHandle', () => {
     front.position.z = 5;
     scene.add(back, front);
     scene.updateMatrixWorld(true); // positions only take effect in raycasting once matrixWorld is current
+
+    expect(hitsDimensionHandle(centeredRaycaster(), scene)).toBe(true);
+  });
+
+  it('returns false when every hit along the ray is untagged, even with several stacked meshes', () => {
+    const scene = new THREE.Scene();
+    for (const z of [-5, 0, 5]) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(10, 10));
+      m.position.z = z;
+      scene.add(m);
+    }
+    scene.updateMatrixWorld(true);
 
     expect(hitsDimensionHandle(centeredRaycaster(), scene)).toBe(false);
   });

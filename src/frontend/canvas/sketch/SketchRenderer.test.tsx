@@ -27,7 +27,15 @@ import { useViewportStore } from '@/frontend/shared/viewportStore';
  */
 vi.mock('@react-three/drei', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@react-three/drei')>();
-  return { ...actual, Text: (props: any) => <mesh userData={{ text: props.children }} /> };
+  return {
+    ...actual,
+    // Forward pointer/userData props too — the real <Text> glyph is a raycast
+    // target that sits in front of the invisible label hit-plane, so it must
+    // carry the same drag handler + dimension-handle tag as that plane.
+    Text: (props: any) => (
+      <mesh onPointerDown={props.onPointerDown} onDoubleClick={props.onDoubleClick} userData={{ ...props.userData, text: props.children }} />
+    ),
+  };
 });
 
 const workplane = {
@@ -260,7 +268,11 @@ describe('SketchRenderer', () => {
     expect(useViewportStore.getState().selectedConstraintId).toBe(null);
   });
 
-  it('tags the label drag-hit mesh and both arrowhead hit-targets as dimension handles, so SketchOverlay can raycast-detect them and skip box-select regardless of listener/mount order', async () => {
+  it('tags the label drag-hit mesh, the visible text glyph, and both arrowhead hit-targets as dimension handles, so SketchOverlay can raycast-detect them and skip box-select regardless of listener/mount order', async () => {
+    // The visible text glyph renders *in front of* (closer to camera than) the
+    // invisible label hit-plane — a raycaster hits it first, so it must carry
+    // the same tag and drag handler, or SketchOverlay's nearest-hit check would
+    // see an untagged object and start a box-select anyway.
     const constraint = { id: 'c1', type: 'p2p_distance', p1_id: 'p1', p2_id: 'p2', distance: 10 };
     const renderer = await ReactThreeTestRenderer.create(
       <SketchRenderer sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint])} />
@@ -271,8 +283,12 @@ describe('SketchRenderer', () => {
     const arrowHitMeshes = renderer.scene
       .findAllByType('Mesh')
       .filter((m) => m.instance.geometry.type === 'CircleGeometry');
+    const textGlyphMesh = renderer.scene
+      .findAllByType('Mesh')
+      .find((m) => m.instance.userData.text !== undefined)!;
 
     expect(labelHitMesh.instance.userData.isDimensionHandle).toBe(true);
+    expect(textGlyphMesh.instance.userData.isDimensionHandle).toBe(true);
     expect(arrowHitMeshes).toHaveLength(2);
     for (const m of arrowHitMeshes) {
       expect(m.instance.userData.isDimensionHandle).toBe(true);

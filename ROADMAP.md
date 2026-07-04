@@ -463,26 +463,39 @@ the tree/entity-list shows the group as an expandable folder.
     - Tests: `dimensionLayout.test.ts` (+4: default inward direction, each arrow flips independently, both flip
       together), `SketchRenderer.test.tsx` (+1: clicking each arrow's hit target reports the right one via
       `onToggleArrowFlip`, and `visualMetadata.arrowFlip` actually mirrors the rendered chevron).
-20. ✅ **Fixed: dragging a dimension label also started the sketch box-select rubber-band — twice (2026-07-02,
-    re-fixed 2026-07-04).** `SketchOverlay`'s box-select drag is a raw `dom.addEventListener('pointerdown', ...)`
-    on the canvas — it fires on *every* pointerdown regardless of which mesh r3f's raycasting dispatched to, so it
-    couldn't distinguish "start dragging a dimension label" from "start a box-select" and both fired for the same
-    gesture. The first fix added `viewportStore.draggingDimensionLabel`, set `true` synchronously by
-    `SketchRenderer`'s `startDrag` on the assumption that r3f's own pointerdown dispatch runs before
-    `SketchOverlay`'s raw listener (since it's "attached first"). That assumption was backwards: React fires child
-    effects before parent effects, and `SketchOverlay` is a *deeper* descendant of `Canvas` than the top-level
-    r3f event-system connection is, so `SketchOverlay`'s raw listener actually attaches — and therefore fires —
-    *before* r3f's own dispatcher runs. The flag was never set in time, so the bug never actually stopped
-    reproducing; the flag also only ever covered the label mesh, never the arrowhead-flip hit targets (`onClick`
-    only, no `onPointerDown`), which had the same problem.
-    Replaced the flag with `hitsDimensionHandle()` (`dimensionHandleHitTest.ts`): a pure raycast against
-    `scene.children` for the nearest hit's `userData.isDimensionHandle` tag, called directly inside
-    `SketchOverlay`'s own `onDown` before it starts a drag. This has no dependency on listener/mount order at all —
-    it's a deterministic check, not a race. The label hit-mesh and both arrowhead hit-target meshes in
-    `SketchRenderer`'s `DimensionAnnotation` are now tagged with that `userData` key.
-    Tests: `dimensionHandleHitTest.test.ts` (new — pure raycast behavior: tagged hit, untagged hit, no hit, nearest-
-    hit-wins over a farther tagged mesh), `SketchRenderer.test.tsx` (asserts the label and both arrowhead meshes
-    carry the tag).
+20. ✅ **Fixed: dragging a dimension label also started the sketch box-select rubber-band — three tries
+    (2026-07-02, re-fixed 2026-07-04 ×2).** `SketchOverlay`'s box-select drag is a raw
+    `dom.addEventListener('pointerdown', ...)` on the canvas — it fires on *every* pointerdown regardless of which
+    mesh r3f's raycasting dispatched to, so it couldn't distinguish "start dragging a dimension label" from "start
+    a box-select" and both fired for the same gesture.
+    - **Attempt 1** added `viewportStore.draggingDimensionLabel`, set `true` synchronously by `SketchRenderer`'s
+      `startDrag`, on the assumption that r3f's own pointerdown dispatch runs before `SketchOverlay`'s raw listener
+      (since it's "attached first"). Backwards: React fires child effects before parent effects, and
+      `SketchOverlay` is a *deeper* descendant of `Canvas` than the top-level r3f event-system connection is, so
+      `SketchOverlay`'s raw listener actually attaches — and therefore fires — *before* r3f's own dispatcher runs.
+      The flag was never set in time; it also never covered the arrowhead-flip hit targets (`onClick` only, no
+      `onPointerDown`), same problem.
+    - **Attempt 2** replaced the flag with `hitsDimensionHandle()` (`dimensionHandleHitTest.ts`): raycast against
+      `scene.children`, checking only the *nearest* hit's `userData.isDimensionHandle` tag, called directly inside
+      `SketchOverlay`'s own `onDown`. No dependency on listener ordering — but live browser testing (not just the
+      test-renderer, which never renders real fonts and can't reproduce this) showed the bug *still* happening:
+      the visible `<Text>` glyph for the value renders in front of (nearer the camera than) the invisible label
+      hit-plane behind it, and that glyph wasn't tagged, so the nearest hit was untagged and box-select proceeded.
+    - **Attempt 3 (final)**: tagged the `<Text>` glyph itself too, *and* changed `hitsDimensionHandle` from
+      "nearest hit only" to "any tagged hit along the ray." Live debugging (dumping raycast hits to a temp
+      `window` global) found a second, more fundamental issue: `SketchOverlay`'s own semi-transparent background
+      click-plane sits at a small workplane-local z-offset, and dimension handles sit at a *different* small
+      z-offset — but which one ends up nearer the camera depends on the workplane's normal direction, so for some
+      workplanes the untagged background plane wins the "nearest hit" race even when a tagged handle is also hit.
+      These are all invisible hit-test proxies stacked at nearly the same spot, not opaque occluding geometry, so
+      "nearest wins" was the wrong model regardless of the Text-layering issue — any tagged hit along the ray means
+      the gesture belongs to that handle.
+    Verified live in a real browser (Playwright + synthetic pointer events against the actual rendered scene, with
+    coordinates read back via raycast-hit dumps) that: dragging over empty space still starts a box-select
+    (regression guard), and dragging starting on the label glyph or either arrowhead no longer does.
+    Tests: `dimensionHandleHitTest.test.ts` (pure raycast behavior: tagged hit, untagged hit, no hit, a tagged hit
+    *behind* an untagged one still counts, all-untagged stack of meshes doesn't), `SketchRenderer.test.tsx`
+    (asserts the label plane, the text glyph, and both arrowhead meshes all carry the tag).
 21. ✅ **Added: a dimension highlights with the selection color as soon as its label drag starts, not just after
     release (2026-07-02).** Previously the orange "selected" color only applied once `selectedConstraintId` was set
     on pointerup, so mid-drag the dimension stayed its normal (gray/blue/green) color, and there was no visual
