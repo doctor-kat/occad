@@ -126,14 +126,26 @@ call site (edges for fillet/chamfer, faces for shell) but a leading `%kind` may 
 - [ ] Deferred: highlighting resolved sub-shapes in the viewport (reuse hover/selection highlight) —
       needs a "highlighted set" concept in `viewportStore`, not just a selection list.
 
-### Phase 4 — (stretch) Persistent parametric selectors  ❌ — Phase B
-- [ ] Optional `selector?: string` on `FilletParams`/`ChamferParams`/`ShellParams`. When present,
-      `resolveSubShapes` (or a pre-step in `handleRebuild`) **re-evaluates** it against the live body
-      each rebuild instead of using stored indices — so "fillet all vertical edges" auto-includes
-      edges introduced by an upstream change. Decide precedence when both `selector` and explicit
-      `edges` exist (selector ∪ explicit, or selector wins).
-- [ ] e2e: box → fillet `|Z` → edit box to add a boss that creates new vertical edges → rebuild →
-      the new edges are filleted too (proves live re-evaluation).
+### Phase 4 — Persistent parametric selectors  ✅ — Phase B
+- [x] Optional `selector?: string` on `FilletParams`/`ChamferParams`/`ShellParams`. `applyFillet`/
+      `applyChamfer`/`applyShell` (`modifications.ts`) call the new `withSelectorMatches` helper —
+      `describeSubShapes` + `selectSubShapes` against the *live* body each call, unioned with the
+      explicit `edges`/`faces` (deduped by `refLabel`) — before `resolveSubShapes` runs. Decided
+      precedence: **selector ∪ explicit** (additive/safe — never drops a manual pick). Selector
+      matches resolve positionally (`edge-N`/`face-N`) since they're computed fresh from the same
+      body being modified; `resolveSubShapes` still fingerprint-upgrades them like any bare ref.
+      `edges`/`faces` may now be empty when a `selector` is present (validation updated
+      accordingly).
+- [x] `OperationPanel`: a "Keep this rule live" checkbox next to the selector input — checking it
+      captures the applied rule into `liveSelector`, which is written to `params.selector` on
+      Apply (and restored from `initialParams.selector` when editing an existing feature). Off by
+      default, so Phase 3's materialize-once behavior is unchanged unless opted in.
+- [x] `modifications.selector.test.ts` (4): resolves edges purely from a selector, unions with
+      explicit edges (deduped), doesn't require explicit edges when a selector is given, shell via
+      `>Z`. `OperationPanel.test.tsx` (+1): checkbox persists `selector` into confirmed params.
+      **465/465 tests green; `bun run build` clean.**
+- [ ] Deferred: e2e (box → fillet `|Z` → edit box to add a boss creating new vertical edges →
+      rebuild → the new edges are filleted too) — see Phase 5, real geometric validity is e2e-only.
 
 ### Phase 5 — e2e + docs  ❌
 - [ ] `e2e/selectors.spec.ts`: box → fillet via `|Z` selects 4 vertical edges → valid rounded solid;

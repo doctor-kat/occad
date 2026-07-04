@@ -64,4 +64,19 @@ describe("OperationPanel — selector-rule input (ROADMAP §9.1 Phase 3)", () =>
     renderWithProviders(<OperationPanel {...baseProps} />);
     expect(screen.queryByPlaceholderText(/all vertical edges/i)).not.toBeInTheDocument();
   });
+
+  it("checking 'keep this rule live' persists the selector into the confirmed params (Phase 4)", async () => {
+    const refs: StableRef[] = [{ kind: "edge", index: 2 }];
+    const onResolveSelector = vi.fn().mockResolvedValue(refs);
+    const onConfirm = vi.fn();
+    renderWithProviders(<OperationPanel {...baseProps} onResolveSelector={onResolveSelector} onConfirm={onConfirm} />);
+
+    await userEvent.click(screen.getByLabelText(/keep this rule live/i));
+    const input = screen.getByPlaceholderText(/all vertical edges/i);
+    await userEvent.type(input, "|Z{Enter}");
+    await waitFor(() => expect(screen.getByText(/Matched/i)).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ selector: "|Z" }));
+  });
 });

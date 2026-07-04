@@ -18,6 +18,31 @@ import type { WorkerContext } from './workerContext';
 import type { FilletParams, ChamferParams, ShellParams, OffsetParams, GeometryRef, Fingerprint, StableRef } from '@/cad/types';
 import { toStableRef, refLabel, hasFingerprint } from '@/cad/types';
 import { fingerprintAll, matchFingerprint, resolveAgainst } from './fingerprint';
+import { describeSubShapes } from './selectors/describe';
+import { selectSubShapes } from './selectors';
+
+/**
+ * Re-evaluate a persistent selector rule (ROADMAP §9.1 Phase 4) against the
+ * live body and union the matches with the explicit `refs`, deduped by label.
+ * Selector-matched indices resolve positionally against *this* body (they were
+ * just computed from it), so they're passed through as plain `edge-N`/`face-N`
+ * strings — `resolveSubShapes` still re-fingerprints/upgrades them next rebuild
+ * like any other bare-index ref.
+ */
+function withSelectorMatches(
+  ctx: WorkerContext,
+  shape: TopoDS_Shape,
+  refs: GeometryRef[],
+  kind: 'edge' | 'face',
+  selector: string | undefined
+): GeometryRef[] {
+  if (!selector?.trim()) return refs;
+  const descriptors = describeSubShapes(ctx, shape, kind);
+  const matched = selectSubShapes(descriptors, selector).map((index) => `${kind}-${index}`);
+  const seen = new Set(refs.map(refLabel));
+  const extra = matched.filter((label) => !seen.has(label));
+  return [...refs, ...extra];
+}
 
 /** Tolerance used by the offset/thick-solid join builders. */
 const OFFSET_TOL = 1e-3;
@@ -155,10 +180,11 @@ export function applyFillet(
   params: FilletParams
 ): TopoDS_Shape {
   const { oc } = ctx;
-  if (!params.edges?.length) throw new Error('Fillet requires at least one edge');
+  if (!params.edges?.length && !params.selector) throw new Error('Fillet requires at least one edge');
   if (!(params.radius > 0)) throw new Error('Fillet radius must be positive');
 
-  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, params.edges, 'edge');
+  const refs = withSelectorMatches(ctx, shape, params.edges ?? [], 'edge', params.selector);
+  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, refs, 'edge');
   if (unresolved.length > 0) {
     throw new Error(
       `Fillet: could not resolve edge selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these edges were selected.`
@@ -193,10 +219,11 @@ export function applyChamfer(
   params: ChamferParams
 ): TopoDS_Shape {
   const { oc } = ctx;
-  if (!params.edges?.length) throw new Error('Chamfer requires at least one edge');
+  if (!params.edges?.length && !params.selector) throw new Error('Chamfer requires at least one edge');
   if (!(params.distance > 0)) throw new Error('Chamfer distance must be positive');
 
-  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, params.edges, 'edge');
+  const refs = withSelectorMatches(ctx, shape, params.edges ?? [], 'edge', params.selector);
+  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, refs, 'edge');
   if (unresolved.length > 0) {
     throw new Error(
       `Chamfer: could not resolve edge selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these edges were selected.`
@@ -231,10 +258,11 @@ export function applyShell(
   params: ShellParams
 ): TopoDS_Shape {
   const { oc } = ctx;
-  if (!params.faces?.length) throw new Error('Shell requires at least one face to remove');
+  if (!params.faces?.length && !params.selector) throw new Error('Shell requires at least one face to remove');
   if (!params.thickness) throw new Error('Shell thickness must be non-zero');
 
-  const { shapes: faces, unresolved } = resolveSubShapes(ctx, shape, params.faces, 'face');
+  const refs = withSelectorMatches(ctx, shape, params.faces ?? [], 'face', params.selector);
+  const { shapes: faces, unresolved } = resolveSubShapes(ctx, shape, refs, 'face');
   if (unresolved.length > 0) {
     throw new Error(
       `Shell: could not resolve face selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these faces were selected.`

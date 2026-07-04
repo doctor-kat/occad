@@ -109,9 +109,14 @@ export function OperationPanel({
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [thickness, setThickness] = useState<number>(2);
 
-  // --- Selector-rule state (ROADMAP §9.1 Phase 3) ---
+  // --- Selector-rule state (ROADMAP §9.1 Phase 3/4) ---
   const [selectorText, setSelectorText] = useState('');
   const [selectorStatus, setSelectorStatus] = useState<'idle' | 'loading' | 'matched' | 'no-match' | 'error'>('idle');
+  // Phase 4: when checked, the last-applied rule is persisted on the feature and
+  // re-evaluated live every rebuild (instead of just materializing matches once
+  // into the manual edge/face list above).
+  const [keepSelectorLive, setKeepSelectorLive] = useState(false);
+  const [liveSelector, setLiveSelector] = useState<string | undefined>(undefined);
 
   // --- Transform State ---
   const [translateX, setTranslateX] = useState<number>(0);
@@ -162,6 +167,11 @@ export function OperationPanel({
       // editing a modification this way doesn't permanently lose them.)
       if ('edges' in initialParams) setSelectedEdges(initialParams.edges.map(refLabel));
       if ('faces' in initialParams) setSelectedFaces(initialParams.faces.map(refLabel));
+      if ('selector' in initialParams && initialParams.selector) {
+        setLiveSelector(initialParams.selector);
+        setKeepSelectorLive(true);
+        setSelectorText(initialParams.selector);
+      }
       if ('featureIds' in (initialParams as any)) setSelectedFeatures((initialParams as any).featureIds);
       if ('thickness' in initialParams) setThickness(initialParams.thickness);
     } else {
@@ -275,15 +285,15 @@ export function OperationPanel({
         onConfirm(params);
         break;
       case FeatureOperation.FILLET:
-        params = { radius, edges: selectedEdges } as FilletParams;
+        params = { radius, edges: selectedEdges, selector: liveSelector } as FilletParams;
         onConfirm(params);
         break;
       case FeatureOperation.CHAMFER:
-        params = { distance, edges: selectedEdges } as ChamferParams;
+        params = { distance, edges: selectedEdges, selector: liveSelector } as ChamferParams;
         onConfirm(params);
         break;
       case FeatureOperation.SHELL:
-        params = { thickness, faces: selectedFaces } as ShellParams;
+        params = { thickness, faces: selectedFaces, selector: liveSelector } as ShellParams;
         onConfirm(params);
         break;
       case FeatureOperation.OFFSET:
@@ -374,6 +384,7 @@ export function OperationPanel({
       if (kind === 'edge') setSelectedEdges(merge);
       else setSelectedFaces(merge);
       setSelectorStatus('matched');
+      if (keepSelectorLive) setLiveSelector(selector);
     } catch {
       setSelectorStatus('error');
     }
@@ -393,6 +404,16 @@ export function OperationPanel({
           onChange={(e) => { setSelectorText(e.currentTarget.value); setSelectorStatus('idle'); }}
           onKeyDown={(e) => { if (e.key === 'Enter') applySelector(kind, selectorText); }}
           size="sm"
+        />
+        <Checkbox
+          size="xs"
+          label="Keep this rule live (re-applies on every rebuild)"
+          checked={keepSelectorLive}
+          onChange={(e) => {
+            const checked = e.currentTarget.checked;
+            setKeepSelectorLive(checked);
+            setLiveSelector(checked ? selectorText || liveSelector : undefined);
+          }}
         />
         <Group gap={4}>
           {presets.map((p) => (
