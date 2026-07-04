@@ -7,6 +7,7 @@ import type { BooleanOperationRequest } from './BooleanOperationRequest';
 import type { RebuildRequest } from './RebuildRequest';
 import type { DeleteShapeRequest } from './DeleteShapeRequest';
 import type { GetFaceGeometryRequest } from './GetFaceGeometryRequest';
+import type { ResolveSelectorRequest } from './ResolveSelectorRequest';
 
 export type {
   InitRequest,
@@ -18,6 +19,7 @@ export type {
   RebuildRequest,
   DeleteShapeRequest,
   GetFaceGeometryRequest,
+  ResolveSelectorRequest,
 };
 
 // ============================================================================
@@ -34,5 +36,6 @@ export type WorkerRequest =
   | BooleanOperationRequest
   | RebuildRequest
   | DeleteShapeRequest
-  | GetFaceGeometryRequest;
+  | GetFaceGeometryRequest
+  | ResolveSelectorRequest;
 

@@ -19,6 +19,7 @@ import {
   handleRevolveSketch,
   handleRebuild,
   handleGetFaceGeometry,
+  handleResolveSelector,
 } from '@/cad/engine/operations';
 
 const openCascadeWasm = '/opencascade.full.wasm';
@@ -107,6 +108,10 @@ self.onmessage = async (e: MessageEvent) => {
 
       case 'getFaceGeometry':
         handleGetFaceGeometry(ctx, message.faceId, message.shapeId);
+        break;
+
+      case 'resolveSelector':
+        handleResolveSelector(ctx, message.requestId, message.shapeId, message.kind, message.selector);
         break;
 
       default:

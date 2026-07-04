@@ -13,6 +13,8 @@ import type {
   Sketch,
   FeatureRefEnrichment,
   SketchRefEnrichment,
+  SubShapeKind,
+  StableRef,
 } from "@/cad/types";
 
 export type { CADMeshData as MeshData };
@@ -32,6 +34,8 @@ interface UseOpenCascadeOptions {
   onRebuildProgress?: (progress: number, currentFeatureId: string) => void;
   /** Callback when face geometry is received */
   onFaceGeometry?: (faceId: number, origin: Point3D, normal: Vector3D, boundaryEdges?: string[]) => void;
+  /** Callback when a selector has been resolved to fingerprinted refs (ROADMAP §9.1) */
+  onSelectorResolved?: (requestId: string, refs: StableRef[]) => void;
   /** Callback when an error occurs */
   onError?: (message: string, featureId?: string) => void;
   /** Callback when the worker captures fingerprint upgrades for selections (step 3b) */
@@ -124,6 +128,10 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
 
         case "faceGeometry":
           optsRef.current.onFaceGeometry?.(msg.faceId, msg.origin, msg.normal, msg.boundaryEdges);
+          break;
+
+        case "selectorResolved":
+          optsRef.current.onSelectorResolved?.(msg.requestId, msg.refs);
           break;
 
         case "error":
@@ -248,6 +256,20 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     w.postMessage(message);
   }, []);
 
+  // Resolve a selector string (ROADMAP §9.1) against a body's sub-shapes
+  const resolveSelector = useCallback((requestId: string, shapeId: string, kind: SubShapeKind, selector: string) => {
+    const w = workerRef.current;
+    if (!w) return;
+    const message: WorkerRequest = {
+      type: "resolveSelector",
+      requestId,
+      shapeId,
+      kind,
+      selector,
+    };
+    w.postMessage(message);
+  }, []);
+
   const clearMesh = useCallback(() => {
     setMesh(null);
     setCurrentShapeId(null);
@@ -275,6 +297,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     rebuild,
     deleteShape,
     getFaceGeometry,
+    resolveSelector,
     clearMesh,
     retry,
   };

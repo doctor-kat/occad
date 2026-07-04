@@ -947,7 +947,7 @@ concrete, kernel-staying-the-same improvements fall out of the analysis (below).
 
 | # | Item | What it is | Effort | Pointer |
 |---|------|-----------|--------|---------|
-| 9.1 | **Selector system** 🟡 | Port CadQuery's edge/face **selectors** (`>Z`, `<X`, `\|Y`, tag/nearest/radius filters) to our TS-over-OCCT topology walk. Biggest UX win: better fillet/chamfer edge-picking + selection ergonomics. We already have the topology-exploration primitives. Clean-room port of the *concepts* (grammar + predicates), not the code — CadQuery is Apache-2.0. **Phase 1 done (2026-06-30):** pure grammar+evaluate engine in `src/cad/engine/selectors/` (28 unit tests, no WASM). Remaining: OCC descriptor extraction, worker/UI wiring — see `TODO.md`. | Medium | CadQuery `selectors.py` (Apache-2.0, reference only); our `fingerprint.ts`, `modifications.ts` (`resolveSubShapes`), `sketch/coordinateSystem.ts` |
+| 9.1 | **Selector system** 🟡 | Port CadQuery's edge/face **selectors** (`>Z`, `<X`, `\|Y`, tag/nearest/radius filters) to our TS-over-OCCT topology walk. Biggest UX win: better fillet/chamfer edge-picking + selection ergonomics. We already have the topology-exploration primitives. Clean-room port of the *concepts* (grammar + predicates), not the code — CadQuery is Apache-2.0. **Phases 0–2 done (2026-07-04):** pure grammar+evaluate engine + OCC descriptor extraction (`describe.ts`) + worker wiring (`resolveSelector` request/response, `handleResolveSelector`, `useOpenCascade.resolveSelector`) all materializing fingerprinted `StableRef[]`. Remaining: OperationPanel UI (Phase 3), optional persistent re-evaluation (Phase 4), e2e (Phase 5) — see `TODO.md`. | Medium | CadQuery `selectors.py` (Apache-2.0, reference only); our `fingerprint.ts`, `modifications.ts` (`resolveSubShapes`), `sketch/coordinateSystem.ts` |
 | 9.2 | **Standard-format export** | Implement STEP / STL / glTF **export directly** — the OCCT writers are already in our `full.wasm`; no CadQuery/OCP dependency needed. Folds into the existing §3 Import/Export gap. | Small–Medium | `STEPControl_Writer`, `StlAPI_Writer`, `RWGltf_CafWriter`; wire into `operations.ts` + the disabled I/O tab |
 | 9.3 | **Custom (trimmed) WASM build** | We load the monolithic `opencascade.full.wasm` (whole kernel). `opencascade.js` supports custom builds binding only the classes we use → smaller WASM + faster cold start. OCP's module list is a useful map of what OCCT offers when scoping the build. | Medium | `opencascadeWorker.ts` (`openCascadeWasm`, `initOpenCascade`), `vite.config.ts` optimizeDeps |
 
@@ -1169,3 +1169,14 @@ Selection/hover hex-color duplication (~23 occurrences across 6 files, no shared
 unmemoized per-render geometry rebuilds flagged for `OCCModel.tsx` are both confirmed still present and
 now additionally found in `SketchElementRenderer3D.tsx`, `SketchRenderer.tsx`, `NativePolyline.tsx`, and
 `ExtrudeArrows.tsx` — same "needs interactive verification, not a blind edit" rationale as before._
+
+---
+
+_Last updated: 2026-07-04 — continued the §9.1 selector system: Phase 2 (worker wiring). Added
+`ResolveSelectorRequest`/`SelectorResolvedResponse` DTOs, `handleResolveSelector` in `operations.ts`
+(`describeSubShapes` → `selectSubShapes` → fingerprinted `StableRef[]`, scoped error on missing
+shape), `useOpenCascade.resolveSelector`/`onSelectorResolved` bridge plumbing, and the
+`opencascadeWorker.ts` message-switch case — all mirroring the existing `getFaceGeometry` pattern.
+Exported `mapSubShapes` from `fingerprint.ts` instead of a third duplicate (describe.ts already had
+one). 3 new unit tests (mock `oc`, no WASM); 459/459 tests green; `bun run build` clean. Next: Phase
+3 (OperationPanel "select by rule" UI) — see `TODO.md`._

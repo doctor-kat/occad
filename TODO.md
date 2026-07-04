@@ -94,17 +94,21 @@ call site (edges for fillet/chamfer, faces for shell) but a leading `%kind` may 
 - [ ] Follow-up polish (deferred): friendly "no matches" error vs. empty array; binary set-subtract
       (`A exc B`) — currently `exc` is unary only (use `A and not B`).
 
-### Phase 2 — Worker wiring: materialize a selector → StableRef[]  ❌
-- [ ] `ResolveSelectorRequest` / `SelectorResolvedResponse` DTOs in `src/worker/types/{requests,
-      responses}/` + index barrels + union types (`WorkerRequestType`/`WorkerResponseType`).
-- [ ] Handler `handleResolveSelector(ctx, { shapeId, kind, selector })` in `operations.ts`:
+### Phase 2 — Worker wiring: materialize a selector → StableRef[]  ✅
+- [x] `ResolveSelectorRequest` / `SelectorResolvedResponse` DTOs in `src/worker/types/{requests,
+      responses}/` + index barrels + `WorkerRequest`/`WorkerResponse` unions.
+- [x] Handler `handleResolveSelector(ctx, requestId, shapeId, kind, selector)` in `operations.ts`:
       `describeSubShapes` → `selectSubShapes` → for each hit index, `computeFingerprint` →
-      **`StableRef[]`** (fingerprinted, so stable) → post back. Reuse `findSketchShape`/current-body
-      lookup already in `operations.ts`.
-- [ ] `useOpenCascade.resolveSelector(shapeId, kind, selector)` bridge method + promise/callback
-      plumbing mirroring `getFaceGeometry`.
-- [ ] Unit test the handler path with mock `oc` (assert it returns fingerprinted refs, not bare
-      indices); geometric correctness is e2e.
+      **`StableRef[]`** (fingerprinted, so stable) → posts `selectorResolved`. Exported
+      `mapSubShapes` from `fingerprint.ts` (was file-local) instead of a third duplicate. Missing
+      shape → scoped `error` (`featureId: selector-<requestId>`), matching the `getFaceGeometry`
+      per-request error-scoping convention.
+- [x] `useOpenCascade.resolveSelector(requestId, shapeId, kind, selector)` bridge method +
+      `onSelectorResolved(requestId, refs)` callback, wired in `opencascadeWorker.ts`'s message
+      switch — mirrors `getFaceGeometry` exactly.
+- [x] `selectors/resolveSelector.test.ts` (3): resolves `>Z` to a fingerprinted `StableRef[]`
+      (asserts `kind`/`index`/`fingerprint` shape, not bare indices), scoped error on missing shape,
+      `|Z` multi-match. **459/459 tests green; `bun run build` clean.**
 
 ### Phase 3 — UI: "select by rule" for fillet/chamfer/shell  ❌
 - [ ] In `OperationPanel` (modification params), add a selector `TextInput` beside the manual

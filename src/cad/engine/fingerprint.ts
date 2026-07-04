@@ -50,7 +50,7 @@ function castSubShape(ctx: WorkerContext, sub: TopoDS_Shape, kind: SubShapeKind)
 }
 
 /** Flatten the 1-based OCC sub-shape map to a 0-based array of sub-shapes. */
-function mapSubShapes(ctx: WorkerContext, shape: TopoDS_Shape, kind: SubShapeKind): TopoDS_Shape[] {
+export function mapSubShapes(ctx: WorkerContext, shape: TopoDS_Shape, kind: SubShapeKind): TopoDS_Shape[] {
   const { oc } = ctx;
   const map = new oc.TopTools_IndexedMapOfShape_1();
   oc.TopExp.MapShapes_1(shape, shapeEnumFor(ctx, kind), map);
