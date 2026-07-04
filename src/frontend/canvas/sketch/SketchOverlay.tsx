@@ -43,6 +43,7 @@ import {
   selectElementsInBox,
 } from '@/cad/engine/sketch/sketchBoxSelection';
 import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors';
+import { hitsDimensionHandle } from '@/cad/engine/sketch/dimensionHandleHitTest';
 import { ORIGIN_POINT_ID } from '@/cad/engine/sketch/originPoint';
 import type { ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 
@@ -306,13 +307,14 @@ export function SketchOverlay({
 
   // R3F context for box-select: project plane points to screen px via the live
   // camera, and attach the rubber-band drag listeners to the canvas element.
-  const { camera, gl, size } = useThree();
+  const { camera, gl, size, scene } = useThree();
 
   // Mutable mirrors read by the gl.domElement listeners (registered once). Reading
   // these from refs keeps the listener effect from re-binding on every elements/
   // camera/size change mid-drag.
   const cameraRef = useRef(camera);
   const sizeRef = useRef(size);
+  const sceneRef = useRef(scene);
   const elementsRef = useRef(sketch.elements);
   const planeTransformRef = useRef<THREE.Matrix4>(new THREE.Matrix4());
   const activeOperationRef = useRef(activeOperation);
@@ -332,6 +334,7 @@ export function SketchOverlay({
   // Keep the listener-facing mirrors current (cheap, runs every render).
   cameraRef.current = camera;
   sizeRef.current = size;
+  sceneRef.current = scene;
   elementsRef.current = sketch.elements;
   planeTransformRef.current = planeTransform;
   activeOperationRef.current = activeOperation;
@@ -509,17 +512,25 @@ export function SketchOverlay({
       return { x: (v.x * 0.5 + 0.5) * width, y: (-v.y * 0.5 + 0.5) * height };
     };
 
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0) return;            // left button only
       if (activeOperationRef.current) return; // a draw tool owns the left button
-      // A dimension label/arrowhead drag owns this gesture instead — r3f dispatches
-      // to that mesh's onPointerDown (which sets this flag) before this raw canvas
-      // listener runs, so box-select doesn't also start for the same pointer-down.
-      if (useViewportStore.getState().draggingDimensionLabel) return;
+      // A dimension label/arrowhead drag owns this gesture instead of box-select.
+      // Raycast directly against tagged handle meshes rather than relying on a
+      // flag set by another listener — two listeners on the same canvas element
+      // (this raw one, and r3f's own dispatcher) fire in registration order, which
+      // depends on component mount order (child effects run before parent ones),
+      // not on which gesture logically "owns" the pointerdown.
+      const p = toLocal(e);
+      ndc.set((p.x / sizeRef.current.width) * 2 - 1, -(p.y / sizeRef.current.height) * 2 + 1);
+      raycaster.setFromCamera(ndc, cameraRef.current as THREE.Camera);
+      if (hitsDimensionHandle(raycaster, sceneRef.current)) return;
       pressed = true;
       dragging = false;
       additive = e.ctrlKey || e.metaKey || e.shiftKey;
-      const p = toLocal(e);
       startX = curX = p.x;
       startY = curY = p.y;
     };

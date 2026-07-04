@@ -463,14 +463,26 @@ the tree/entity-list shows the group as an expandable folder.
     - Tests: `dimensionLayout.test.ts` (+4: default inward direction, each arrow flips independently, both flip
       together), `SketchRenderer.test.tsx` (+1: clicking each arrow's hit target reports the right one via
       `onToggleArrowFlip`, and `visualMetadata.arrowFlip` actually mirrors the rendered chevron).
-20. ✅ **Fixed: dragging a dimension label also started the sketch box-select rubber-band (2026-07-02).**
-    `SketchOverlay`'s box-select drag is a raw `dom.addEventListener('pointerdown', ...)` on the canvas — it fires
-    on *every* pointerdown regardless of which mesh r3f's raycasting dispatched to, so it couldn't distinguish
-    "start dragging a dimension label" from "start a box-select" and both fired for the same gesture. Added
-    `viewportStore.draggingDimensionLabel`: `SketchRenderer`'s `startDrag` sets it `true` synchronously on
-    pointerdown (r3f's own listener runs before `SketchOverlay`'s, since it's attached first, so this is set before
-    the box-select handler checks it) and `onWindowUp` clears it; `SketchOverlay`'s `onDown` now bails out early
-    when it's set. Tests: `SketchRenderer.test.tsx` (+1: the flag flips true on pointerdown and false on pointerup).
+20. ✅ **Fixed: dragging a dimension label also started the sketch box-select rubber-band — twice (2026-07-02,
+    re-fixed 2026-07-04).** `SketchOverlay`'s box-select drag is a raw `dom.addEventListener('pointerdown', ...)`
+    on the canvas — it fires on *every* pointerdown regardless of which mesh r3f's raycasting dispatched to, so it
+    couldn't distinguish "start dragging a dimension label" from "start a box-select" and both fired for the same
+    gesture. The first fix added `viewportStore.draggingDimensionLabel`, set `true` synchronously by
+    `SketchRenderer`'s `startDrag` on the assumption that r3f's own pointerdown dispatch runs before
+    `SketchOverlay`'s raw listener (since it's "attached first"). That assumption was backwards: React fires child
+    effects before parent effects, and `SketchOverlay` is a *deeper* descendant of `Canvas` than the top-level
+    r3f event-system connection is, so `SketchOverlay`'s raw listener actually attaches — and therefore fires —
+    *before* r3f's own dispatcher runs. The flag was never set in time, so the bug never actually stopped
+    reproducing; the flag also only ever covered the label mesh, never the arrowhead-flip hit targets (`onClick`
+    only, no `onPointerDown`), which had the same problem.
+    Replaced the flag with `hitsDimensionHandle()` (`dimensionHandleHitTest.ts`): a pure raycast against
+    `scene.children` for the nearest hit's `userData.isDimensionHandle` tag, called directly inside
+    `SketchOverlay`'s own `onDown` before it starts a drag. This has no dependency on listener/mount order at all —
+    it's a deterministic check, not a race. The label hit-mesh and both arrowhead hit-target meshes in
+    `SketchRenderer`'s `DimensionAnnotation` are now tagged with that `userData` key.
+    Tests: `dimensionHandleHitTest.test.ts` (new — pure raycast behavior: tagged hit, untagged hit, no hit, nearest-
+    hit-wins over a farther tagged mesh), `SketchRenderer.test.tsx` (asserts the label and both arrowhead meshes
+    carry the tag).
 21. ✅ **Added: a dimension highlights with the selection color as soon as its label drag starts, not just after
     release (2026-07-02).** Previously the orange "selected" color only applied once `selectedConstraintId` was set
     on pointerup, so mid-drag the dimension stayed its normal (gray/blue/green) color, and there was no visual

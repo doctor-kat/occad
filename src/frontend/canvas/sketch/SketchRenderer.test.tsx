@@ -72,10 +72,6 @@ const hexOf = (instance: { material: { color: THREE.Color } }) =>
 describe('SketchRenderer', () => {
   beforeEach(() => {
     useViewportStore.getState().setSelectedConstraintId(null);
-    // draggingDimensionLabel is a module-level zustand store, not component state —
-    // reset it too so a test that ends mid-drag (or whose pointerup assertions run
-    // out of order) can't leak `true` into a later test in this file.
-    useViewportStore.getState().setDraggingDimensionLabel(false);
   });
 
   it('renders line + circle primitives as native lines (not fat Line2)', async () => {
@@ -264,22 +260,23 @@ describe('SketchRenderer', () => {
     expect(useViewportStore.getState().selectedConstraintId).toBe(null);
   });
 
-  it('sets viewportStore.draggingDimensionLabel while a label drag is in progress, so SketchOverlay box-select can bail out', async () => {
+  it('tags the label drag-hit mesh and both arrowhead hit-targets as dimension handles, so SketchOverlay can raycast-detect them and skip box-select regardless of listener/mount order', async () => {
     const constraint = { id: 'c1', type: 'p2p_distance', p1_id: 'p1', p2_id: 'p2', distance: 10 };
     const renderer = await ReactThreeTestRenderer.create(
       <SketchRenderer sketch={makeSketch([point('p1', 0, 0), point('p2', 10, 0)], 1, [constraint])} />
     );
-    const dragHitMesh = renderer.scene
+    const labelHitMesh = renderer.scene
       .findAllByType('Mesh')
       .find((m) => m.instance.geometry.type === 'PlaneGeometry')!;
+    const arrowHitMeshes = renderer.scene
+      .findAllByType('Mesh')
+      .filter((m) => m.instance.geometry.type === 'CircleGeometry');
 
-    expect(useViewportStore.getState().draggingDimensionLabel).toBe(false);
-    await renderer.fireEvent(dragHitMesh, 'pointerDown', { clientX: 100, clientY: 100 });
-    expect(useViewportStore.getState().draggingDimensionLabel).toBe(true);
-
-    window.dispatchEvent(new MouseEvent('pointerup', { clientX: 100, clientY: 100 }));
-    await new Promise((r) => setTimeout(r, 0));
-    expect(useViewportStore.getState().draggingDimensionLabel).toBe(false);
+    expect(labelHitMesh.instance.userData.isDimensionHandle).toBe(true);
+    expect(arrowHitMeshes).toHaveLength(2);
+    for (const m of arrowHitMeshes) {
+      expect(m.instance.userData.isDimensionHandle).toBe(true);
+    }
   });
 
   it('highlights the dimension with the selection color while it is being dragged, even before pointerup commits a selection', async () => {

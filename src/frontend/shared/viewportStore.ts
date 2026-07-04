@@ -31,16 +31,6 @@ interface ViewportState {
    */
   sketchSelectionBox: { x: number; y: number; w: number; h: number; mode: 'window' | 'crossing' } | null;
 
-  /**
-   * True while a dimension label (or its arrowhead) is being pointer-dragged in
-   * `SketchRenderer`. `SketchOverlay`'s box-select pointerdown listener is a raw
-   * `addEventListener` on the canvas — it fires regardless of which mesh the r3f
-   * event system dispatched to, so it can't tell a label drag from empty-space box
-   * select on its own. It checks this flag (via `getState()`, not a subscription)
-   * and bails out early when it's set.
-   */
-  draggingDimensionLabel: boolean;
-
   // Sketch-on-face pending state
   pendingSketchOnFace: number | null;
 
@@ -68,7 +58,6 @@ interface ViewportState {
   setSketchSelectionBox: (box: ViewportState['sketchSelectionBox']) => void;
   setSelectedConstraintId: (id: string | null) => void;
   setHoveredConstraintId: (id: string | null) => void;
-  setDraggingDimensionLabel: (dragging: boolean) => void;
   clearSelection: () => void;
   clearHover: () => void;
 }
@@ -86,7 +75,6 @@ export const useViewportStore = create<ViewportState>((set) => ({
   selectedConstraintId: null,
   hoveredConstraintId: null,
   sketchSelectionBox: null,
-  draggingDimensionLabel: false,
   pendingSketchOnFace: null,
   extrudePreview: null,
 
@@ -111,7 +99,6 @@ export const useViewportStore = create<ViewportState>((set) => ({
   setSketchSelectionBox: (box) => set({ sketchSelectionBox: box }),
   setSelectedConstraintId: (id) => set({ selectedConstraintId: id }),
   setHoveredConstraintId: (id) => set({ hoveredConstraintId: id }),
-  setDraggingDimensionLabel: (dragging) => set({ draggingDimensionLabel: dragging }),
 
   clearSelection: () => set({
     selectedFaceId: null,

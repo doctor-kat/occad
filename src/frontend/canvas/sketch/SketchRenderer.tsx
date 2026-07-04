@@ -7,7 +7,10 @@ import { Sketch, Point2D } from '@/cad/types';
 import { lift, project } from '@/cad/engine/sketch/coordinateSystem';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { pointPointDimensionLayout, pointLineDimensionLayout, axisDimensionLayout, type DimensionLayout } from '@/cad/engine/sketch/dimensionLayout';
+import { DIMENSION_HANDLE_USERDATA_KEY } from '@/cad/engine/sketch/dimensionHandleHitTest';
 import { NativePolyline } from './NativePolyline';
+
+const DIMENSION_HANDLE_USERDATA = { [DIMENSION_HANDLE_USERDATA_KEY]: true };
 
 /** planegcs uses `c_id` for a circle/arc center; unsolved data may use `center_id`. */
 const centerPointId = (data: any): string | undefined => data.c_id ?? data.center_id;
@@ -83,13 +86,13 @@ function DimensionAnnotation({
           inward (default) and outward (the standard CAD "inside"/"outside" style,
           not two independently-flippable arrows). */}
       {[arrow1Tip, arrow2Tip].map((tip, i) => (
-        <mesh key={i} position={[tip.x, tip.y, tip.z + 0.05]} onClick={onToggleArrows}>
+        <mesh key={i} position={[tip.x, tip.y, tip.z + 0.05]} onClick={onToggleArrows} userData={DIMENSION_HANDLE_USERDATA}>
           <circleGeometry args={[ARROW_HIT_RADIUS, 12]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       ))}
       {/* Invisible bigger hit-area behind the label so dragging/selecting is easy to grab. */}
-      <mesh position={[labelPos.x, labelPos.y, labelPos.z + 0.05]} onPointerDown={onDragStart}>
+      <mesh position={[labelPos.x, labelPos.y, labelPos.z + 0.05]} onPointerDown={onDragStart} userData={DIMENSION_HANDLE_USERDATA}>
         <planeGeometry args={[4, 2]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
@@ -193,7 +196,6 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
     dragRef.current = null;
     window.removeEventListener('pointermove', onWindowMove);
     window.removeEventListener('pointerup', onWindowUp);
-    useViewportStore.getState().setDraggingDimensionLabel(false);
     setActiveDragId(null);
     if (!drag) return;
     if (!drag.moved) {
@@ -214,10 +216,6 @@ export function SketchRenderer({ sketch, onUpdateConstraintValue, onUpdateLabelO
 
   const startDrag = useCallback((constraintId: string, mid2d: Point2D) => (e: any) => {
     e.stopPropagation();
-    // Set synchronously, before SketchOverlay's raw canvas pointerdown listener runs
-    // (r3f dispatches to this handler first), so its box-select rubber-band doesn't
-    // also start for what's actually a label drag.
-    useViewportStore.getState().setDraggingDimensionLabel(true);
     dragRef.current = { constraintId, mid2d, startX: e.clientX, startY: e.clientY, moved: false };
     window.addEventListener('pointermove', onWindowMove);
     window.addEventListener('pointerup', onWindowUp);
