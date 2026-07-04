@@ -62,6 +62,11 @@ interface ViewportState {
   clearHover: () => void;
 }
 
+/** Shift/Ctrl/Cmd-click multi-selects (toggle); a plain click replaces the selection. */
+export function isMultiSelectClick(e: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }): boolean {
+  return Boolean(e.shiftKey || e.ctrlKey || e.metaKey);
+}
+
 export const useViewportStore = create<ViewportState>((set) => ({
   // Initial state
   hoveredTreeItem: null,

@@ -350,11 +350,16 @@ the tree/entity-list shows the group as an expandable folder.
     `updateSketchState` so `elements` and `primitives` stay in lockstep after every solve. Tests:
     `syncElementsFromPrimitives.test.ts` (5: rectangle — the reported case —, line, construction-line passthrough,
     circle, missing-primitive fallback).
-11. ✅ **Fixed: plain click multi-selected instead of replacing selection (2026-07-02).** Every sketch entity/point
-    click called `toggleSketchElementSelection` unconditionally (additive, never clearing), so two plain clicks
-    selected both entities instead of just the second. New `SketchOverlay.selectOrToggle(id, event)`: plain click
-    replaces the selection (`setSketchElementSelection([id])`); Shift/Ctrl/Cmd-click still toggles (additive, for
-    multi-entity constraints like Coincident/Distance) — matches the existing box-select's modifier convention.
+11. ✅ **Fixed: plain click multi-selected instead of replacing selection (2026-07-02, root cause finished 2026-07-04).**
+    Every sketch entity/point click called `toggleSketchElementSelection` unconditionally (additive, never clearing),
+    so two plain clicks selected both entities instead of just the second. `SketchOverlay.selectOrToggle(id, event)`
+    fixed this for viewport clicks: plain click replaces the selection (`setSketchElementSelection([id])`);
+    Shift/Ctrl/Cmd-click still toggles (additive, for multi-entity constraints like Coincident/Distance). **The 2026-07-02
+    fix missed `SketchEntitiesPanel` (left-sidebar entity list)** — its row `onClick` still called `toggleSelection`
+    unconditionally, so clicking two rows in the list still accumulated both, which is why the bug was still visible
+    there after the first fix. Gave the panel the same modifier-aware `selectOrToggle` logic (plain click →
+    `setSketchElementSelection([id])`, Shift/Ctrl/Cmd → `toggleSketchElementSelection`). Tests updated in
+    `SketchEntitiesPanel.test.tsx` to cover both plain-click-replaces and modifier-click-toggles.
 12. ✅ **Re-solve on sketch resume (2026-07-02).** `startSketchEdit` (both the tree "Edit" button and the
     sketch-button-toggle path) now also calls `buildSketch(sketch)`, so a sketch saved before item 10's fix — or
     otherwise left with `elements`/`primitives` diverged — self-heals the moment it's reopened, without requiring

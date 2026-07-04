@@ -36,7 +36,7 @@ import {
 } from '@/cad/engine/sketch/arcGeometry';
 import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
-import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { useViewportStore, isMultiSelectClick } from '@/frontend/shared/viewportStore';
 import {
   boxMode,
   rectFromCorners,
@@ -285,7 +285,7 @@ export function SketchOverlay({
   // Shift/Ctrl/Cmd-click toggles it into/out of a multi-selection (for constraints).
   const selectOrToggle = useCallback(
     (id: string, e: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => {
-      if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      if (isMultiSelectClick(e)) {
         toggleSketchElementSelection(id);
       } else {
         setSketchElementSelection([id]);

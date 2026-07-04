@@ -14,7 +14,7 @@ import {
 import type { ComponentType } from 'react';
 import type { Sketch, SketchElement } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
-import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
+import { useViewportStore, isMultiSelectClick } from '@/frontend/shared/viewportStore.ts';
 
 interface SketchEntitiesPanelProps {
   sketch: Sketch;
@@ -45,6 +45,7 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
   const selectedIds = useViewportStore((s) => s.selectedSketchElementIds);
   const hoveredId = useViewportStore((s) => s.hoveredSketchElementId);
   const toggleSelection = useViewportStore((s) => s.toggleSketchElementSelection);
+  const setSelection = useViewportStore((s) => s.setSketchElementSelection);
   const setHovered = useViewportStore((s) => s.setHoveredSketchElementId);
 
   const elements = sketch.elements || [];
@@ -117,7 +118,13 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
                   cursor: 'pointer',
                   transition: 'all 150ms',
                 }}
-                onClick={() => toggleSelection(element.id)}
+                onClick={(e) => {
+                  if (isMultiSelectClick(e)) {
+                    toggleSelection(element.id);
+                  } else {
+                    setSelection([element.id]);
+                  }
+                }}
                 onMouseEnter={() => setHovered(element.id)}
                 onMouseLeave={() => setHovered(null)}
               >

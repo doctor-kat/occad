@@ -41,13 +41,23 @@ describe('SketchEntitiesPanel', () => {
     expect(screen.getByText(/No sketch entities yet/i)).toBeInTheDocument();
   });
 
-  it('clicking a row toggles it in the selection set', async () => {
+  it('plain click replaces the selection with only this row', async () => {
     const user = userEvent.setup();
     renderWithProviders(<SketchEntitiesPanel sketch={sketch} />);
+    await user.click(screen.getByTestId('sketch-entity-l1'));
+    expect(useViewportStore.getState().selectedSketchElementIds).toEqual(['l1']);
     await user.click(screen.getByTestId('sketch-entity-c1'));
-    expect(useViewportStore.getState().selectedSketchElementIds).toContain('c1');
+    expect(useViewportStore.getState().selectedSketchElementIds).toEqual(['c1']);
+  });
+
+  it('ctrl/cmd-click toggles a row into/out of a multi-selection', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<SketchEntitiesPanel sketch={sketch} />);
+    await user.click(screen.getByTestId('sketch-entity-l1'));
+    await user.keyboard('{Control>}');
     await user.click(screen.getByTestId('sketch-entity-c1'));
-    expect(useViewportStore.getState().selectedSketchElementIds).not.toContain('c1');
+    await user.keyboard('{/Control}');
+    expect(useViewportStore.getState().selectedSketchElementIds).toEqual(['l1', 'c1']);
   });
 
   it('reflects the current selection set as selected rows', () => {
