@@ -61,9 +61,9 @@ export function mapElementsToPrimitives(elements: SketchElement[]): SketchPrimit
           fixed: false,
           data: {
             center_id: centerId,
-            radius: el.radius || 10,
-            start_angle: el.startAngle || 0,
-            end_angle: el.endAngle || Math.PI / 2,
+            radius: el.radius ?? 10,
+            start_angle: el.startAngle ?? 0,
+            end_angle: el.endAngle ?? Math.PI / 2,
           },
         });
         break;

@@ -238,7 +238,8 @@ export function extractEdgeVertices(
   const { oc } = ctx;
 
   // Tessellate so edges have polygon data
-  new oc.BRepMesh_IncrementalMesh_2(shape, linearDeflection, false, angularDeflection, false);
+  const mesher = new oc.BRepMesh_IncrementalMesh_2(shape, linearDeflection, false, angularDeflection, false);
+  mesher.delete();
 
   const edgeVertices: number[] = [];
 

@@ -25,10 +25,10 @@ export function SketchElementRenderer3D({
   let finalLineWidth = lineWidth || 4; // Default to 4 for better visibility
 
   if (isSelected) {
-    finalColor = '#fbbf24'; // Yellow/gold for selection
+    finalColor = '#3b82f6'; // Blue for selection (matches OCCModel/ReferencePlanes/SketchWireframes)
     finalLineWidth = finalLineWidth + 2; // Increase more significantly for selected
   } else if (isHovered) {
-    finalColor = '#60a5fa'; // Blue for hover
+    finalColor = '#f97316'; // Orange for hover (matches OCCModel/ReferencePlanes/SketchWireframes)
     finalLineWidth = finalLineWidth + 1;
   }
 

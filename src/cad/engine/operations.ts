@@ -235,34 +235,38 @@ export function performBooleanOperation(
         const fuse = new oc.BRepAlgoAPI_Fuse_3(shape1, shape2, progressRange);
         if (fuse.IsDone()) {
           const res = fuse.Shape();
-          fuse.delete(); progressRange.delete();
+          fuse.delete();
           return res;
         }
         fuse.delete();
+        // A failed fuse still needs to produce *a* body so the rebuild can
+        // continue; fall back to an unfused compound of both inputs (visibly
+        // wrong, but not a crash) rather than silently discarding one shape.
         const comp = new oc.TopoDS_Compound();
         const builder = new oc.BRep_Builder();
         builder.MakeCompound(comp);
         builder.Add(comp, shape1);
         builder.Add(comp, shape2);
-        progressRange.delete(); builder.delete();
+        builder.delete();
         return comp;
       }
       case 'subtract': {
         const cut = new oc.BRepAlgoAPI_Cut_3(shape1, shape2, progressRange);
+        if (!cut.IsDone()) { cut.delete(); throw new Error('BRepAlgoAPI_Cut failed'); }
         const res = cut.Shape();
-        cut.delete(); progressRange.delete();
+        cut.delete();
         return res;
       }
       case 'intersect': {
         const common = new oc.BRepAlgoAPI_Common_3(shape1, shape2, progressRange);
+        if (!common.IsDone()) { common.delete(); throw new Error('BRepAlgoAPI_Common failed'); }
         const res = common.Shape();
-        common.delete(); progressRange.delete();
+        common.delete();
         return res;
       }
     }
-  } catch (err) {
+  } finally {
     progressRange.delete();
-    return shape1;
   }
   return shape1;
 }
@@ -275,6 +279,14 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
 
   try {
     post({ type: 'progress', message: 'Starting full rebuild...' });
+    // Release the previous rebuild's WASM-side shapes before dropping the JS
+    // references, or their embind heap allocations are never reclaimed (a
+    // session-long memory leak, since rebuild fires on every project edit).
+    // De-dupe by object identity first: the same shape is often stored under
+    // multiple keys (e.g. a feature's shape and 'CURRENT_REBUILD_SHAPE').
+    for (const shape of new Set(ctx.shapeStorage.values())) {
+      try { (shape as { delete?: () => void }).delete?.(); } catch { /* already released */ }
+    }
     ctx.shapeStorage.clear();
 
     let currentBody: TopoDS_Shape | null = null;
@@ -332,7 +344,8 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
 
           if (feature.type === 'extrude-boss' || feature.type === FeatureOperation.EXTRUDED_CUT) {
             const sketchShape = findSketchShape(ctx, feature.sketchId!);
-            if (sketchShape) {
+            if (!sketchShape) throw new Error(`Sketch ${feature.sketchId} not found`);
+            {
               const faceToExtrude = ensureFace(ctx, sketchShape);
               const params = feature.parameters as ExtrudeParams;
               const direction = resolveExtrudeDirection(ctx, faceToExtrude, params);
@@ -343,7 +356,8 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
             }
           } else if (feature.type === FeatureOperation.REVOLVED_BOSS || feature.type === FeatureOperation.REVOLVED_CUT) {
             const sketchShape = findSketchShape(ctx, feature.sketchId!);
-            if (sketchShape) {
+            if (!sketchShape) throw new Error(`Sketch ${feature.sketchId} not found`);
+            {
               const faceToRevolve = ensureFace(ctx, sketchShape);
               const params = feature.parameters as RevolveParams;
               const axisOrigin = new oc.gp_Pnt_3(params.axis.origin.x, params.axis.origin.y, params.axis.origin.z);
@@ -499,6 +513,9 @@ export function handleGetFaceGeometry(ctx: WorkerContext, faceId: number, shapeI
     globalEdgeMap.delete();
     faceMap.delete();
   } catch (err: unknown) {
-    post({ type: 'error', message: `Failed to get face geometry: ${formatError(err)}` });
+    // Scoped with a featureId (even a synthetic one keyed off the request) so a
+    // single missed face-pick can't escalate into the app-wide fatal ErrorOverlay
+    // that an unscoped error triggers (see useOpenCascade's `!msg.featureId` check).
+    post({ type: 'error', message: `Failed to get face geometry: ${formatError(err)}`, featureId: `face-pick-${shapeId}` });
   }
 }

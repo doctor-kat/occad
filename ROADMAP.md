@@ -1099,3 +1099,66 @@ living doc into the "Deterministic topology & stable selections" section above. 
 resolution deferred (no payoff for the current selection model). Earlier (2026-06-23): implemented the
 Modifications family (fillet/chamfer/shell/offset) end-to-end and reorganized the operations bar into
 area-based tabs. Keep statuses honest — only mark ✅ when types + engine + rebuild + UI are all wired._
+
+---
+
+_Last updated: 2026-07-04 — ran `/code-review max --fix` over the entire repo (10 parallel finder
+angles: line-by-line, invariant/regression audit against this file's own documented fixes, cross-file
+tracer, language pitfalls, wrapper/proxy correctness, reuse, simplification, efficiency, altitude,
+CLAUDE.md conventions). ~45 raw candidates surfaced; 14 reported as findings, most-severe first.
+**Fixed** (verified with `bun run build` + full test suite, 453/453):
+- `performBooleanOperation`'s `subtract`/`intersect` cases (`operations.ts`) never checked
+  `BRepAlgoAPI_Cut`/`Common`'s `IsDone()`, so a failed cut/intersect silently produced a wrong result
+  with no error — now throws, caught by the existing per-feature try/catch in `handleRebuild` so the
+  failure surfaces on the offending tree item instead of a silent no-op body.
+- `handleRebuild`'s `ctx.shapeStorage.clear()` dropped JS `Map` entries without calling `.delete()` on
+  the embind-wrapped `TopoDS_Shape`s — a real WASM-heap leak on every rebuild (i.e. every project edit).
+  Now de-dupes by object identity (a shape is often stored under multiple keys) and deletes each before
+  clearing. Same class of leak fixed in `tessellation.ts`'s `extractEdgeVertices` (an unassigned,
+  never-deleted `BRepMesh_IncrementalMesh`).
+- `handleRebuild`'s extrude/revolve branches silently produced no shape (no error) when a feature's
+  source sketch no longer resolved (e.g. the sketch was deleted) — now throws, matching
+  `handleExtrudeSketch`/`handleRevolveSketch`'s existing behavior.
+- `handleGetFaceGeometry`'s catch block posted an unscoped error, which `useOpenCascade` treats as
+  app-wide-fatal — a scoped face-pick miss (e.g. clicking mid-rebuild) escalated into a full-screen
+  blocking `ErrorOverlay`. Now scoped with a synthetic `featureId`.
+- `elementsToPrimitives.ts`'s arc mapping used `el.radius || 10` / `el.endAngle || Math.PI / 2` —
+  falsy-zero bugs that silently replaced a legitimate 0 radius/end-angle with the fallback. Changed to `??`.
+- `SketchElementRenderer3D.tsx` used the inverse selected/hover color convention (gold/blue) from every
+  other canvas component (blue/orange) — a real, already-visible inconsistency, not just duplication
+  risk. Aligned to the shared convention.
+- Removed the stray `package-lock.json` (both it and `bun.lockb` were tracked, already drifted) —
+  CLAUDE.md states Bun is the sole package manager.
+
+**Flagged but deliberately not fixed** (each needs either real geometry/e2e verification per this
+repo's own "3D model changes require tests" rule, or a genuine architectural change — not a mechanical
+review-time edit):
+- `createWorkplane`'s XZ-plane branch (`useCADState.ts`) builds a left-handed basis (mirrored relative
+  to its own stated normal), while XY/YZ/CUSTOM are right-handed — plausible root cause of an inverted
+  extrude direction specifically on the Top Plane. Needs a geometry/e2e check before touching.
+- `useOpenCascade.ts` dispatches `buildSketch`/`extrudeSketch`/`revolveSketch`/`rebuild` with no
+  request-id correlation, so a targeted sketch build and a version-bump-triggered rebuild can race
+  against the same worker-side `shapeStorage`; similarly `getFaceGeometry` responses are correlated
+  only by `faceId` (not unique across shapes), so a stale response can land after a shape change.
+  Needs a real request/response id threaded through `src/worker/types` — an architectural change.
+- `findSketchShape` (`helpers.ts`) resolves the *oldest* matching `shapeStorage` entry for a sketch id
+  (`Array.find`), since nothing prunes a sketch's previous entries before a rebuild. Same family as the
+  leak fixed above, but pruning safely requires more care about in-flight references.
+- `retry()` (`useOpenCascade.ts`) only resets React state, never re-sends `init` or recreates the
+  worker — it can't actually recover from a worker init failure. Fixing requires a worker-teardown/
+  re-create path, not a one-line change.
+- `useCADState.ts`'s documented `triggerRebuild`/`rebuildState`/`reorderFeature`/`deleteFeature`/
+  `updateFeatureGeometry` API has zero call sites — `CADLayout.tsx` bypasses all of it with its own
+  version-bump effect and `deleteTreeItem`. Wiring these in (or removing the dead API) is a UI-surface
+  change, not a review-time fix.
+
+Also surfaced (not in the top-15 cut, correctness ranked above cleanup): the three previously-flagged
+altitude issues (constraint solver in the UI layer, `viewportStore`'s three parallel interaction flags,
+`handleRebuild` re-implementing extrude/revolve + re-deriving boss-vs-cut) are all still present, plus
+two new instances of the same pattern (`OperationPanel.tsx`'s three parallel per-operation switches;
+`SketchOverlay.tsx`'s duplicated per-tool commit/preview switches — the latter already has a live
+symptom: the `BEZIER` toolbar button has zero handling in either switch, a dead button in production).
+Selection/hover hex-color duplication (~23 occurrences across 6 files, no shared theme token) and the
+unmemoized per-render geometry rebuilds flagged for `OCCModel.tsx` are both confirmed still present and
+now additionally found in `SketchElementRenderer3D.tsx`, `SketchRenderer.tsx`, `NativePolyline.tsx`, and
+`ExtrudeArrows.tsx` — same "needs interactive verification, not a blind edit" rationale as before._
