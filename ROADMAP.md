@@ -947,7 +947,7 @@ concrete, kernel-staying-the-same improvements fall out of the analysis (below).
 
 | # | Item | What it is | Effort | Pointer |
 |---|------|-----------|--------|---------|
-| 9.1 | **Selector system** 🟡 | Port CadQuery's edge/face **selectors** (`>Z`, `<X`, `\|Y`, tag/nearest/radius filters) to our TS-over-OCCT topology walk. Biggest UX win: better fillet/chamfer edge-picking + selection ergonomics. We already have the topology-exploration primitives. Clean-room port of the *concepts* (grammar + predicates), not the code — CadQuery is Apache-2.0. **Phases 0–4 done (2026-07-04):** pure grammar+evaluate engine + OCC descriptor extraction (`describe.ts`) + worker wiring (`resolveSelector` request/response, `handleResolveSelector`, `useOpenCascade.resolveSelector`) + an `OperationPanel` "select by rule" `TextInput` + preset chips (fillet/chamfer/shell) that materialize matches into the existing edge/face selection, plus an optional persistent mode (`FilletParams`/`ChamferParams`/`ShellParams.selector`, re-evaluated live each rebuild and unioned with explicit picks, opt-in via a "keep this rule live" checkbox). Remaining: e2e (Phase 5), viewport highlight of resolved sub-shapes — see `TODO.md`. | Medium | CadQuery `selectors.py` (Apache-2.0, reference only); our `fingerprint.ts`, `modifications.ts` (`resolveSubShapes`), `sketch/coordinateSystem.ts` |
+| 9.1 | **Selector system** ✅ | Port CadQuery's edge/face **selectors** (`>Z`, `<X`, `\|Y`, tag/nearest/radius filters) to our TS-over-OCCT topology walk. Biggest UX win: better fillet/chamfer edge-picking + selection ergonomics. We already have the topology-exploration primitives. Clean-room port of the *concepts* (grammar + predicates), not the code — CadQuery is Apache-2.0. **Done (2026-07-04):** pure grammar+evaluate engine, OCC descriptor extraction (`describe.ts`), worker wiring (`resolveSelector` request/response, `handleResolveSelector`, `useOpenCascade.resolveSelector`), an `OperationPanel` "select by rule" `TextInput` + preset chips (fillet/chamfer/shell) that materialize matches into the existing edge/face selection, an optional persistent mode (`FilletParams`/`ChamferParams`/`ShellParams.selector`, re-evaluated live each rebuild and unioned with explicit picks via a "keep this rule live" checkbox), and an `e2e/selectors.spec.ts` proving real-WASM validity (fillet via `\|Z`, shell via `>Z`/`\|Z`). Deferred: viewport highlight of resolved sub-shapes (needs a "highlighted set" concept in `viewportStore`); e2e coverage of `%kind` geomType-tag selectors on curved bodies is blocked by an unrelated tessellation bug (see follow-up below) — the grammar/evaluate path itself is unit-tested. | Medium | CadQuery `selectors.py` (Apache-2.0, reference only); our `fingerprint.ts`, `modifications.ts` (`resolveSubShapes`), `sketch/coordinateSystem.ts` |
 | 9.2 | **Standard-format export** | Implement STEP / STL / glTF **export directly** — the OCCT writers are already in our `full.wasm`; no CadQuery/OCP dependency needed. Folds into the existing §3 Import/Export gap. | Small–Medium | `STEPControl_Writer`, `StlAPI_Writer`, `RWGltf_CafWriter`; wire into `operations.ts` + the disabled I/O tab |
 | 9.3 | **Custom (trimmed) WASM build** | We load the monolithic `opencascade.full.wasm` (whole kernel). `opencascade.js` supports custom builds binding only the classes we use → smaller WASM + faster cold start. OCP's module list is a useful map of what OCCT offers when scoping the build. | Medium | `opencascadeWorker.ts` (`openCascadeWasm`, `initOpenCascade`), `vite.config.ts` optimizeDeps |
 
@@ -1196,4 +1196,18 @@ deduped by `refLabel` — decided precedence is **selector ∪ explicit** (addit
 manual pick). `OperationPanel` exposes this via a "keep this rule live" checkbox next to the
 selector input (off by default, so Phase 3 behavior is unchanged unless opted in). 4 new
 `modifications.selector.test.ts` tests + 1 `OperationPanel.test.tsx` test; 465/465 tests green;
-`bun run build` clean. Next: Phase 5 (e2e — real geometric validity is e2e-only) — see `TODO.md`._
+`bun run build` clean.
+
+Then Phase 5 (e2e, closing out §9.1): `e2e/selectors.spec.ts` (3 tests, real WASM) — box -> fillet
+via `|Z` (the flagship "all vertical edges" case) -> valid rounded solid; box -> shell via `>Z`
+(single top face) -> valid hollowed solid; box -> shell via `|Z` (both horizontal faces,
+multi-match) -> valid solid. All pass. **Follow-up bug found while writing these, unrelated to
+selectors:** every curved primitive (Sphere/Cylinder/Cone/Torus) tessellates to 0 vertices in this
+build — reproduces with zero selector involvement (create a bare Sphere -> "Rebuild complete.
+Received mesh with 0 vertices" in the console, confirmed for both Sphere and Cylinder). Planar
+primitives (Box) and sketch-based features are unaffected. Not investigated further here (out of
+scope for §9.1); worth a dedicated session — likely in `tessellate`/`operations.ts`'s primitive
+handlers or a mesh-buffer size mismatch specific to curved surfaces. Selector system status flipped
+to ✅ in the table above (0–5 all done; viewport highlight of resolved sub-shapes remains an
+optional, never-blocking follow-up). `TODO.md` deleted — this file is now the sole source of truth
+for the feature's status._
