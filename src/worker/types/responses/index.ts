@@ -8,6 +8,7 @@ import type { ErrorResponse } from './ErrorResponse';
 import type { ProgressResponse } from './ProgressResponse';
 import type { SelectorResolvedResponse } from './SelectorResolvedResponse';
 import type { ExportedResponse } from './ExportedResponse';
+import type { MeasuredResponse } from './MeasuredResponse';
 
 export type {
   ReadyResponse,
@@ -20,6 +21,7 @@ export type {
   ProgressResponse,
   SelectorResolvedResponse,
   ExportedResponse,
+  MeasuredResponse,
 };
 
 // ============================================================================
@@ -37,5 +39,6 @@ export type WorkerResponse =
   | ErrorResponse
   | ProgressResponse
   | SelectorResolvedResponse
-  | ExportedResponse;
+  | ExportedResponse
+  | MeasuredResponse;
 

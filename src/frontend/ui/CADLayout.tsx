@@ -12,8 +12,9 @@ import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Group } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
-import { FeatureTreeIcon, EntitiesIcon } from '@/frontend/shared/icons';
-import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat } from '@/cad/types';
+import { FeatureTreeIcon, EntitiesIcon, MeasureIcon } from '@/frontend/shared/icons';
+import { MeasurePanel } from './MeasurePanel';
+import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat, MeasurementData } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
@@ -160,6 +161,7 @@ export function CADLayout() {
     getFaceGeometry,
     resolveSelector,
     exportShape,
+    measureShape,
     currentFeatureShapeId,
     buildSketch,
     sketchEdges: occSketchEdges,
@@ -225,6 +227,9 @@ export function CADLayout() {
         pendingSelectorResolutions.current.delete(requestId);
         resolve(refs);
       }
+    },
+    onMeasured: (_requestId, result) => {
+      setMeasurement(result);
     },
     onExported: (requestId, format, content) => {
       // Trigger a browser download of the serialized file. The suggested name
@@ -329,6 +334,18 @@ export function CADLayout() {
   // Operation panel state
   const [operationPanelOpen, setOperationPanelOpen] = useState(false);
   const [editingFeatureId, setEditingFeatureId] = useState<string | null>(null);
+
+  // Measurement / Analysis readout (ROADMAP §4) for the Measure sidebar tab.
+  const [measurement, setMeasurement] = useState<MeasurementData | null>(null);
+
+  // (Re)measure whenever the Measure tab is open and the current body changes.
+  // Clearing first shows the "Measuring…" state until the worker replies.
+  useEffect(() => {
+    if (activeSidebarTab !== 'measure') return;
+    setMeasurement(null);
+    if (!currentFeatureShapeId) return;
+    measureShape(crypto.randomUUID(), currentFeatureShapeId);
+  }, [activeSidebarTab, currentFeatureShapeId, measureShape]);
 
   // Request face geometry from the worker, then create a sketch on that face
   // (the sketch is created in the onFaceGeometry callback above).
@@ -1087,7 +1104,30 @@ export function CADLayout() {
                           </Tooltip>
                         )}
                       </Tabs.Tab>
-      
+                      <Tabs.Tab
+                        value="measure"
+                        data-testid="measure-tab"
+                        style={{
+                          transition: 'background-color 200ms, border-color 200ms, color 200ms',
+                          ...(activeSidebarTab === 'measure' && {
+                            color: theme.colors.blue[5],
+                            borderBottomColor: theme.colors.blue[5],
+                            backgroundColor: `${theme.colors.blue[5]}15`,
+                          })
+                        }}
+                      >
+                        {isSidebarOpen ? (
+                          <Group gap={6} wrap="nowrap">
+                            <MeasureIcon size={16} />
+                            <span>Measure</span>
+                          </Group>
+                        ) : (
+                          <Tooltip label="Measure" position="right">
+                            <Center><MeasureIcon size={20} /></Center>
+                          </Tooltip>
+                        )}
+                      </Tabs.Tab>
+
                       {!isSidebarOpen && (
                         <Box mt="auto" px={8} pb={8} style={{ width: '100%' }}>
                           <Tooltip label="Expand Sidebar" position="right">
@@ -1141,6 +1181,9 @@ export function CADLayout() {
                           onEdgeClick={handleEdgeClick}
                         />
                       )}
+                    </Tabs.Panel>
+                    <Tabs.Panel value="measure">
+                      <MeasurePanel measurement={measurement} hasBody={!!currentFeatureShapeId} />
                     </Tabs.Panel>
             </Tabs>
           </Box>

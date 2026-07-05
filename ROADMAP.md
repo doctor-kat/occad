@@ -25,7 +25,7 @@ started
 | **Transforms**               | ✅     | Move, Rotate, Mirror, Scale                               | —               | —                                                   |
 | **Advanced modeling**        | ✅     | Sweep, Loft                                               | —               | —                                                   |
 | **Import / Export**          | ✅     | STEP/IGES import, STEP/IGES/STL export (browser-verified) | —               | OBJ import + glTF export (disabled — need custom WASM) |
-| **Measurement / Analysis**   | ❌     | —                                                         | Type only       | Measure, volume, area, CoM, bbox                    |
+| **Measurement / Analysis**   | 🟡     | Volume + Bounding Box (Measure tab, browser-verified)     | —               | Measure (distance/length) still type only           |
 | **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
 | **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
@@ -720,10 +720,13 @@ the tree/entity-list shows the group as an expandable folder.
 | Tool                           | Status       | OCC API                            |
 |--------------------------------|--------------|------------------------------------|
 | Measure (distance/length)      | 🟡 type only | `BRepExtrema_DistShapeShape`       |
-| Volume / Area / Center of mass | ❌            | `BRepGProp` / `GProp_GProps`       |
-| Bounding box                   | ❌            | `Bnd_Box` / `BRepBndLib`           |
+| Volume                         | ✅ engine + UI (Measure tab, browser-verified) | `BRepGProp` / `GProp_GProps` |
+| Bounding Box                   | ✅ engine + UI (Measure tab, browser-verified) | `Bnd_Box` / `BRepBndLib`     |
 | Shape validity check           | ❌            | `BRepCheck_Analyzer`               |
 | Shape healing                  | ❌            | `ShapeFix_Shape` / `Wire` / `Face` |
+
+**Measurement tab UI:** a dedicated tab showing a compact readout —
+`Measure` label · divider · small button `Volume: {value}` · small button `Bounding Box: X mm × Y mm × Z mm`.
 
 ---
 

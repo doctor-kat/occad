@@ -16,6 +16,7 @@ import type {
   SubShapeKind,
   StableRef,
   ExportFormat,
+  MeasurementData,
 } from "@/cad/types";
 
 export type { CADMeshData as MeshData };
@@ -39,6 +40,8 @@ interface UseOpenCascadeOptions {
   onSelectorResolved?: (requestId: string, refs: StableRef[]) => void;
   /** Callback when a shape has been exported to interchange file text (ROADMAP §3) */
   onExported?: (requestId: string, format: ExportFormat, content: string) => void;
+  /** Callback when a shape's volume + bounding box have been measured (ROADMAP §4) */
+  onMeasured?: (requestId: string, measurement: MeasurementData) => void;
   /** Callback when an error occurs */
   onError?: (message: string, featureId?: string) => void;
   /** Callback when the worker captures fingerprint upgrades for selections (step 3b) */
@@ -139,6 +142,10 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
 
         case "exported":
           optsRef.current.onExported?.(msg.requestId, msg.format, msg.content);
+          break;
+
+        case "measured":
+          optsRef.current.onMeasured?.(msg.requestId, msg.measurement);
           break;
 
         case "error":
@@ -290,6 +297,18 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     w.postMessage(message);
   }, []);
 
+  // Measure a stored shape's volume + bounding box (ROADMAP §4)
+  const measureShape = useCallback((requestId: string, shapeId: string) => {
+    const w = workerRef.current;
+    if (!w) return;
+    const message: WorkerRequest = {
+      type: "measureShape",
+      requestId,
+      shapeId,
+    };
+    w.postMessage(message);
+  }, []);
+
   const clearMesh = useCallback(() => {
     setMesh(null);
     setCurrentShapeId(null);
@@ -319,6 +338,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     getFaceGeometry,
     resolveSelector,
     exportShape,
+    measureShape,
     clearMesh,
     retry,
   };

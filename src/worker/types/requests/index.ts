@@ -9,6 +9,7 @@ import type { DeleteShapeRequest } from './DeleteShapeRequest';
 import type { GetFaceGeometryRequest } from './GetFaceGeometryRequest';
 import type { ResolveSelectorRequest } from './ResolveSelectorRequest';
 import type { ExportShapeRequest } from './ExportShapeRequest';
+import type { MeasureShapeRequest } from './MeasureShapeRequest';
 
 export type {
   InitRequest,
@@ -22,6 +23,7 @@ export type {
   GetFaceGeometryRequest,
   ResolveSelectorRequest,
   ExportShapeRequest,
+  MeasureShapeRequest,
 };
 
 // ============================================================================
@@ -40,5 +42,6 @@ export type WorkerRequest =
   | DeleteShapeRequest
   | GetFaceGeometryRequest
   | ResolveSelectorRequest
-  | ExportShapeRequest;
+  | ExportShapeRequest
+  | MeasureShapeRequest;
 

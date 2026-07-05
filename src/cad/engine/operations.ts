@@ -49,6 +49,7 @@ import { mapSubShapes, computeFingerprint } from './fingerprint';
 import { describeSubShapes } from './selectors/describe';
 import { selectSubShapes } from './selectors';
 import { exportShapeToString, importShapeFromString } from './io';
+import { measureShape } from './analysis';
 import type { ImportParams, ExportFormat } from '@/cad/types';
 
 /** Counter for generating unique shape IDs */
@@ -619,5 +620,24 @@ export function handleExportShape(
     post({ type: 'exported', requestId, format, content });
   } catch (err: unknown) {
     post({ type: 'error', message: `Failed to export ${format.toUpperCase()}: ${formatError(err)}`, featureId: `export-${requestId}` });
+  }
+}
+
+/**
+ * Handle measureShape request (ROADMAP §4): compute a stored body's volume and
+ * bounding box and post the readout back to the main thread.
+ */
+export function handleMeasureShape(
+  ctx: WorkerContext,
+  requestId: string,
+  shapeId: string
+): void {
+  try {
+    const shape = ctx.shapeStorage.get(shapeId);
+    if (!shape) throw new Error('No geometry to measure — build a feature first');
+    const measurement = measureShape(ctx, shape);
+    post({ type: 'measured', requestId, measurement });
+  } catch (err: unknown) {
+    post({ type: 'error', message: `Failed to measure shape: ${formatError(err)}`, featureId: `measure-${requestId}` });
   }
 }
