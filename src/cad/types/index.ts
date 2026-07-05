@@ -37,6 +37,8 @@ export * from './operations/FilletParams';
 export * from './operations/ChamferParams';
 export * from './operations/ShellParams';
 export * from './operations/OffsetParams';
+export * from './operations/SweepParams';
+export * from './operations/LoftParams';
 export * from './operations/TransformParams';
 export * from './operations/MeasureParams';
 export * from './operations/OperationParams';

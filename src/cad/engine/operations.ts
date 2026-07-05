@@ -20,6 +20,8 @@ import type {
   ChamferParams,
   ShellParams,
   OffsetParams,
+  SweepParams,
+  LoftParams,
   TransformParams,
   MeasureParams,
   CADProject,
@@ -38,6 +40,7 @@ import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
 import { buildSketchWire, buildProfileFace } from './sketchBuilders';
 import { applyFillet, applyChamfer, applyShell, applyOffset, enrichRefs } from './modifications';
+import { applySweep, applyLoft } from './advancedModeling';
 import { applyTransform } from './transforms';
 import { tessellate, extractEdgeVertices } from './tessellation';
 import { SketchSolver } from './SketchSolver';
@@ -385,6 +388,21 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
             const cylinder = new oc.BRepPrimAPI_MakeCylinder_2(axis, params.radius, params.height);
             if (cylinder.IsDone()) newShape = cylinder.Shape();
             axisOrigin.delete(); axis.delete(); cylinder.delete();
+          } else if (feature.type === FeatureOperation.SWEEP) {
+            const params = feature.parameters as SweepParams;
+            const profileShape = findSketchShape(ctx, params.profileSketchId);
+            if (!profileShape) throw new Error(`Sweep profile sketch ${params.profileSketchId} not found`);
+            const pathShape = findSketchShape(ctx, params.pathSketchId);
+            if (!pathShape) throw new Error(`Sweep path sketch ${params.pathSketchId} not found`);
+            newShape = applySweep(ctx, profileShape, pathShape);
+          } else if (feature.type === FeatureOperation.LOFT) {
+            const params = feature.parameters as LoftParams;
+            const profileShapes = (params.sketchIds ?? []).map((id) => {
+              const s = findSketchShape(ctx, id);
+              if (!s) throw new Error(`Loft profile sketch ${id} not found`);
+              return s;
+            });
+            newShape = applyLoft(ctx, profileShapes, params.ruled);
           } else if (
             feature.type === FeatureOperation.FILLET ||
             feature.type === FeatureOperation.CHAMFER ||
@@ -446,10 +464,14 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
 
           if (newShape && !newShape.IsNull()) {
             if (currentBody) {
-              if (feature.type === 'extrude-boss' || feature.type === FeatureOperation.REVOLVED_BOSS || feature.type === 'box' || feature.type === FeatureOperation.CYLINDER) {
-                currentBody = performBooleanOperation(ctx, 'union', currentBody, newShape);
-              } else if (feature.type === FeatureOperation.EXTRUDED_CUT || feature.type === FeatureOperation.REVOLVED_CUT) {
+              // Sweep/loft can add or remove material depending on their isCut flag.
+              const advancedCut =
+                (feature.type === FeatureOperation.SWEEP || feature.type === FeatureOperation.LOFT) &&
+                (feature.parameters as SweepParams | LoftParams)?.isCut === true;
+              if (feature.type === FeatureOperation.EXTRUDED_CUT || feature.type === FeatureOperation.REVOLVED_CUT || advancedCut) {
                 currentBody = performBooleanOperation(ctx, 'subtract', currentBody, newShape);
+              } else {
+                currentBody = performBooleanOperation(ctx, 'union', currentBody, newShape);
               }
             } else {
               currentBody = newShape;

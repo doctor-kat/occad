@@ -23,7 +23,7 @@ started
 | **Boolean ops**              | 🟡     | Union, Subtract, Intersect (engine)                       | —               | UI for standalone booleans                          |
 | **Modifications**            | ✅     | Fillet, Chamfer, Shell, Offset                            | —               | —                                                   |
 | **Transforms**               | ✅     | Move, Rotate, Mirror, Scale                               | —               | —                                                   |
-| **Advanced modeling**        | ❌     | —                                                         | —               | Sweep, Loft                                         |
+| **Advanced modeling**        | ✅     | Sweep, Loft                                               | —               | —                                                   |
 | **Import / Export**          | ❌     | —                                                         | UI (disabled)   | STEP, IGES, STL, glTF, OBJ                          |
 | **Measurement / Analysis**   | ❌     | —                                                         | Type only       | Measure, volume, area, CoM, bbox                    |
 | **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
@@ -644,10 +644,32 @@ the tree/entity-list shows the group as an expandable folder.
 
 ### 2.6 Advanced modeling
 
-| Op    | Status          | OCC API                                    |
-|-------|-----------------|--------------------------------------------|
-| Sweep | ❌ (UI disabled) | `BRepOffsetAPI_MakePipe` / `MakePipeShell` |
-| Loft  | ❌ (UI disabled) | `BRepOffsetAPI_ThruSections`               |
+| Op    | Params type | Engine | Rebuild | UI | Status | OCC API                        |
+|-------|:-----------:|:------:|:-------:|:--:|--------|--------------------------------|
+| Sweep |      ✅      |   ✅    |    ✅    | ✅  | ✅      | `BRepOffsetAPI_MakePipe`       |
+| Loft  |      ✅      |   ✅    |    ✅    | ✅  | ✅      | `BRepOffsetAPI_ThruSections`   |
+
+> **Added (2026-07-04):** Advanced-modeling engine (`src/cad/engine/advancedModeling.ts`) + rebuild wiring.
+> Unlike modifications/transforms (which act on the current body in place), sweep and loft each produce a
+> **standalone** solid from sketch profiles, which `handleRebuild` then boolean-combines with the accumulated
+> body (union for a boss, subtract when `isCut`) — the same pattern as extrude/revolve.
+>  - **Sweep** (`applySweep`): the profile sketch is faced (`ensureFace`) and swept along the path sketch's
+>    wire (`ensureWire`) via `BRepOffsetAPI_MakePipe_1(spine, profile)`. `SweepParams` = `{ profileSketchId,
+>    pathSketchId, isCut? }`; the path sketch may be open (its wire is stored during rebuild even when it can't
+>    be faced — `buildProfileFace` falls back to the wire).
+>  - **Loft** (`applyLoft`): the ordered profile sketches' outer wires are added to
+>    `BRepOffsetAPI_ThruSections(isSolid=true, ruled, 1e-6)` and built. `LoftParams` = `{ sketchIds[], ruled?,
+>    isCut? }`; requires ≥2 profiles.
+>  - New `ensureWire` helper (`helpers.ts`) mirrors `ensureFace`: face→outer wire, edge→single-edge wire,
+>    compound→first contained wire.
+>  - UI: Sweep/Loft removed from `disabledOperations`; `OperationPanel` gained a Sweep panel (Profile + Path
+>    `Select`s) and a Loft panel (ordered `MultiSelect` of closed profiles + a Ruled checkbox).
+> **Tests:** `advancedModeling.test.ts` (7, mock `oc`): sweep faces the profile / drives the pipe / propagates
+> failure; loft lofts N wires / passes `ruled` / requires ≥2 profiles / propagates failure. ⚠️ As with
+> `operations.ts`/`modifications.ts`/`transforms.ts`, the unit suite (worker mocked) cannot catch a wrong OCC
+> constructor/method name — the OCC signatures were checked against the `opencascade.js` typings, and the UI was
+> confirmed live (panels enabled, render, no runtime errors), but driving a full sweep/loft *solid* end-to-end
+> in the browser is still pending (synthetic multi-plane sketch input is fragile — no e2e yet).
 
 ---
 

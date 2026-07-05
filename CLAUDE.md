@@ -306,4 +306,4 @@ The following are available in opencascade.js but not yet implemented in this pr
 - No constraint solver (pure explicit geometry)
 - TypeScript strict mode disabled — many type safety features off for rapid prototyping
 
-Implemented since this list was first written: fillet/chamfer/shell/offset (engine + rebuild + e2e); snapshot undo/redo; selection stability across rebuilds (geometric fingerprints) — see the "Deterministic topology & stable selections" section in `ROADMAP.md`.
+Implemented since this list was first written: fillet/chamfer/shell/offset (engine + rebuild + e2e); Move/Rotate/Mirror/Scale transforms; Sweep (`BRepOffsetAPI_MakePipe`) + Loft (`BRepOffsetAPI_ThruSections`) advanced modeling (engine + rebuild + UI); snapshot undo/redo; selection stability across rebuilds (geometric fingerprints) — see the "Deterministic topology & stable selections" section in `ROADMAP.md`.

@@ -16,6 +16,8 @@ import type {
   ChamferParams,
   ShellParams,
   OffsetParams,
+  SweepParams,
+  LoftParams,
   TransformParams,
   OperationParams,
   SketchPlane,
@@ -109,6 +111,12 @@ export function OperationPanel({
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [thickness, setThickness] = useState<number>(2);
 
+  // --- Advanced modeling (sweep / loft) state ---
+  const [profileSketchId, setProfileSketchId] = useState<string>('');
+  const [pathSketchId, setPathSketchId] = useState<string>('');
+  const [loftSketchIds, setLoftSketchIds] = useState<string[]>([]);
+  const [loftRuled, setLoftRuled] = useState<boolean>(false);
+
   // --- Selector-rule state (ROADMAP §9.1 Phase 3/4) ---
   const [selectorText, setSelectorText] = useState('');
   const [selectorStatus, setSelectorStatus] = useState<'idle' | 'loading' | 'matched' | 'no-match' | 'error'>('idle');
@@ -174,6 +182,12 @@ export function OperationPanel({
       }
       if ('featureIds' in (initialParams as any)) setSelectedFeatures((initialParams as any).featureIds);
       if ('thickness' in initialParams) setThickness(initialParams.thickness);
+      if ('profileSketchId' in initialParams) setProfileSketchId((initialParams as SweepParams).profileSketchId);
+      if ('pathSketchId' in initialParams) setPathSketchId((initialParams as SweepParams).pathSketchId);
+      if ('sketchIds' in initialParams) {
+        setLoftSketchIds((initialParams as LoftParams).sketchIds);
+        setLoftRuled(!!(initialParams as LoftParams).ruled);
+      }
     } else {
       // Default initializations for some ops based on selection
       if (operation === FeatureOperation.FILLET || operation === FeatureOperation.CHAMFER) {
@@ -299,6 +313,17 @@ export function OperationPanel({
       case FeatureOperation.OFFSET:
         params = { distance, faces: selectedFaces } as OffsetParams;
         onConfirm(params);
+        break;
+      case FeatureOperation.SWEEP:
+        if (!profileSketchId || !pathSketchId) return;
+        params = { profileSketchId, pathSketchId } as SweepParams;
+        // Pass the profile as the feature's primary sketch (parentIds/edit-resume).
+        onConfirm(params, profileSketchId);
+        break;
+      case FeatureOperation.LOFT:
+        if (loftSketchIds.length < 2) return;
+        params = { sketchIds: loftSketchIds, ruled: loftRuled } as LoftParams;
+        onConfirm(params, loftSketchIds[0]);
         break;
       case TransformOperation.MOVE:
         params = { 
@@ -658,6 +683,68 @@ export function OperationPanel({
           </>
         );
 
+      case FeatureOperation.SWEEP:
+        return (
+          <>
+            {closedSketches.length === 0 ? (
+              <Alert color="yellow" title="No closed sketches">
+                Create a closed profile sketch and a path sketch first.
+              </Alert>
+            ) : (
+              <>
+                <Select
+                  label="Profile (closed)"
+                  placeholder="Select a profile sketch"
+                  value={profileSketchId}
+                  onChange={(value) => setProfileSketchId(value || '')}
+                  data={closedSketches.map((s) => ({ value: s.id, label: s.name }))}
+                  size="sm"
+                />
+                <Select
+                  label="Path"
+                  placeholder="Select a path sketch"
+                  value={pathSketchId}
+                  onChange={(value) => setPathSketchId(value || '')}
+                  data={project.sketches
+                    .filter((s) => s.id !== profileSketchId)
+                    .map((s) => ({ value: s.id, label: s.name }))}
+                  size="sm"
+                />
+                <Text size="xs" c="dimmed">Sweeps the profile along the path.</Text>
+              </>
+            )}
+          </>
+        );
+
+      case FeatureOperation.LOFT:
+        return (
+          <>
+            {closedSketches.length < 2 ? (
+              <Alert color="yellow" title="Need two profiles">
+                Create at least two closed sketches to loft between.
+              </Alert>
+            ) : (
+              <>
+                <MultiSelect
+                  label="Profiles (in order)"
+                  placeholder="Select 2+ profile sketches"
+                  value={loftSketchIds}
+                  onChange={setLoftSketchIds}
+                  data={closedSketches.map((s) => ({ value: s.id, label: s.name }))}
+                  size="sm"
+                />
+                <Checkbox
+                  size="xs"
+                  label="Ruled (straight transitions)"
+                  checked={loftRuled}
+                  onChange={(e) => setLoftRuled(e.currentTarget.checked)}
+                />
+                <Text size="xs" c="dimmed">Lofts a solid through the profiles in the selected order.</Text>
+              </>
+            )}
+          </>
+        );
+
       case TransformOperation.MOVE:
         return (
           <>
@@ -720,6 +807,10 @@ export function OperationPanel({
         return selectedEdges.length > 0;
       case FeatureOperation.SHELL:
         return selectedFaces.length > 0;
+      case FeatureOperation.SWEEP:
+        return !!profileSketchId && !!pathSketchId;
+      case FeatureOperation.LOFT:
+        return loftSketchIds.length >= 2;
       case FeatureOperation.BOX:
       case FeatureOperation.SPHERE:
       case FeatureOperation.CYLINDER:
@@ -738,7 +829,7 @@ export function OperationPanel({
       default:
         return false;
     }
-  }, [operation, sketchId, selectedEdges, selectedFaces, selectedFeatures, selectedTreeItem, project.referenceGeometry]);
+  }, [operation, sketchId, selectedEdges, selectedFaces, selectedFeatures, selectedTreeItem, project.referenceGeometry, profileSketchId, pathSketchId, loftSketchIds]);
 
   return (
     <Stack gap={0} style={{ backgroundColor: theme.other.colors.background }}>

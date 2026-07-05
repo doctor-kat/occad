@@ -172,8 +172,6 @@ export const ioOperations: { id: IOOperation; icon: React.ReactNode; label: stri
 
 // Operations that are not yet implemented (disabled in UI)
 export const disabledOperations: Operation[] = [
-  // 3D Operations - not yet implemented
-  'sweep', 'loft',
   // I/O - not yet implemented
   'import-step', 'import-iges', 'export-step', 'export-iges', 'export-stl', 'export-gltf',
 ];

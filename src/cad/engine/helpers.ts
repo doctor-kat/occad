@@ -75,3 +75,50 @@ export function ensureFace(ctx: WorkerContext, shape: TopoDS_Shape): TopoDS_Face
 
   return shape as TopoDS_Face;
 }
+
+/**
+ * Ensure a shape is a wire — used by sweep/loft, which need wire spines and
+ * section wires. A face yields its outer wire; a lone edge is wrapped in a
+ * single-edge wire; a compound yields its first contained wire (or an edge
+ * wrapped as a wire). Throws if no wire/edge can be derived.
+ */
+export function ensureWire(ctx: WorkerContext, shape: TopoDS_Shape): TopoDS_Shape {
+  const { oc } = ctx;
+  const kind = shape.ShapeType();
+
+  if (kind === oc.TopAbs_ShapeEnum.TopAbs_WIRE) {
+    return oc.TopoDS.Wire_1(shape);
+  }
+  if (kind === oc.TopAbs_ShapeEnum.TopAbs_EDGE) {
+    const wb = new oc.BRepBuilderAPI_MakeWire_2(oc.TopoDS.Edge_1(shape));
+    const wire = wb.Wire();
+    wb.delete();
+    return wire;
+  }
+  if (kind === oc.TopAbs_ShapeEnum.TopAbs_FACE) {
+    return oc.BRepTools.OuterWire(oc.TopoDS.Face_1(shape));
+  }
+
+  // Compound (or anything else): prefer a contained wire, else wrap the first edge.
+  const wireMap = new oc.TopTools_IndexedMapOfShape_1();
+  oc.TopExp.MapShapes_1(shape, oc.TopAbs_ShapeEnum.TopAbs_WIRE, wireMap);
+  if (wireMap.Extent() > 0) {
+    const wire = oc.TopoDS.Wire_1(wireMap.FindKey(1));
+    wireMap.delete();
+    return wire;
+  }
+  wireMap.delete();
+
+  const edgeMap = new oc.TopTools_IndexedMapOfShape_1();
+  oc.TopExp.MapShapes_1(shape, oc.TopAbs_ShapeEnum.TopAbs_EDGE, edgeMap);
+  if (edgeMap.Extent() > 0) {
+    const wb = new oc.BRepBuilderAPI_MakeWire_2(oc.TopoDS.Edge_1(edgeMap.FindKey(1)));
+    const wire = wb.Wire();
+    wb.delete();
+    edgeMap.delete();
+    return wire;
+  }
+  edgeMap.delete();
+
+  throw new Error('ensureWire: shape contains no wire or edge');
+}
