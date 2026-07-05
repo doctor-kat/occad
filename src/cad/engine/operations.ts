@@ -38,6 +38,7 @@ import { post } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
 import { buildSketchWire, buildProfileFace } from './sketchBuilders';
 import { applyFillet, applyChamfer, applyShell, applyOffset, enrichRefs } from './modifications';
+import { applyTransform } from './transforms';
 import { tessellate, extractEdgeVertices } from './tessellation';
 import { SketchSolver } from './SketchSolver';
 import { reprojectExternalGeometry, enrichSketchExternalRefs } from './sketch/externalGeometry';
@@ -428,6 +429,18 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
                   break;
                 }
               }
+            }
+          } else if (
+            feature.type === FeatureOperation.MOVE ||
+            feature.type === FeatureOperation.ROTATE ||
+            feature.type === FeatureOperation.MIRROR ||
+            feature.type === FeatureOperation.SCALE
+          ) {
+            // Transforms reposition/resize the current body in place (like
+            // modifications, no boolean combine). A transform with no body to
+            // act on (none built yet) is a no-op.
+            if (currentBody) {
+              currentBody = applyTransform(ctx, currentBody, feature.parameters as TransformParams);
             }
           }
 

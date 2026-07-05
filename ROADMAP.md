@@ -22,7 +22,7 @@ started
 | **Primitives**               | 🟡     | Box, Cylinder                                             | —               | Sphere, Cone, Torus, Wedge                          |
 | **Boolean ops**              | 🟡     | Union, Subtract, Intersect (engine)                       | —               | UI for standalone booleans                          |
 | **Modifications**            | ✅     | Fillet, Chamfer, Shell, Offset                            | —               | —                                                   |
-| **Transforms**               | ❌     | —                                                         | UI + types only | Move, Rotate, Mirror, Scale                         |
+| **Transforms**               | ✅     | Move, Rotate, Mirror, Scale                               | —               | —                                                   |
 | **Advanced modeling**        | ❌     | —                                                         | —               | Sweep, Loft                                         |
 | **Import / Export**          | ❌     | —                                                         | UI (disabled)   | STEP, IGES, STL, glTF, OBJ                          |
 | **Measurement / Analysis**   | ❌     | —                                                         | Type only       | Measure, volume, area, CoM, bbox                    |
@@ -33,9 +33,8 @@ started
 | **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans           | —               | All non-wired feature types                         |
 | **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
 
-**Overall:** Sketch + constraints + extrude/revolve + boolean + modification pipeline is solid. The biggest gaps are
-**undo/redo**, the **remaining primitives**, and the **transform/IO** families (UI buttons exist but do nothing on
-rebuild).
+**Overall:** Sketch + constraints + extrude/revolve + boolean + modification + transform pipeline is solid. The
+biggest gaps are the **remaining primitives** and the **IO** family (UI buttons exist but do nothing on rebuild).
 
 ---
 
@@ -627,10 +626,21 @@ the tree/entity-list shows the group as an expandable folder.
 
 | Op     | Params type | Engine | UI | Status | OCC API                  |
 |--------|:-----------:|:------:|:--:|--------|--------------------------|
-| Move   |      ✅      |   ❌    | ✅  | ❌      | `gp_Trsf.SetTranslation` |
-| Rotate |      ✅      |   ❌    | ✅  | ❌      | `gp_Trsf.SetRotation`    |
-| Mirror |      ✅      |   ❌    | ✅  | ❌      | `gp_Trsf.SetMirror`      |
-| Scale  |      ✅      |   ❌    | ✅  | ❌      | `gp_Trsf.SetScale`       |
+| Move   |      ✅      |   ✅    | ✅  | ✅      | `gp_Trsf.SetTranslation` |
+| Rotate |      ✅      |   ✅    | ✅  | ✅      | `gp_Trsf.SetRotation`    |
+| Mirror |      ✅      |   ✅    | ✅  | ✅      | `gp_Trsf.SetMirror`      |
+| Scale  |      ✅      |   ✅    | ✅  | ✅      | `gp_Trsf.SetScale`       |
+
+> **Added (2026-07-04):** Transform engine (`src/cad/engine/transforms.ts`) + rebuild wiring. Like modifications,
+> transforms act on the **current body in place** (no boolean combine): `applyTransform` builds a `gp_Trsf`
+> (`SetTranslation_1` / `SetRotation_1` / `SetMirror_3` / `SetScale`) and applies it via `BRepBuilderAPI_Transform_2`
+> (with `Copy=true`). `handleRebuild` now has a branch (mirroring the modification branch) that feeds `currentBody`
+> through `applyTransform` and replaces it with the result; a transform with no body yet is a no-op, and a failure is
+> surfaced on the offending tree item via the per-item try/catch (prior body still shown). Scale is uniform-only
+> (`gp_Trsf.SetScale` around a center point), which matches the UI. Rotate defaults to the world Z axis and mirror
+> reads the selected reference plane's normal from `OperationPanel`. Geometric validity is exercised by
+> `e2e/transformations.spec.ts`. ⚠️ As with the modification engine, the unit suite (worker mocked) cannot catch a
+> wrong OCC constructor/method name — run the e2e suite / load the app to confirm real geometry.
 
 ### 2.6 Advanced modeling
 
@@ -1002,7 +1012,7 @@ concrete, kernel-staying-the-same improvements fall out of the analysis (below).
    Small, self-contained.
 3. **Constraint editing UI** — ✅ done: all 10 constraints (toolbar + list/delete + point-level selection + e2e).
    Remaining only: Midpoint & Symmetric (need multi-constraint composition; no single planegcs primitive).
-4. **Transforms** — Move/Rotate/Mirror/Scale via `gp_Trsf`. Engine + rebuild cases.
+4. **Transforms** — ✅ done: Move/Rotate/Mirror/Scale via `gp_Trsf` (engine + rebuild + e2e).
 5. **Modifications** — Fillet/Chamfer/Shell/Offset (needs edge/face selection plumbing).
 6. **Import/Export** — STEP/STL/glTF first (most requested interchange).
 7. **Advanced modeling** — Sweep/Loft.
