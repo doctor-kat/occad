@@ -231,6 +231,101 @@ export function handleRevolveSketch(
 }
 
 /**
+ * Build a standalone primitive solid (box / cylinder / sphere / cone / torus /
+ * wedge) from its parameters. Each primitive is centered/anchored via its
+ * `center` param (default origin). Extracted from `handleRebuild` so the
+ * type→OCC-constructor dispatch is unit-testable with a mocked kernel.
+ *
+ * Returns null when the primitive fails to build (e.g. degenerate params);
+ * callers treat that as a no-op so one bad primitive can't abort the rebuild.
+ */
+export function buildPrimitiveShape(
+  ctx: WorkerContext,
+  type: FeatureOperation,
+  params:
+    | PrimitiveBoxParams
+    | PrimitiveCylinderParams
+    | PrimitiveSphereParams
+    | PrimitiveConeParams
+    | PrimitiveTorusParams
+    | PrimitiveWedgeParams
+): TopoDS_Shape | null {
+  const { oc } = ctx;
+
+  // Build each primitive at the world origin with its simplest ("_1"/box "_2")
+  // scalar constructor. We deliberately avoid the gp_Ax2 placement overloads:
+  // opencascade.js's runtime overload numbering does NOT match the shipped
+  // .d.ts for the MakeOneAxis family (the existing cylinder uses `_2` for what
+  // the typings call `_3`), so the scalar forms are the only ones we can call
+  // by number without risking a BindingError. Positioning is done afterwards
+  // with a translation to the requested `center`.
+  let shape: TopoDS_Shape | null = null;
+  switch (type) {
+    case FeatureOperation.BOX: {
+      const p = params as PrimitiveBoxParams;
+      const maker = new oc.BRepPrimAPI_MakeBox_2(p.width, p.height, p.depth);
+      shape = maker.Shape();
+      maker.delete();
+      break;
+    }
+    case FeatureOperation.CYLINDER: {
+      const p = params as PrimitiveCylinderParams;
+      const maker = new oc.BRepPrimAPI_MakeCylinder_1(p.radius, p.height);
+      shape = maker.Shape();
+      maker.delete();
+      break;
+    }
+    case FeatureOperation.SPHERE: {
+      const p = params as PrimitiveSphereParams;
+      const maker = new oc.BRepPrimAPI_MakeSphere_1(p.radius);
+      shape = maker.Shape();
+      maker.delete();
+      break;
+    }
+    case FeatureOperation.CONE: {
+      const p = params as PrimitiveConeParams;
+      const maker = new oc.BRepPrimAPI_MakeCone_1(p.radius1, p.radius2, p.height);
+      shape = maker.Shape();
+      maker.delete();
+      break;
+    }
+    case FeatureOperation.TORUS: {
+      const p = params as PrimitiveTorusParams;
+      const maker = new oc.BRepPrimAPI_MakeTorus_1(p.majorRadius, p.minorRadius);
+      shape = maker.Shape();
+      maker.delete();
+      break;
+    }
+    case FeatureOperation.WEDGE: {
+      const p = params as PrimitiveWedgeParams;
+      const maker = new oc.BRepPrimAPI_MakeWedge_1(p.width, p.height, p.depth, p.ltx);
+      shape = maker.Shape();
+      maker.delete();
+      break;
+    }
+    default:
+      return null;
+  }
+
+  if (!shape) return null;
+
+  // Offset to the requested center (if any) — everything above is origin-built.
+  const c = (params as { center?: Point3D }).center;
+  if (c && (c.x || c.y || c.z)) {
+    const trsf = new oc.gp_Trsf_1();
+    const vec = new oc.gp_Vec_4(c.x || 0, c.y || 0, c.z || 0);
+    trsf.SetTranslation_1(vec);
+    const maker = new oc.BRepBuilderAPI_Transform_2(shape, trsf, true);
+    const moved = maker.IsDone() ? maker.Shape() : shape;
+    maker.delete();
+    vec.delete();
+    trsf.delete();
+    return moved;
+  }
+  return shape;
+}
+
+/**
  * Perform boolean operation on shapes
  */
 export function performBooleanOperation(
@@ -386,18 +481,15 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
             // like a primitive.
             const params = feature.parameters as ImportParams;
             newShape = importShapeFromString(ctx, params.format, params.content);
-          } else if (feature.type === 'box') {
-            const params = feature.parameters as PrimitiveBoxParams;
-            const box = new oc.BRepPrimAPI_MakeBox_2(params.width, params.height, params.depth);
-            newShape = box.Shape();
-            box.delete();
-          } else if (feature.type === FeatureOperation.CYLINDER) {
-            const params = feature.parameters as PrimitiveCylinderParams;
-            const axisOrigin = new oc.gp_Pnt_3(params.center?.x || 0, params.center?.y || 0, params.center?.z || 0);
-            const axis = new oc.gp_Ax2_3(axisOrigin, new oc.gp_Dir_4(0, 0, 1));
-            const cylinder = new oc.BRepPrimAPI_MakeCylinder_2(axis, params.radius, params.height);
-            if (cylinder.IsDone()) newShape = cylinder.Shape();
-            axisOrigin.delete(); axis.delete(); cylinder.delete();
+          } else if (
+            feature.type === FeatureOperation.BOX ||
+            feature.type === FeatureOperation.CYLINDER ||
+            feature.type === FeatureOperation.SPHERE ||
+            feature.type === FeatureOperation.CONE ||
+            feature.type === FeatureOperation.TORUS ||
+            feature.type === FeatureOperation.WEDGE
+          ) {
+            newShape = buildPrimitiveShape(ctx, feature.type, feature.parameters as PrimitiveBoxParams);
           } else if (feature.type === FeatureOperation.SWEEP) {
             const params = feature.parameters as SweepParams;
             const profileShape = findSketchShape(ctx, params.profileSketchId);

@@ -19,7 +19,7 @@ started
 | **Sketch primitives**        | ✅     | Line, Rectangle, Circle, Arc, Ellipse, Polygon (+ variants) | —               | — (Bezier won't implement — see §1.1.1)             |
 | **Sketch constraints**       | ✅     | 10 constraints end-to-end (UI+solver+e2e)                 | —               | Midpoint, Symmetric                                 |
 | **Sketch-based features**    | ✅     | Extrude Boss/Cut, Revolve Boss/Cut                        | —               | —                                                   |
-| **Primitives**               | 🟡     | Box, Cylinder                                             | —               | Sphere, Cone, Torus, Wedge                          |
+| **Primitives**               | ✅     | Box, Cylinder, Sphere, Cone, Torus, Wedge                 | —               | —                                                   |
 | **Boolean ops**              | 🟡     | Union, Subtract, Intersect (engine)                       | —               | UI for standalone booleans                          |
 | **Modifications**            | ✅     | Fillet, Chamfer, Shell, Offset                            | —               | —                                                   |
 | **Transforms**               | ✅     | Move, Rotate, Mirror, Scale                               | —               | —                                                   |
@@ -30,11 +30,12 @@ started
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
 | **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
 | **Selection / picking**      | ✅     | Single-pick model entities; **sketch box/crossing + multi-select** — §6b | —          | Model box/crossing intentionally out of scope — §6b |
-| **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, box, cylinder, booleans           | —               | All non-wired feature types                         |
+| **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, all 6 primitives, booleans        | —               | All non-wired feature types                         |
 | **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
 
-**Overall:** Sketch + constraints + extrude/revolve + boolean + modification + transform pipeline is solid. The
-biggest gaps are the **remaining primitives** and the **IO** family (UI buttons exist but do nothing on rebuild).
+**Overall:** Sketch + constraints + extrude/revolve + all 6 primitives + modification + transform pipeline is
+solid. The biggest gaps are **standalone boolean UI** and the **IO** family (OBJ import / glTF export need a
+custom WASM build).
 
 ---
 
@@ -577,14 +578,21 @@ the tree/entity-list shows the group as an expandable folder.
 |-----------|:-----------:|:----------------------------:|:--:|--------|
 | Box       |      ✅      |   ✅ `BRepPrimAPI_MakeBox`    | ✅  | ✅      |
 | Cylinder  |      ✅      | ✅ `BRepPrimAPI_MakeCylinder` | ✅  | ✅      |
-| Sphere    |      ✅      |              ❌               | ✅  | 🟡     |
-| Cone      |      ✅      |              ❌               | ✅  | 🟡     |
-| Torus     |      ✅      |              ❌               | ✅  | 🟡     |
-| Wedge     |      ✅      |              ❌               | ✅  | 🟡     |
+| Sphere    |      ✅      | ✅ `BRepPrimAPI_MakeSphere_1` | ✅  | ✅     |
+| Cone      |      ✅      | ✅ `BRepPrimAPI_MakeCone_1`   | ✅  | ✅     |
+| Torus     |      ✅      | ✅ `BRepPrimAPI_MakeTorus_1`  | ✅  | ✅     |
+| Wedge     |      ✅      | ✅ `BRepPrimAPI_MakeWedge_1`  | ✅  | ✅     |
 
-> Sphere/Cone/Torus/Wedge have param types and toolbar buttons; adding one creates a feature but it produces no geometry
-> because `handleRebuild` has no case for it. There is a `CreatePrimitiveRequest` worker type that is **not handled** in
-> the worker switch.
+> **Done (2026-07-05):** Sphere/Cone/Torus/Wedge are wired into `handleRebuild` (browser-verified — each builds a
+> real curved/faceted solid and unions into the body). Box/Cylinder/Sphere/Cone/Torus/Wedge now share one
+> `buildPrimitiveShape(ctx, type, params)` dispatcher (`operations.ts`). **Overload-numbering gotcha:** the
+> opencascade.js *runtime* overload numbers do NOT match the shipped `.d.ts` for the `MakeOneAxis` family — the
+> existing cylinder calls `_2` for what the typings label `_3` (the `(gp_Ax2, …)` form). To avoid a `BindingError`
+> we build every primitive at the origin with its unambiguous scalar `_1` constructor (box uses `_2`, the confirmed
+> scalar form) and then translate to `center` via `gp_Trsf` + `BRepBuilderAPI_Transform_2` (the proven `transforms.ts`
+> pattern). The unused `CreatePrimitiveRequest` worker type is still not wired — primitives flow through the normal
+> feature→rebuild path, not a dedicated worker message. Test: `operations.test.ts` (`buildPrimitiveShape` dispatch +
+> center-translate, mocked kernel recording constructor calls).
 
 ### 2.3 Boolean operations
 
