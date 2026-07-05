@@ -41,6 +41,8 @@ export * from './operations/SweepParams';
 export * from './operations/LoftParams';
 export * from './operations/TransformParams';
 export * from './operations/MeasureParams';
+export * from './operations/ImportParams';
+export * from './operations/ExportFormat';
 export * from './operations/OperationParams';
 export * from './operations/OperationCategory';
 export * from './operations/FeatureOperation';

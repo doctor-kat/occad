@@ -8,6 +8,7 @@ import type { RebuildRequest } from './RebuildRequest';
 import type { DeleteShapeRequest } from './DeleteShapeRequest';
 import type { GetFaceGeometryRequest } from './GetFaceGeometryRequest';
 import type { ResolveSelectorRequest } from './ResolveSelectorRequest';
+import type { ExportShapeRequest } from './ExportShapeRequest';
 
 export type {
   InitRequest,
@@ -20,6 +21,7 @@ export type {
   DeleteShapeRequest,
   GetFaceGeometryRequest,
   ResolveSelectorRequest,
+  ExportShapeRequest,
 };
 
 // ============================================================================
@@ -37,5 +39,6 @@ export type WorkerRequest =
   | RebuildRequest
   | DeleteShapeRequest
   | GetFaceGeometryRequest
-  | ResolveSelectorRequest;
+  | ResolveSelectorRequest
+  | ExportShapeRequest;
 

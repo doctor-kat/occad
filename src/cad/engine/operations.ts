@@ -48,6 +48,8 @@ import { reprojectExternalGeometry, enrichSketchExternalRefs } from './sketch/ex
 import { mapSubShapes, computeFingerprint } from './fingerprint';
 import { describeSubShapes } from './selectors/describe';
 import { selectSubShapes } from './selectors';
+import { exportShapeToString, importShapeFromString } from './io';
+import type { ImportParams, ExportFormat } from '@/cad/types';
 
 /** Counter for generating unique shape IDs */
 let shapeIdCounter = 0;
@@ -376,6 +378,13 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
               if (revol.IsDone()) newShape = revol.Shape();
               axisOrigin.delete(); axisDir.delete(); axis.delete(); revol.delete();
             }
+          } else if (feature.type === FeatureOperation.IMPORT) {
+            // An imported solid has no parametric inputs — its geometry is the
+            // file content carried in the feature params, re-parsed each rebuild
+            // (worker shape storage is cleared per rebuild). Unions into the body
+            // like a primitive.
+            const params = feature.parameters as ImportParams;
+            newShape = importShapeFromString(ctx, params.format, params.content);
           } else if (feature.type === 'box') {
             const params = feature.parameters as PrimitiveBoxParams;
             const box = new oc.BRepPrimAPI_MakeBox_2(params.width, params.height, params.depth);
@@ -589,5 +598,26 @@ export function handleResolveSelector(
     post({ type: 'selectorResolved', requestId, refs });
   } catch (err: unknown) {
     post({ type: 'error', message: `Failed to resolve selector: ${formatError(err)}`, featureId: `selector-${requestId}` });
+  }
+}
+
+/**
+ * Handle exportShape request (ROADMAP §3): serialize a stored body to a
+ * standard interchange format and post the file text back to the main thread,
+ * which triggers the browser download.
+ */
+export function handleExportShape(
+  ctx: WorkerContext,
+  requestId: string,
+  shapeId: string,
+  format: ExportFormat
+): void {
+  try {
+    const shape = ctx.shapeStorage.get(shapeId);
+    if (!shape) throw new Error('No geometry to export — build a feature first');
+    const content = exportShapeToString(ctx, shape, format);
+    post({ type: 'exported', requestId, format, content });
+  } catch (err: unknown) {
+    post({ type: 'error', message: `Failed to export ${format.toUpperCase()}: ${formatError(err)}`, featureId: `export-${requestId}` });
   }
 }

@@ -15,6 +15,7 @@ import { SweepParams } from './SweepParams';
 import { LoftParams } from './LoftParams';
 import { TransformParams } from './TransformParams';
 import { MeasureParams } from './MeasureParams';
+import { ImportParams } from './ImportParams';
 
 export type OperationParams =
   | ExtrudeParams
@@ -33,4 +34,5 @@ export type OperationParams =
   | SweepParams
   | LoftParams
   | TransformParams
-  | MeasureParams;
+  | MeasureParams
+  | ImportParams;

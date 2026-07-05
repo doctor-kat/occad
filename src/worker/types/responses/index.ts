@@ -7,6 +7,7 @@ import type { FaceGeometryResponse } from './FaceGeometryResponse';
 import type { ErrorResponse } from './ErrorResponse';
 import type { ProgressResponse } from './ProgressResponse';
 import type { SelectorResolvedResponse } from './SelectorResolvedResponse';
+import type { ExportedResponse } from './ExportedResponse';
 
 export type {
   ReadyResponse,
@@ -18,6 +19,7 @@ export type {
   ErrorResponse,
   ProgressResponse,
   SelectorResolvedResponse,
+  ExportedResponse,
 };
 
 // ============================================================================
@@ -34,5 +36,6 @@ export type WorkerResponse =
   | FaceGeometryResponse
   | ErrorResponse
   | ProgressResponse
-  | SelectorResolvedResponse;
+  | SelectorResolvedResponse
+  | ExportedResponse;
 

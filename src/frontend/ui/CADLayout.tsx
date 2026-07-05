@@ -13,8 +13,8 @@ import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Grou
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { FeatureTreeIcon, EntitiesIcon } from '@/frontend/shared/icons';
-import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind } from '@/cad/types';
-import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType } from '@/cad/types';
+import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat } from '@/cad/types';
+import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
 import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/engine/sketch/originPoint';
@@ -37,6 +37,32 @@ const SKETCH_TOOL_OPERATIONS: SketchOperation[] = [
   SketchOperation.ELLIPSE,
   SketchOperation.BEZIER,
 ];
+
+// I/O operation ids are `<direction>-<format>` (e.g. 'export-stl', 'import-step'),
+// so the direction and format are derived from the id itself rather than a parallel
+// lookup table. Guard against the known format unions so non-I/O ops that also
+// contain a dash ('extrude-boss', 'revolved-cut') and disabled formats fall through.
+const IMPORT_FORMATS: ImportFormat[] = ['step', 'iges', 'obj'];
+const EXPORT_FORMATS: ExportFormat[] = ['step', 'iges', 'stl'];
+
+type ParsedIoOperation =
+  | { direction: 'import'; format: ImportFormat }
+  | { direction: 'export'; format: ExportFormat }
+  | null;
+
+function parseIoOperation(op: string): ParsedIoOperation {
+  const dash = op.indexOf('-');
+  if (dash < 0) return null;
+  const direction = op.slice(0, dash);
+  const format = op.slice(dash + 1);
+  if (direction === 'import' && (IMPORT_FORMATS as string[]).includes(format)) {
+    return { direction, format: format as ImportFormat };
+  }
+  if (direction === 'export' && (EXPORT_FORMATS as string[]).includes(format)) {
+    return { direction, format: format as ExportFormat };
+  }
+  return null;
+}
 
 export function CADLayout() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +141,12 @@ export function CADLayout() {
   // (see onSelectorResolved below / resolveSelectorAsync).
   const pendingSelectorResolutions = useRef(new Map<string, (refs: StableRef[]) => void>());
 
+  // Export request → suggested download filename, keyed by requestId (resolved
+  // in onExported above). Separate hidden input + pending format for CAD imports.
+  const pendingExports = useRef(new Map<string, string>());
+  const cadImportInputRef = useRef<HTMLInputElement>(null);
+  const pendingImportFormat = useRef<ImportFormat | null>(null);
+
   // Single consolidated OpenCascade worker instance — shared by layout & viewport
   const {
     status: occStatus,
@@ -127,6 +159,7 @@ export function CADLayout() {
     extrudeSketch,
     getFaceGeometry,
     resolveSelector,
+    exportShape,
     currentFeatureShapeId,
     buildSketch,
     sketchEdges: occSketchEdges,
@@ -192,6 +225,20 @@ export function CADLayout() {
         pendingSelectorResolutions.current.delete(requestId);
         resolve(refs);
       }
+    },
+    onExported: (requestId, format, content) => {
+      // Trigger a browser download of the serialized file. The suggested name
+      // was stashed against the requestId when the export was kicked off.
+      const fileName = pendingExports.current.get(requestId) ?? `model.${EXPORT_EXTENSIONS[format]}`;
+      pendingExports.current.delete(requestId);
+      const blob = new Blob([content], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      notifications.show({ color: 'green', message: `Exported ${fileName}` });
     },
     onRefsEnriched: (enrichments) => {
       // Persist lazily-captured fingerprints (no version bump -> no rebuild loop).
@@ -710,6 +757,55 @@ export function CADLayout() {
     e.target.value = '';
   };
 
+  // --- CAD import / export (ROADMAP §3) ---------------------------------------
+
+  // Intercept I/O operations (they act immediately — no OperationPanel), and
+  // pass everything else through to the normal operation selection.
+  const handleOperationSelect = (operation: Operation) => {
+    const io = operation ? parseIoOperation(operation as string) : null;
+    if (io?.direction === 'import') {
+      pendingImportFormat.current = io.format;
+      cadImportInputRef.current?.click();
+      return;
+    }
+    if (io?.direction === 'export') {
+      handleCadExport(io.format);
+      return;
+    }
+    selectOperation(operation);
+  };
+
+  const handleCadExport = (format: ExportFormat) => {
+    if (!currentFeatureShapeId) {
+      notifications.show({ color: 'red', title: 'Nothing to export', message: 'Build a feature first' });
+      return;
+    }
+    const requestId = crypto.randomUUID();
+    const baseName = (project.name || 'model').replace(/\s+/g, '_');
+    pendingExports.current.set(requestId, `${baseName}.${EXPORT_EXTENSIONS[format]}`);
+    exportShape(requestId, currentFeatureShapeId, format);
+    notifications.show({ color: 'blue', message: `Exporting ${format.toUpperCase()}…` });
+  };
+
+  const handleCadImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const format = pendingImportFormat.current;
+    e.target.value = '';
+    pendingImportFormat.current = null;
+    if (!file || !format) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = String(reader.result ?? '');
+      const params: ImportParams = { format, fileName: file.name, content };
+      addFeature(`Import ${file.name}`, FeatureOperation.IMPORT, params);
+      notifications.show({ color: 'green', message: `Imported ${file.name}` });
+    };
+    reader.onerror = () => {
+      notifications.show({ color: 'red', title: 'Import failed', message: `Could not read ${file.name}` });
+    };
+    reader.readAsText(file);
+  };
+
   const handleNew = () => {
     modals.openConfirmModal({
       title: 'Create New Project',
@@ -827,13 +923,22 @@ export function CADLayout() {
         backgroundColor: theme.other.colors.background,
       }}
     >
-      {/* Hidden file input for import */}
+      {/* Hidden file input for project (.json) import */}
       <input
         ref={fileInputRef}
         type="file"
         accept=".json"
         style={{ display: 'none' }}
         onChange={handleFileChange}
+      />
+
+      {/* Hidden file input for CAD geometry import (STEP / IGES / OBJ) */}
+      <input
+        ref={cadImportInputRef}
+        type="file"
+        accept=".step,.stp,.iges,.igs,.obj"
+        style={{ display: 'none' }}
+        onChange={handleCadImportFileChange}
       />
 
       {/* Combined Header: Toolbar + OperationsBar */}
@@ -861,7 +966,7 @@ export function CADLayout() {
             selectedTreeItem={selectedTreeItem}
             activeSketchId={activeSketchId}
             onTabChange={switchTab}
-            onOperationSelect={selectOperation}
+            onOperationSelect={handleOperationSelect}
             onSketchButtonClick={handleSketchButtonClick}
           />
         </Box>

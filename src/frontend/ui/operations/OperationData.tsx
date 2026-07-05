@@ -164,14 +164,20 @@ export const transformOperations: { id: TransformOperation; icon: React.ReactNod
 export const ioOperations: { id: IOOperation; icon: React.ReactNode; label: string }[] = [
   { id: 'import-step', icon: <ImportSTEPIcon size={16} />, label: 'Import STEP' },
   { id: 'import-iges', icon: <ImportIGESIcon size={16} />, label: 'Import IGES' },
+  { id: 'import-obj', icon: <ImportSTEPIcon size={16} />, label: 'Import OBJ' },
   { id: 'export-step', icon: <ExportSTEPIcon size={16} />, label: 'Export STEP' },
   { id: 'export-iges', icon: <ExportIGESIcon size={16} />, label: 'Export IGES' },
   { id: 'export-stl', icon: <ExportSTLIcon size={16} />, label: 'Export STL' },
   { id: 'export-gltf', icon: <ExportGLTFIcon size={16} />, label: 'Export GLTF' },
 ];
 
-// Operations that are not yet implemented (disabled in UI)
+// Operations that are not yet available (disabled in UI).
+// STEP/IGES import + STEP/IGES/STL export are wired up and verified in-browser.
+// - export-gltf: not implemented.
+// - import-obj: engine path exists (io.ts readObj) but OCCT's OBJ mesh reader
+//   traps with a "null function" (unbound symbol) in our prebuilt
+//   opencascade.full.wasm — needs a custom WASM build (ROADMAP §9.3) to enable.
 export const disabledOperations: Operation[] = [
-  // I/O - not yet implemented
-  'import-step', 'import-iges', 'export-step', 'export-iges', 'export-stl', 'export-gltf',
+  'export-gltf',
+  'import-obj',
 ];

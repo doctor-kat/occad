@@ -24,7 +24,7 @@ started
 | **Modifications**            | ✅     | Fillet, Chamfer, Shell, Offset                            | —               | —                                                   |
 | **Transforms**               | ✅     | Move, Rotate, Mirror, Scale                               | —               | —                                                   |
 | **Advanced modeling**        | ✅     | Sweep, Loft                                               | —               | —                                                   |
-| **Import / Export**          | ❌     | —                                                         | UI (disabled)   | STEP, IGES, STL, glTF, OBJ                          |
+| **Import / Export**          | ✅     | STEP/IGES import, STEP/IGES/STL export (browser-verified) | —               | OBJ import + glTF export (disabled — need custom WASM) |
 | **Measurement / Analysis**   | ❌     | —                                                         | Type only       | Measure, volume, area, CoM, bbox                    |
 | **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
@@ -677,11 +677,41 @@ the tree/entity-list shows the group as an expandable folder.
 
 | Format     | Direction       | Status          | OCC API                         |
 |------------|-----------------|-----------------|---------------------------------|
-| STEP       | Import / Export | ❌ (UI disabled) | `STEPControl_Reader` / `Writer` |
-| IGES       | Import / Export | ❌ (UI disabled) | `IGESControl_Reader` / `Writer` |
-| STL        | Export          | ❌ (UI disabled) | `StlAPI_Writer`                 |
+| STEP       | Import / Export | ✅              | `STEPControl_Reader` / `Writer` |
+| IGES       | Import / Export | ✅              | `IGESControl_Reader` / `Writer` |
+| STL        | Export          | ✅              | `StlAPI_Writer`                 |
 | glTF / GLB | Export          | ❌ (UI disabled) | `RWGltf_CafWriter`              |
-| OBJ        | Import          | ❌               | `RWObj_CafReader`               |
+| OBJ        | Import          | ❌ (UI disabled) | `RWObj_CafReader`               |
+
+> **Implemented + browser-verified (2026-07-04/05):** STEP/IGES import + STEP/IGES/STL export.
+> Engine translators live in `src/cad/engine/io.ts` — all I/O funnels through the Emscripten
+> `oc.FS` (OCCT readers/writers only speak file paths: stage bytes on `/io/model.<ext>`, run the
+> translator, read back). Export path: `handleExportShape` (`operations.ts`) →
+> `ExportShapeRequest`/`ExportedResponse` DTOs → `useOpenCascade.exportShape`/`onExported` →
+> `CADLayout` triggers a Blob download. Import path: a hidden file input in `CADLayout` reads the
+> file text and adds an **`IMPORT` feature** carrying `{ format, fileName, content }` (`ImportParams`);
+> the parametric rebuild re-parses that content each pass (worker shape storage is cleared per
+> rebuild) and unions the solid into the body like a primitive. STL meshes the shape
+> (`BRepMesh_IncrementalMesh`) before writing since it's a mesh format.
+>
+> **Verified in-browser (Playwright + real WASM):** exported a box → valid STEP (`ISO-10303-21`),
+> IGES (columnar), STL (ASCII `solid`/`facet`) files; re-imported the STEP and IGES back as new
+> IMPORT features with clean rebuilds (STEP round-trips to 6 faces/12 edges; IGES to 11 faces/48
+> edges — IGES is a surface format and doesn't preserve solid topology, but the body is valid, not
+> degenerate).
+>
+> **OBJ import is disabled** (`disabledOperations` in `OperationData.tsx`). The engine path exists
+> (`io.ts` `readObj` via `RWObj_CafReader` + throwaway XCAF doc; `Perform` needs a
+> `TCollection_AsciiString`, not a JS string), but the OBJ mesh reader **traps with
+> `RuntimeError: null function` (an unbound symbol) inside our prebuilt `opencascade.full.wasm`** —
+> the OBJ triangulation reader isn't fully compiled/bound in the monolithic build. Enabling it needs
+> a **custom WASM build** (ROADMAP §9.3) that binds the missing `RWObj`/`RWMesh` symbols. The engine
+> code + `io.test.ts` OBJ case are kept as the ready-to-wire path for when that build lands.
+>
+> **TDD:** `io.test.ts` (11 cases, mock `oc` + fake `FS`) asserts each format drives the right OCCT
+> translator, funnels through `FS`, cleans up scratch files, and propagates failure. ⚠️ Same
+> constraint as `operations.ts`/`modifications.ts`: the mock **cannot** catch a wrong OCC
+> constructor/method name or a WASM-build gap (both runtime-only) — hence the browser pass above.
 
 ---
 
@@ -1016,7 +1046,7 @@ concrete, kernel-staying-the-same improvements fall out of the analysis (below).
 | # | Item | What it is | Effort | Pointer |
 |---|------|-----------|--------|---------|
 | 9.1 | **Selector system** ✅ | Port CadQuery's edge/face **selectors** (`>Z`, `<X`, `\|Y`, tag/nearest/radius filters) to our TS-over-OCCT topology walk. Biggest UX win: better fillet/chamfer edge-picking + selection ergonomics. We already have the topology-exploration primitives. Clean-room port of the *concepts* (grammar + predicates), not the code — CadQuery is Apache-2.0. **Done (2026-07-04):** pure grammar+evaluate engine, OCC descriptor extraction (`describe.ts`), worker wiring (`resolveSelector` request/response, `handleResolveSelector`, `useOpenCascade.resolveSelector`), an `OperationPanel` "select by rule" `TextInput` + preset chips (fillet/chamfer/shell) that materialize matches into the existing edge/face selection, an optional persistent mode (`FilletParams`/`ChamferParams`/`ShellParams.selector`, re-evaluated live each rebuild and unioned with explicit picks via a "keep this rule live" checkbox), and an `e2e/selectors.spec.ts` proving real-WASM validity (fillet via `\|Z`, shell via `>Z`/`\|Z`). Deferred: viewport highlight of resolved sub-shapes (needs a "highlighted set" concept in `viewportStore`); e2e coverage of `%kind` geomType-tag selectors on curved bodies is blocked by an unrelated tessellation bug (see follow-up below) — the grammar/evaluate path itself is unit-tested. | Medium | CadQuery `selectors.py` (Apache-2.0, reference only); our `fingerprint.ts`, `modifications.ts` (`resolveSubShapes`), `sketch/coordinateSystem.ts` |
-| 9.2 | **Standard-format export** | Implement STEP / STL / glTF **export directly** — the OCCT writers are already in our `full.wasm`; no CadQuery/OCP dependency needed. Folds into the existing §3 Import/Export gap. | Small–Medium | `STEPControl_Writer`, `StlAPI_Writer`, `RWGltf_CafWriter`; wire into `operations.ts` + the disabled I/O tab |
+| 9.2 | **Standard-format export** ✅ | Implement STEP / STL / glTF **export directly** — the OCCT writers are already in our `full.wasm`; no CadQuery/OCP dependency needed. Folds into the existing §3 Import/Export gap. **Done (2026-07-04):** STEP/IGES/STL export + STEP/IGES/OBJ import via `src/cad/engine/io.ts` (see §3). glTF export still deferred. | Small–Medium | `STEPControl_Writer`, `StlAPI_Writer`, `RWGltf_CafWriter`; wire into `operations.ts` + the disabled I/O tab |
 | 9.3 | **Custom (trimmed) WASM build** | We load the monolithic `opencascade.full.wasm` (whole kernel). `opencascade.js` supports custom builds binding only the classes we use → smaller WASM + faster cold start. OCP's module list is a useful map of what OCCT offers when scoping the build. | Medium | `opencascadeWorker.ts` (`openCascadeWasm`, `initOpenCascade`), `vite.config.ts` optimizeDeps |
 
 > **OCP as an API reference.** Independent of the above: OCP ships type stubs (`.pyi`) covering

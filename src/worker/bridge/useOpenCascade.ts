@@ -15,6 +15,7 @@ import type {
   SketchRefEnrichment,
   SubShapeKind,
   StableRef,
+  ExportFormat,
 } from "@/cad/types";
 
 export type { CADMeshData as MeshData };
@@ -36,6 +37,8 @@ interface UseOpenCascadeOptions {
   onFaceGeometry?: (faceId: number, origin: Point3D, normal: Vector3D, boundaryEdges?: string[]) => void;
   /** Callback when a selector has been resolved to fingerprinted refs (ROADMAP §9.1) */
   onSelectorResolved?: (requestId: string, refs: StableRef[]) => void;
+  /** Callback when a shape has been exported to interchange file text (ROADMAP §3) */
+  onExported?: (requestId: string, format: ExportFormat, content: string) => void;
   /** Callback when an error occurs */
   onError?: (message: string, featureId?: string) => void;
   /** Callback when the worker captures fingerprint upgrades for selections (step 3b) */
@@ -132,6 +135,10 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
 
         case "selectorResolved":
           optsRef.current.onSelectorResolved?.(msg.requestId, msg.refs);
+          break;
+
+        case "exported":
+          optsRef.current.onExported?.(msg.requestId, msg.format, msg.content);
           break;
 
         case "error":
@@ -270,6 +277,19 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     w.postMessage(message);
   }, []);
 
+  // Export a stored shape to a standard interchange format (ROADMAP §3)
+  const exportShape = useCallback((requestId: string, shapeId: string, format: ExportFormat) => {
+    const w = workerRef.current;
+    if (!w) return;
+    const message: WorkerRequest = {
+      type: "exportShape",
+      requestId,
+      shapeId,
+      format,
+    };
+    w.postMessage(message);
+  }, []);
+
   const clearMesh = useCallback(() => {
     setMesh(null);
     setCurrentShapeId(null);
@@ -298,6 +318,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     deleteShape,
     getFaceGeometry,
     resolveSelector,
+    exportShape,
     clearMesh,
     retry,
   };

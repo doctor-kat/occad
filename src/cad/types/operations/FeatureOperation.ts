@@ -29,5 +29,7 @@ export enum FeatureOperation {
   MIRROR = 'mirror',
   SCALE = 'scale',
   // Evaluation
-  MEASURE = 'measure'
+  MEASURE = 'measure',
+  // Import (imported solid, no parametric history)
+  IMPORT = 'import'
 }
