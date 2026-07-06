@@ -4,7 +4,6 @@ import { compareBuildOrder } from '@/cad/types';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { computeSketchChain } from './contextTarget';
 import { midpointOf, withMidpointPoint } from './sketchMidpoint';
-import { SketchElementType } from '@/cad/types';
 
 export interface ViewportContextMenuProps {
   project: CADProject;
@@ -152,8 +151,9 @@ export function ViewportContextMenu({
       case 'sketch-entity': {
         const elements = activeSketch?.elements ?? [];
         const targetElement = elements.find((e) => e.id === target.elementId);
-        // Only a straight line has a single well-defined midpoint to select.
-        const canMidpoint = targetElement?.type === SketchElementType.LINE && !!midpointOf(targetElement);
+        // midpointOf is non-null only for straight lines — the sole case with a
+        // single well-defined midpoint to select.
+        const canMidpoint = !!targetElement && !!midpointOf(targetElement);
         return (
           <>
             <Menu.Item
