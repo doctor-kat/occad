@@ -30,12 +30,20 @@ started
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
 | **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
 | **Selection / picking**      | ✅     | Single-pick model entities; **sketch box/crossing + multi-select** — §6b | —          | Model box/crossing intentionally out of scope — §6b |
-| **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, all 6 primitives, standalone booleans | —           | All non-wired feature types                         |
+| **Parametric rebuild**       | ✅     | Every body-producing feature type replays in `handleRebuild` (extrude/revolve, 6 primitives, sweep/loft, fillet/chamfer/shell/offset, move/rotate/mirror/scale, standalone booleans, import) | — | — (unknown types now throw, not silently skipped)   |
 | **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
 
 **Overall:** Sketch + constraints + extrude/revolve + all 6 primitives + modification + transform + standalone
 boolean pipeline is solid. The biggest remaining gap is the **IO** family (OBJ import / glTF export need a
 custom WASM build).
+
+> **Parametric rebuild finished (2026-07-06):** every body-producing `FeatureOperation` now has an explicit
+> branch in `handleRebuild` (`operations.ts`) — extrude/revolve boss+cut, all 6 primitives, sweep/loft,
+> fillet/chamfer/shell/offset, move/rotate/mirror/scale, standalone union/intersect, and import. `MEASURE` is
+> an explicit no-op (analysis readout, never added to the tree as a body feature), and any *unhandled* type now
+> **throws** (caught by the per-feature try/catch and surfaced on the tree item) instead of silently dropping
+> out of the replayed history — so a future feature type that's added but never wired can't quietly vanish on
+> rebuild.
 
 ---
 
@@ -869,7 +877,7 @@ E2E stops after the first real pick — repeated face picking is the app's exist
 | Suppress / unsuppress            | ✅      | `toggleFeatureSuppression`                                |
 | Visibility toggle                | ✅      | per-feature `isVisible`                                   |
 | Edit feature parameters          | ✅      | `OperationPanel`                                          |
-| Parametric rebuild               | 🟡     | only wired feature types replay                           |
+| Parametric rebuild               | ✅      | all body-producing feature types replay in `handleRebuild` |
 | localStorage persistence         | ✅      | key `occad-project`                                       |
 | Face → sketch workflow           | ✅      | `getFaceGeometry`                                         |
 | Sketch hover + select (viewport) | ✅      | `SketchWireframes` cylinder hit-areas; tree↔viewport sync |

@@ -587,6 +587,15 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
               }
               currentBody = combined;
             }
+          } else if (feature.type === FeatureOperation.MEASURE) {
+            // Measurement/analysis features carry no geometry to build — they are
+            // pure readouts. Skip them without touching the running body.
+          } else {
+            // Every body-producing feature type has an explicit branch above.
+            // Anything reaching here is an unhandled type (e.g. a newly added
+            // FeatureOperation that was never wired into rebuild). Fail loudly
+            // instead of silently dropping it from the replayed history.
+            throw new Error(`Feature type "${feature.type}" is not wired into parametric rebuild`);
           }
 
           if (newShape && !newShape.IsNull()) {
