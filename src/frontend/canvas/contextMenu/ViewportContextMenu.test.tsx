@@ -68,6 +68,29 @@ describe('ViewportContextMenu — face attribution', () => {
     expect(props.onSelectLoop).toHaveBeenCalledWith(3);
   });
 
+  it('Select Midpoint materializes a midpoint point and selects it', () => {
+    const props = baseProps();
+    // Active sketch with a single line.
+    const sketch = {
+      id: 'sk1', name: 'Sketch1', plane: { type: 'xy' }, primitives: [], constraints: [],
+      isClosed: false, createdAt: 0, updatedAt: 0,
+      elements: [{ type: 'line', id: 'L1', start: { x: 0, y: 0 }, end: { x: 8, y: 0 } }],
+    };
+    props.project.sketches = [sketch] as unknown as CADProject['sketches'];
+    props.activeSketchId = 'sk1';
+    useViewportStore.getState().openContextMenu({ x: 10, y: 10, target: { kind: 'sketch-entity', elementId: 'L1' } });
+
+    renderWithProviders(<ViewportContextMenu {...props} />);
+    fireEvent.click(screen.getByText('Select Midpoint'));
+
+    // Appends a point at (4,0) and selects it.
+    expect(props.onUpdateSketchElements).toHaveBeenCalledWith(
+      'sk1',
+      expect.arrayContaining([expect.objectContaining({ id: 'L1_mid', type: 'point', x: 4, y: 0 })]),
+    );
+    expect(useViewportStore.getState().selectedSketchElementIds).toEqual(['L1_mid']);
+  });
+
   it('disables Edit Feature/Sketch when the face is owner-less', () => {
     const props = baseProps();
     renderWithProviders(<ViewportContextMenu {...props} faceOwners={[null]} />);

@@ -969,7 +969,7 @@ space, from the current selection:
 |---------------------------------------|--------------------------------------------------------------------|
 | **Face**                              | Edit Feature, Edit Sketch, Suppress/Unsuppress, Delete (all face-accurate) |
 | **Edge**                              | Select Loop, Clear Selection                                        |
-| **Sketch entity** (in sketch mode)    | Select Chain, Select Midpoint\*, Delete                             |
+| **Sketch entity** (in sketch mode)    | Select Chain, Select Midpoint, Delete                               |
 | **Empty space + a selection**         | same menu as right-clicking the selected item                      |
 | **Empty space, no selection**         | Zoom to Fit + standard views (Front/Back/Top/Bottom/Left/Right/Iso) |
 
@@ -1004,8 +1004,15 @@ the pure `computeSketchChain` (walks shared endpoints). Tests: `contextTarget.te
 > `CADLayout.handleSelectLoop`) is now enabled. Tests: `edgeLoop.test.ts` (pickLoop: containing wire, shared-edge
 > first-match, free-edge fallback, de-dupe), `ViewportContextMenu.test.tsx` (Select Loop requests the picked edge).
 
-\* **Postponed, shown disabled** (present in the menu so the shape is stable and the gap is discoverable):
-- **Select Midpoint** (sketch entity) — needs a midpoint-reference primitive concept that doesn't exist yet.
+> **Done (2026-07-06) — Select Midpoint.** Materializes the missing midpoint-reference primitive: `withMidpointPoint`
+> (`sketchMidpoint.ts`) appends a construction `POINT` at a straight line's midpoint (id `${lineId}_mid`, idempotent
+> so re-selecting reuses it) and the menu selects it (`setSketchElementSelection`) so it can be constrained/
+> dimensioned like any point. Enabled only for lines (`midpointOf` returns null otherwise). A true *parametric*
+> midpoint relation still awaits the deferred Midpoint constraint (FEATURES §1.2 — no single planegcs primitive), so
+> the point sits at the current midpoint but isn't yet bound to track the line. Tests: `sketchMidpoint.test.ts`
+> (midpoint math, append + idempotence, non-line null), `ViewportContextMenu.test.tsx` (menu appends + selects it).
+
+**§6b remaining:** all previously-disabled context-menu items are now implemented.
 
 ### Remaining (unrelated to selection)
 

@@ -3,6 +3,8 @@ import type { CADProject, SketchElement } from '@/cad/types';
 import { compareBuildOrder } from '@/cad/types';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { computeSketchChain } from './contextTarget';
+import { midpointOf, withMidpointPoint } from './sketchMidpoint';
+import { SketchElementType } from '@/cad/types';
 
 export interface ViewportContextMenuProps {
   project: CADProject;
@@ -41,10 +43,8 @@ export interface ViewportContextMenuProps {
  * face can't be attributed (owner-less), the menu falls back to the selected
  * tree feature, else the tip feature.
  *
- * Still postponed (shown **disabled** so the menu shape stays stable):
- *  - Edge → Select Loop needs edge/face adjacency topology from the worker.
- *  - Sketch entity → Select Midpoint needs a midpoint-reference primitive.
- * See ROADMAP.md "§6b Remaining".
+ * Sketch entity → Select Midpoint materializes a construction point at a line's
+ * midpoint (see sketchMidpoint.ts) and selects it; disabled for non-lines.
  */
 export function ViewportContextMenu({
   project,
@@ -151,6 +151,9 @@ export function ViewportContextMenu({
 
       case 'sketch-entity': {
         const elements = activeSketch?.elements ?? [];
+        const targetElement = elements.find((e) => e.id === target.elementId);
+        // Only a straight line has a single well-defined midpoint to select.
+        const canMidpoint = targetElement?.type === SketchElementType.LINE && !!midpointOf(targetElement);
         return (
           <>
             <Menu.Item
@@ -161,7 +164,23 @@ export function ViewportContextMenu({
             >
               Select Chain
             </Menu.Item>
-            <Menu.Item disabled>Select Midpoint</Menu.Item>
+            <Menu.Item
+              disabled={!canMidpoint}
+              onClick={() => {
+                if (activeSketch) {
+                  // Materialize (or reuse) a construction point at the line's
+                  // midpoint, then select it so it can be constrained/dimensioned.
+                  const { elements: next, pointId } = withMidpointPoint(elements, target.elementId);
+                  if (pointId) {
+                    if (next !== elements) onUpdateSketchElements(activeSketch.id, next);
+                    setSketchElementSelection([pointId]);
+                  }
+                }
+                close();
+              }}
+            >
+              Select Midpoint
+            </Menu.Item>
             <Menu.Divider />
             <Menu.Item
               color="red"
