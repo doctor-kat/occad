@@ -968,7 +968,7 @@ space, from the current selection:
 | Right-click target                    | Menu items                                                          |
 |---------------------------------------|--------------------------------------------------------------------|
 | **Face**                              | Edit Feature, Edit Sketch, Suppress/Unsuppress, Delete (all face-accurate) |
-| **Edge**                              | Select Loop\*, Clear Selection                                      |
+| **Edge**                              | Select Loop, Clear Selection                                        |
 | **Sketch entity** (in sketch mode)    | Select Chain, Select Midpoint\*, Delete                             |
 | **Empty space + a selection**         | same menu as right-clicking the selected item                      |
 | **Empty space, no selection**         | Zoom to Fit + standard views (Front/Back/Top/Bottom/Left/Right/Iso) |
@@ -995,9 +995,16 @@ the pure `computeSketchChain` (walks shared endpoints). Tests: `contextTarget.te
 > feature owns all, survivors keep owner, no-op step re-attributes nothing), `ViewportContextMenu.test.tsx`
 > (Edit Feature/Sketch/Suppress target the owner; owner-less disables Edit).
 
+> **Done (2026-07-06) — Select Loop.** A new `getEdgeLoop` worker request (`handleGetEdgeLoop` in `operations.ts`)
+> walks the body's wires, maps each wire's edges to the 0-based global-edge index scheme the mesh reports, and the
+> pure `pickLoop` (`edgeLoop.ts`) returns the wire containing the picked edge (falling back to the edge alone). The
+> result rides an `EdgeLoopResponse` → `useOpenCascade.onEdgeLoop` → `viewportStore.selectedEdgeIndices` (a new
+> multi-edge highlight set; `OCCModel` lights an edge when it's in that set or the single `selectedEdgeIndex`, and a
+> fresh single-edge pick clears the set). The edge context menu's **Select Loop** (`onSelectLoop` →
+> `CADLayout.handleSelectLoop`) is now enabled. Tests: `edgeLoop.test.ts` (pickLoop: containing wire, shared-edge
+> first-match, free-edge fallback, de-dupe), `ViewportContextMenu.test.tsx` (Select Loop requests the picked edge).
+
 \* **Postponed, shown disabled** (present in the menu so the shape is stable and the gap is discoverable):
-- **Select Loop** (edge) — needs edge/face adjacency topology from the worker (a loop-query request that walks the
-  shape and returns the picked edge's loop).
 - **Select Midpoint** (sketch entity) — needs a midpoint-reference primitive concept that doesn't exist yet.
 
 ### Remaining (unrelated to selection)

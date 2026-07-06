@@ -162,6 +162,7 @@ export function CADLayout() {
     clearMesh,
     extrudeSketch,
     getFaceGeometry,
+    getEdgeLoop,
     resolveSelector,
     exportShape,
     measureShape,
@@ -224,6 +225,10 @@ export function CADLayout() {
         notifications.show({ color: 'blue', message: `Sketch created on Face ${faceId + 1} with ${boundaryEdges?.length || 0} imported edges` });
         setPendingSketchOnFace(null);
       }
+    },
+    onEdgeLoop: (_requestId, edgeIndices) => {
+      // Light up the whole loop; the picked edge stays the primary selection.
+      useViewportStore.getState().setSelectedEdgeIndices(edgeIndices);
     },
     onSelectorResolved: (requestId, refs) => {
       const resolve = pendingSelectorResolutions.current.get(requestId);
@@ -577,6 +582,13 @@ export function CADLayout() {
     // Default to generic edit logic
     editTreeItem(id);
   };
+
+  // "Select Loop": ask the worker for the bounding wire containing the picked
+  // edge; the onEdgeLoop callback lights up the returned edges.
+  const handleSelectLoop = useCallback((edgeIndex: number) => {
+    if (!currentFeatureShapeId) return;
+    getEdgeLoop(`loop-${Date.now()}`, currentFeatureShapeId, edgeIndex);
+  }, [currentFeatureShapeId, getEdgeLoop]);
 
   // Handle sketch update
   const handleUpdateSketch = (sketchId: string, elements: SketchElement[]) => {
@@ -1324,6 +1336,7 @@ export function CADLayout() {
             activeSketchId={activeSketchId}
             faceOwners={occMesh?.faceOwners}
             onEditItem={handleEditTreeItem}
+            onSelectLoop={handleSelectLoop}
             onToggleSuppressFeature={toggleFeatureSuppression}
             onDeleteFeature={handleContextDeleteFeature}
             onUpdateSketchElements={handleUpdateSketch}

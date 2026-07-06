@@ -40,6 +40,7 @@ interface UseOpenCascadeOptions {
   onFaceGeometry?: (faceId: number, origin: Point3D, normal: Vector3D, boundaryEdges?: string[]) => void;
   /** Callback when a selector has been resolved to fingerprinted refs (ROADMAP §9.1) */
   onSelectorResolved?: (requestId: string, refs: StableRef[]) => void;
+  onEdgeLoop?: (requestId: string, edgeIndices: number[]) => void;
   /** Callback when a shape has been exported to interchange file text (ROADMAP §3) */
   onExported?: (requestId: string, format: ExportFormat, content: string) => void;
   /** Callback when a shape's volume + bounding box have been measured (ROADMAP §4) */
@@ -138,6 +139,10 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
 
         case "faceGeometry":
           optsRef.current.onFaceGeometry?.(msg.faceId, msg.origin, msg.normal, msg.boundaryEdges);
+          break;
+
+        case "edgeLoop":
+          optsRef.current.onEdgeLoop?.(msg.requestId, msg.edgeIndices);
           break;
 
         case "selectorResolved":
@@ -278,6 +283,19 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     w.postMessage(message);
   }, []);
 
+  // Get the edge loop (bounding wire) containing a picked edge ("Select Loop")
+  const getEdgeLoop = useCallback((requestId: string, shapeId: string, edgeIndex: number) => {
+    const w = workerRef.current;
+    if (!w) return;
+    const message: WorkerRequest = {
+      type: "getEdgeLoop",
+      requestId,
+      shapeId,
+      edgeIndex,
+    };
+    w.postMessage(message);
+  }, []);
+
   // Resolve a selector string (ROADMAP §9.1) against a body's sub-shapes
   const resolveSelector = useCallback((requestId: string, shapeId: string, kind: SubShapeKind, selector: string) => {
     const w = workerRef.current;
@@ -361,6 +379,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     rebuild,
     deleteShape,
     getFaceGeometry,
+    getEdgeLoop,
     resolveSelector,
     exportShape,
     measureShape,

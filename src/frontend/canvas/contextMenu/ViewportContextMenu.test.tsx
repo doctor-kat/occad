@@ -25,6 +25,7 @@ function baseProps() {
     selectedTreeItem: null,
     activeSketchId: null,
     onEditItem: vi.fn(),
+    onSelectLoop: vi.fn(),
     onToggleSuppressFeature: vi.fn(),
     onDeleteFeature: vi.fn(),
     onUpdateSketchElements: vi.fn(),
@@ -57,6 +58,14 @@ describe('ViewportContextMenu — face attribution', () => {
     renderWithProviders(<ViewportContextMenu {...props} faceOwners={['ft1']} />);
     fireEvent.click(screen.getByText(/Suppress Boss1/));
     expect(props.onToggleSuppressFeature).toHaveBeenCalledWith('ft1');
+  });
+
+  it('Select Loop requests the picked edge on the edge menu', () => {
+    useViewportStore.getState().openContextMenu({ x: 10, y: 10, target: { kind: 'edge', edgeIndex: 3 } });
+    const props = baseProps();
+    renderWithProviders(<ViewportContextMenu {...props} />);
+    fireEvent.click(screen.getByText('Select Loop'));
+    expect(props.onSelectLoop).toHaveBeenCalledWith(3);
   });
 
   it('disables Edit Feature/Sketch when the face is owner-less', () => {

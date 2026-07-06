@@ -19,6 +19,8 @@ export interface ViewportContextMenuProps {
   faceOwners?: (string | null)[] | null;
   /** Open a feature or sketch for editing (feature panel / sketch edit mode). */
   onEditItem: (id: string) => void;
+  /** Highlight the whole edge loop (bounding wire) containing the picked edge. */
+  onSelectLoop: (edgeIndex: number) => void;
   /** Toggle a feature's suppression (bumps version → rebuild). */
   onToggleSuppressFeature: (featureId: string) => void;
   /** Delete a feature (callback owns any confirmation UI). */
@@ -50,6 +52,7 @@ export function ViewportContextMenu({
   activeSketchId,
   faceOwners,
   onEditItem,
+  onSelectLoop,
   onToggleSuppressFeature,
   onDeleteFeature,
   onUpdateSketchElements,
@@ -133,7 +136,14 @@ export function ViewportContextMenu({
       case 'edge':
         return (
           <>
-            <Menu.Item disabled>Select Loop</Menu.Item>
+            <Menu.Item
+              onClick={() => {
+                onSelectLoop(target.edgeIndex);
+                close();
+              }}
+            >
+              Select Loop
+            </Menu.Item>
             <Menu.Divider />
             <Menu.Item onClick={() => { clearSelection(); close(); }}>Clear Selection</Menu.Item>
           </>

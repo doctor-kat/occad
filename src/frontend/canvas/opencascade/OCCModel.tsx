@@ -18,6 +18,8 @@ export interface OCCModelProps {
 export function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVertexIndex, inSketchMode = false, onFaceClick, onEdgeClick, onVertexClick }: OCCModelProps) {
   const hoveredFaceId = useViewportStore((state) => state.hoveredFaceId);
   const hoveredEdgeIndex = useViewportStore((state) => state.hoveredEdgeIndex);
+  // Extra edges lit up by "Select Loop" (a whole bounding wire).
+  const selectedEdgeIndices = useViewportStore((state) => state.selectedEdgeIndices);
   const setHoveredFaceId = useViewportStore((state) => state.setHoveredFaceId);
   const setHoveredEdgeIndex = useViewportStore((state) => state.setHoveredEdgeIndex);
   const faceRef = useRef<THREE.Mesh>(null);
@@ -281,7 +283,7 @@ export function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVert
 
         // Render each topological edge as a single lineSegments
         return Array.from(edgeGroups.entries()).map(([edgeId, segments]) => {
-          const isSelected = selectedEdgeIndex === edgeId;
+          const isSelected = selectedEdgeIndex === edgeId || selectedEdgeIndices.includes(edgeId);
           const isHovered = !inSketchMode && effectiveHoveredEdgeIndex === edgeId;
 
           // Collect all vertices for this topological edge
@@ -317,12 +319,12 @@ export function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVert
             </lineSegments>
           );
         });
-      }, [mesh.edgeVertices, mesh.edgeMapping, selectedEdgeIndex, effectiveHoveredEdgeIndex])}
+      }, [mesh.edgeVertices, mesh.edgeMapping, selectedEdgeIndex, selectedEdgeIndices, effectiveHoveredEdgeIndex])}
 
       {/* Cylinders for edge hover detection and hover highlight */}
       {!inSketchMode && Array.from({ length: Math.floor(mesh.edgeVertices.length / 6) }).map((_, i) => {
         const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[i] : i;
-        const isSelected = selectedEdgeIndex === topologicalEdgeId;
+        const isSelected = selectedEdgeIndex === topologicalEdgeId || selectedEdgeIndices.includes(topologicalEdgeId);
         const isHovered = effectiveHoveredEdgeIndex === topologicalEdgeId;
 
         const p1 = new THREE.Vector3(

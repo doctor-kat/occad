@@ -7,6 +7,7 @@ import type { BooleanOperationRequest } from './BooleanOperationRequest';
 import type { RebuildRequest } from './RebuildRequest';
 import type { DeleteShapeRequest } from './DeleteShapeRequest';
 import type { GetFaceGeometryRequest } from './GetFaceGeometryRequest';
+import type { GetEdgeLoopRequest } from './GetEdgeLoopRequest';
 import type { ResolveSelectorRequest } from './ResolveSelectorRequest';
 import type { ExportShapeRequest } from './ExportShapeRequest';
 import type { MeasureShapeRequest } from './MeasureShapeRequest';
@@ -22,6 +23,7 @@ export type {
   RebuildRequest,
   DeleteShapeRequest,
   GetFaceGeometryRequest,
+  GetEdgeLoopRequest,
   ResolveSelectorRequest,
   ExportShapeRequest,
   MeasureShapeRequest,
@@ -43,6 +45,7 @@ export type WorkerRequest =
   | RebuildRequest
   | DeleteShapeRequest
   | GetFaceGeometryRequest
+  | GetEdgeLoopRequest
   | ResolveSelectorRequest
   | ExportShapeRequest
   | MeasureShapeRequest

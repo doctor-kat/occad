@@ -4,6 +4,7 @@ import type { FeatureBuiltResponse } from './FeatureBuiltResponse';
 import type { RebuildCompleteResponse } from './RebuildCompleteResponse';
 import type { RebuildProgressResponse } from './RebuildProgressResponse';
 import type { FaceGeometryResponse } from './FaceGeometryResponse';
+import type { EdgeLoopResponse } from './EdgeLoopResponse';
 import type { ErrorResponse } from './ErrorResponse';
 import type { ProgressResponse } from './ProgressResponse';
 import type { SelectorResolvedResponse } from './SelectorResolvedResponse';
@@ -18,6 +19,7 @@ export type {
   RebuildCompleteResponse,
   RebuildProgressResponse,
   FaceGeometryResponse,
+  EdgeLoopResponse,
   ErrorResponse,
   ProgressResponse,
   SelectorResolvedResponse,
@@ -38,6 +40,7 @@ export type WorkerResponse =
   | RebuildCompleteResponse
   | RebuildProgressResponse
   | FaceGeometryResponse
+  | EdgeLoopResponse
   | ErrorResponse
   | ProgressResponse
   | SelectorResolvedResponse

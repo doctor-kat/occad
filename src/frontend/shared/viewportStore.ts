@@ -43,6 +43,13 @@ interface ViewportState {
   selectedEdgeIndex: number | null;
   selectedVertexIndex: number | null;
 
+  /**
+   * Additional model edges highlighted alongside `selectedEdgeIndex` — used by
+   * "Select Loop" to light up a whole bounding wire. 0-based global edge ids
+   * (the scheme `edgeMapping` reports). Empty for ordinary single-edge picks.
+   */
+  selectedEdgeIndices: number[];
+
   /** Ids of sketch elements selected in sketch mode (for applying constraints). */
   selectedSketchElementIds: string[];
 
@@ -85,6 +92,7 @@ interface ViewportState {
   setHoveredEdgeIndex: (id: number | null) => void;
   setSelectedFaceId: (id: number | null) => void;
   setSelectedEdgeIndex: (id: number | null) => void;
+  setSelectedEdgeIndices: (ids: number[]) => void;
   setSelectedVertexIndex: (id: number | null) => void;
   setPendingSketchOnFace: (id: number | null) => void;
   setExtrudePreview: (preview: { sketchId: string | null; distance: number; direction: 'normal' | 'reverse' } | null) => void;
@@ -116,6 +124,7 @@ export const useViewportStore = create<ViewportState>((set) => ({
   selectedFaceId: null,
   selectedEdgeIndex: null,
   selectedVertexIndex: null,
+  selectedEdgeIndices: [],
   selectedSketchElementIds: [],
   hoveredSketchElementId: null,
   selectedConstraintId: null,
@@ -131,7 +140,9 @@ export const useViewportStore = create<ViewportState>((set) => ({
   setHoveredFaceId: (id) => set({ hoveredFaceId: id }),
   setHoveredEdgeIndex: (id) => set({ hoveredEdgeIndex: id }),
   setSelectedFaceId: (id) => set({ selectedFaceId: id }),
-  setSelectedEdgeIndex: (id) => set({ selectedEdgeIndex: id }),
+  // A fresh single-edge pick drops any prior loop highlight.
+  setSelectedEdgeIndex: (id) => set({ selectedEdgeIndex: id, selectedEdgeIndices: [] }),
+  setSelectedEdgeIndices: (ids) => set({ selectedEdgeIndices: ids }),
   setSelectedVertexIndex: (id) => set({ selectedVertexIndex: id }),
   setPendingSketchOnFace: (id) => set({ pendingSketchOnFace: id }),
   setExtrudePreview: (preview) => set({ extrudePreview: preview }),
@@ -155,6 +166,7 @@ export const useViewportStore = create<ViewportState>((set) => ({
   clearSelection: () => set({
     selectedFaceId: null,
     selectedEdgeIndex: null,
+    selectedEdgeIndices: [],
     selectedVertexIndex: null,
     selectedSketchElementIds: [],
     hoveredSketchElementId: null,

@@ -19,6 +19,7 @@ import {
   handleRevolveSketch,
   handleRebuild,
   handleGetFaceGeometry,
+  handleGetEdgeLoop,
   handleResolveSelector,
   handleExportShape,
   handleMeasureShape,
@@ -111,6 +112,10 @@ self.onmessage = async (e: MessageEvent) => {
 
       case 'getFaceGeometry':
         handleGetFaceGeometry(ctx, message.faceId, message.shapeId);
+        break;
+
+      case 'getEdgeLoop':
+        handleGetEdgeLoop(ctx, message.requestId, message.shapeId, message.edgeIndex);
         break;
 
       case 'resolveSelector':
