@@ -23,6 +23,7 @@ import type {
   SweepParams,
   LoftParams,
   TransformParams,
+  BooleanParams,
   MeasureParams,
   CADProject,
   MeshData,
@@ -397,6 +398,10 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
     ctx.shapeStorage.clear();
 
     let currentBody: TopoDS_Shape | null = null;
+    // Each feature's isolated solid (captured before the implicit boss/cut
+    // auto-union), keyed by feature id. Standalone Union/Intersect features
+    // reference these by id to combine specific solids on demand.
+    const featureSolids = new Map<string, TopoDS_Shape>();
     const sketchEdgesMap: Record<string, SketchEdgeData> = {};
     // Lazily-captured fingerprint upgrades for modification selections (step 3b).
     const refEnrichments: FeatureRefEnrichment[] = [];
@@ -562,9 +567,31 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
             if (currentBody) {
               currentBody = applyTransform(ctx, currentBody, feature.parameters as TransformParams);
             }
+          } else if (
+            feature.type === FeatureOperation.UNION ||
+            feature.type === FeatureOperation.INTERSECT
+          ) {
+            // A standalone boolean combines specific feature solids (referenced
+            // by id) and replaces the current body with the result. Union fuses,
+            // Intersect keeps the common volume. Needs at least two operands.
+            const params = feature.parameters as BooleanParams;
+            const operands = (params.featureIds ?? [])
+              .map((id) => featureSolids.get(id))
+              .filter((s): s is TopoDS_Shape => !!s && !s.IsNull());
+            if (operands.length >= 2) {
+              const op = feature.type === FeatureOperation.UNION ? 'union' : 'intersect';
+              let combined = operands[0];
+              for (let i = 1; i < operands.length; i++) {
+                combined = performBooleanOperation(ctx, op, combined, operands[i]);
+              }
+              currentBody = combined;
+            }
           }
 
           if (newShape && !newShape.IsNull()) {
+            // Capture the isolated solid so later standalone booleans can
+            // reference it, before it is auto-combined into the running body.
+            featureSolids.set(feature.id, newShape);
             if (currentBody) {
               // Sweep/loft can add or remove material depending on their isCut flag.
               const advancedCut =

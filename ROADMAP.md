@@ -20,7 +20,7 @@ started
 | **Sketch constraints**       | ✅     | 10 constraints end-to-end (UI+solver+e2e)                 | —               | Midpoint, Symmetric                                 |
 | **Sketch-based features**    | ✅     | Extrude Boss/Cut, Revolve Boss/Cut                        | —               | —                                                   |
 | **Primitives**               | ✅     | Box, Cylinder, Sphere, Cone, Torus, Wedge                 | —               | —                                                   |
-| **Boolean ops**              | 🟡     | Union, Subtract, Intersect (engine)                       | —               | UI for standalone booleans                          |
+| **Boolean ops**              | ✅     | Union/Subtract/Intersect (engine) + standalone Union/Intersect wired into rebuild | — | —                                                   |
 | **Modifications**            | ✅     | Fillet, Chamfer, Shell, Offset                            | —               | —                                                   |
 | **Transforms**               | ✅     | Move, Rotate, Mirror, Scale                               | —               | —                                                   |
 | **Advanced modeling**        | ✅     | Sweep, Loft                                               | —               | —                                                   |
@@ -30,11 +30,11 @@ started
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
 | **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
 | **Selection / picking**      | ✅     | Single-pick model entities; **sketch box/crossing + multi-select** — §6b | —          | Model box/crossing intentionally out of scope — §6b |
-| **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, all 6 primitives, booleans        | —               | All non-wired feature types                         |
+| **Parametric rebuild**       | 🟡     | Sketch→extrude/revolve, all 6 primitives, standalone booleans | —           | All non-wired feature types                         |
 | **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
 
-**Overall:** Sketch + constraints + extrude/revolve + all 6 primitives + modification + transform pipeline is
-solid. The biggest gaps are **standalone boolean UI** and the **IO** family (OBJ import / glTF export need a
+**Overall:** Sketch + constraints + extrude/revolve + all 6 primitives + modification + transform + standalone
+boolean pipeline is solid. The biggest remaining gap is the **IO** family (OBJ import / glTF export need a
 custom WASM build).
 
 ---
@@ -598,12 +598,15 @@ the tree/entity-list shows the group as an expandable folder.
 
 | Op        | Engine (`performBooleanOperation`) | Used in rebuild  | Standalone UI | Status |
 |-----------|:----------------------------------:|:----------------:|:-------------:|--------|
-| Union     |                 ✅                  | ✅ (boss combine) |   🟡 button   | 🟡     |
-| Subtract  |                 ✅                  | ✅ (cut combine)  |       —       | 🟡     |
-| Intersect |                 ✅                  |        ❌         |   🟡 button   | 🟡     |
+| Union     |                 ✅                  | ✅ (boss combine + standalone) |   ✅ button   | ✅     |
+| Subtract  |                 ✅                  | ✅ (cut combine)  |       —       | ✅     |
+| Intersect |                 ✅                  | ✅ (standalone)   |   ✅ button   | ✅     |
 
-> Engine supports all three; rebuild only uses union/subtract implicitly via boss/cut. A `BooleanOperationRequest` type
-> exists but is **not handled** in the worker. No multi-body selection model yet.
+> Engine supports all three. Boss/cut combine union/subtract implicitly; standalone **Union**/**Intersect**
+> features carry a `BooleanParams { operation, featureIds }` and are wired into `handleRebuild`: each feature's
+> isolated solid is captured in a `featureSolids` map (before its implicit boss/cut auto-union), and the
+> standalone boolean fetches its operands by id, combines them (fold via `performBooleanOperation`), and
+> replaces the current body. Needs ≥2 resolvable operands or it no-ops. No multi-body selection model yet.
 
 ### 2.4 Modifications
 

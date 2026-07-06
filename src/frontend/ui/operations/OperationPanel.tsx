@@ -18,6 +18,7 @@ import type {
   OffsetParams,
   SweepParams,
   LoftParams,
+  BooleanParams,
   TransformParams,
   OperationParams,
   SketchPlane,
@@ -268,10 +269,10 @@ export function OperationPanel({
       }
       case FeatureOperation.UNION:
       case FeatureOperation.INTERSECT:
-        params = { 
-          type: operation === FeatureOperation.UNION ? 'union' : 'intersect', 
-          featureIds: selectedFeatures 
-        } as any;
+        params = {
+          operation: operation === FeatureOperation.UNION ? 'union' : 'intersect',
+          featureIds: selectedFeatures,
+        } as BooleanParams;
         onConfirm(params);
         break;
       case FeatureOperation.BOX:
