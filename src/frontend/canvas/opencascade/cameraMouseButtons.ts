@@ -15,10 +15,15 @@ export const CAMERA_MOUSE_BUTTONS = {
 } as unknown as { LEFT: THREE.MOUSE; MIDDLE: THREE.MOUSE; RIGHT: THREE.MOUSE };
 
 /**
- * While the camera is on the middle button, Ctrl swaps it from orbit to pan
- * (SolidWorks: MMB = rotate, Ctrl+MMB = pan). OrbitControls maps one action per
- * button, so the swap is applied imperatively on the live controls instance.
+ * The full SolidWorks middle-button model: plain MMB drag orbits, Ctrl+MMB pans,
+ * Shift+MMB zooms (dolly). OrbitControls maps one action per button, so the swap
+ * is applied imperatively on the live controls instance as the modifiers change.
+ *
+ * Ctrl wins if both modifiers are held (pan over zoom) — an arbitrary but stable
+ * tiebreak; SolidWorks assigns each gesture a distinct single modifier.
  */
-export function middleButtonAction(ctrlKey: boolean): THREE.MOUSE {
-  return ctrlKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+export function middleButtonAction(ctrlKey: boolean, shiftKey = false): THREE.MOUSE {
+  if (ctrlKey) return THREE.MOUSE.PAN;
+  if (shiftKey) return THREE.MOUSE.DOLLY;
+  return THREE.MOUSE.ROTATE;
 }

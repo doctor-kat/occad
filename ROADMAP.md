@@ -28,7 +28,7 @@ started
 | **Measurement / Analysis**   | ✅     | Volume + Bounding Box + Between distance/angle (Measure tab) | —             | Done — validity check & shape healing intentionally skipped |
 | **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
-| **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a; RMB context menu — §6b | — | Confirm pan gesture                       |
+| **Mouse model (SolidWorks)** | ✅     | Camera on MMB (orbit, Ctrl+MMB pan, Shift+MMB zoom, wheel zoom) — §6a; RMB context menu — §6b | — | — |
 | **Selection / picking**      | ✅     | Single-pick model entities; **sketch box/crossing + multi-select** — §6b | —          | Model box/crossing intentionally out of scope — §6b |
 | **Parametric rebuild**       | ✅     | Every body-producing feature type replays in `handleRebuild` (extrude/revolve, 6 primitives, sweep/loft, fillet/chamfer/shell/offset, move/rotate/mirror/scale, standalone booleans, import) | — | — (unknown types now throw, not silently skipped)   |
 | **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
@@ -902,7 +902,7 @@ selection only, right button is free for a context menu.
 | Input                                   | SolidWorks behavior                                        | Status |
 |-----------------------------------------|-----------------------------------------------------------|--------|
 | **Left click**                          | Selection only — never moves the camera                   | ✅ done (LMB no longer orbits) |
-| **Middle click / drag**                 | Camera — rotate (orbit); pan with a modifier; wheel zooms | ✅ done (MMB rotate, Ctrl+MMB pan, wheel zoom) |
+| **Middle click / drag**                 | Camera — rotate (orbit); pan/zoom with a modifier; wheel zooms | ✅ done (MMB rotate, Ctrl+MMB pan, Shift+MMB zoom, wheel zoom) |
 | **Right click**                         | Context menu (no camera pan)                              | ✅ done — context menu implemented (see §6b "RMB context menu") |
 
 ### Done — camera remapped off the left button (`Scene.tsx`)
@@ -911,8 +911,14 @@ selection only, right button is free for a context menu.
 RIGHT: null }`, in `cameraMouseButtons.ts`): the left button no longer orbits (freed for selection) and the right
 button no longer pans (freed for the future context menu). Wheel zoom is unchanged. SolidWorks pans with **Ctrl+MMB**
 and rotates with plain MMB; since OrbitControls maps one action per button, a `keydown`/`keyup` effect in `Scene`
-swaps `controls.mouseButtons.MIDDLE` between `ROTATE`/`PAN` via the pure `middleButtonAction(ctrlKey)` helper. Unit
-tests cover the button map and the Ctrl swap (`cameraMouseButtons.test.ts`).
+swaps `controls.mouseButtons.MIDDLE` between `ROTATE`/`PAN`/`DOLLY` via the pure
+`middleButtonAction(ctrlKey, shiftKey)` helper. Unit tests cover the button map and the modifier swaps
+(`cameraMouseButtons.test.ts`).
+
+> **Confirmed + completed (2026-07-06):** Ctrl+MMB pan **is** the SolidWorks-faithful gesture (SolidWorks: MMB
+> rotate, Ctrl+MMB pan, Shift+MMB zoom), so the binding is kept. Completed the middle-button model by adding the
+> third gesture — **Shift+MMB = zoom** (`THREE.MOUSE.DOLLY`); Ctrl wins if both modifiers are held. Wheel zoom is
+> unchanged, so touch/trackpad pinch-zoom (drei `enableZoom`) still works.
 
 - **Sketch mode:** `SketchOverlay` already owns the left button for drawing (rubber-band preview); disabling the
   left-button orbit only helps it. Camera stays on MMB in sketch mode too.
@@ -920,8 +926,8 @@ tests cover the button map and the Ctrl swap (`cameraMouseButtons.test.ts`).
 ### Remaining
 
 - **RMB context menu** — ✅ done; see §6b "RMB context menu".
-- **Pan gesture** — currently Ctrl+MMB; confirm this is the SolidWorks-faithful gesture we want vs. drei's default
-  (see open questions in §6b). Verify touch/trackpad still zoom (`enableZoom`).
+- **Pan gesture** — ✅ confirmed Ctrl+MMB is SolidWorks-faithful and kept; added Shift+MMB zoom to complete the
+  MMB model. Wheel/trackpad zoom unchanged.
 
 ---
 
@@ -1016,7 +1022,8 @@ the pure `computeSketchChain` (walks shared endpoints). Tests: `contextTarget.te
 
 ### Remaining (unrelated to selection)
 
-- **Pan binding** — confirm Ctrl+MMB is the SolidWorks-faithful pan we want vs. drei's default.
+- **Pan binding** — ✅ confirmed Ctrl+MMB is SolidWorks-faithful (kept); added Shift+MMB zoom to complete the
+  MMB model. See §6a.
 
 ---
 

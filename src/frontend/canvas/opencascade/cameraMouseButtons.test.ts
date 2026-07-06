@@ -23,9 +23,18 @@ describe("CAMERA_MOUSE_BUTTONS", () => {
 describe("middleButtonAction", () => {
   it("orbits on a plain middle drag", () => {
     expect(middleButtonAction(false)).toBe(THREE.MOUSE.ROTATE);
+    expect(middleButtonAction(false, false)).toBe(THREE.MOUSE.ROTATE);
   });
 
   it("pans when Ctrl is held (SolidWorks Ctrl+MMB)", () => {
     expect(middleButtonAction(true)).toBe(THREE.MOUSE.PAN);
+  });
+
+  it("zooms when Shift is held (SolidWorks Shift+MMB)", () => {
+    expect(middleButtonAction(false, true)).toBe(THREE.MOUSE.DOLLY);
+  });
+
+  it("prefers pan over zoom when both modifiers are held", () => {
+    expect(middleButtonAction(true, true)).toBe(THREE.MOUSE.PAN);
   });
 });

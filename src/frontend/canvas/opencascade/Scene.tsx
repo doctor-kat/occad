@@ -66,13 +66,14 @@ export function Scene({
   const hoveredPlaneId = hoveredTreeItem;
   const inSketchMode = !!activeSketch;
 
-  // Camera lives on the middle button (SolidWorks-style). Ctrl swaps the
-  // middle button between orbit and pan on the live OrbitControls instance.
+  // Camera lives on the middle button (SolidWorks-style). Modifiers swap the
+  // middle button's action on the live OrbitControls instance: Ctrl → pan,
+  // Shift → zoom, otherwise orbit.
   const controlsRef = useRef<any>(null);
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const controls = controlsRef.current;
-      if (controls) controls.mouseButtons.MIDDLE = middleButtonAction(e.ctrlKey);
+      if (controls) controls.mouseButtons.MIDDLE = middleButtonAction(e.ctrlKey, e.shiftKey);
     };
     window.addEventListener("keydown", handleKey);
     window.addEventListener("keyup", handleKey);
