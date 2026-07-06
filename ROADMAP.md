@@ -967,7 +967,7 @@ space, from the current selection:
 
 | Right-click target                    | Menu items                                                          |
 |---------------------------------------|--------------------------------------------------------------------|
-| **Face**                              | Edit Feature\*, Edit Sketch\*, Suppress/Unsuppress, Delete          |
+| **Face**                              | Edit Feature, Edit Sketch, Suppress/Unsuppress, Delete (all face-accurate) |
 | **Edge**                              | Select Loop\*, Clear Selection                                      |
 | **Sketch entity** (in sketch mode)    | Select Chain, Select Midpoint\*, Delete                             |
 | **Empty space + a selection**         | same menu as right-clicking the selected item                      |
@@ -982,10 +982,20 @@ via `CameraController`, which consumes `viewportStore.cameraCommand` and applies
 the pure `computeSketchChain` (walks shared endpoints). Tests: `contextTarget.test.ts` (15), `cameraViews.test.ts`
 (8); browser-verified (all four menu variants + camera dispatch, 0 console errors).
 
+> **Done (2026-07-06) — face→feature attribution.** The rebuild now carries per-face ownership: `handleRebuild`
+> (`operations.ts`) rolls a `FaceOwnership` forward across each feature step (`faceAttribution.ts`,
+> `attributeFaceOwners`) — faces surviving a step keep their owner (matched by geometric fingerprint, reusing
+> `fingerprint.ts`), faces a step newly introduces are attributed to the running feature — and attaches the result
+> as `MeshData.faceOwners` (indexed by the same CAD face id `faceMapping` reports). `ViewportContextMenu` resolves
+> the clicked face to its owner: **Edit Feature** / **Edit Sketch** are enabled and open that feature/its sketch
+> (`onEditItem` → `CADLayout.handleEditTreeItem`), and **Suppress/Delete** now target the owning feature (falling
+> back to the selected tree feature, else the tip, only when a face is owner-less). Heuristic — a boolean/fillet
+> that reshapes an existing face enough to change its fingerprint re-attributes it to the reshaping feature — but
+> correct for the common cases and degrades gracefully. Tests: `faceAttribution.test.ts` (pure attribution: first
+> feature owns all, survivors keep owner, no-op step re-attributes nothing), `ViewportContextMenu.test.tsx`
+> (Edit Feature/Sketch/Suppress target the owner; owner-less disables Edit).
+
 \* **Postponed, shown disabled** (present in the menu so the shape is stable and the gap is discoverable):
-- **Edit Feature / Edit Sketch** (face) — need per-face → feature attribution (topological naming) that the mesh
-  doesn't carry yet. Interim: **Suppress/Delete** target the selected feature-tree feature if one is selected, else
-  the tip (last-built) feature; wire true per-face ownership to re-enable Edit and make Suppress/Delete face-accurate.
 - **Select Loop** (edge) — needs edge/face adjacency topology from the worker (a loop-query request that walks the
   shape and returns the picked edge's loop).
 - **Select Midpoint** (sketch entity) — needs a midpoint-reference primitive concept that doesn't exist yet.

@@ -1322,6 +1322,8 @@ export function CADLayout() {
             project={project}
             selectedTreeItem={selectedTreeItem}
             activeSketchId={activeSketchId}
+            faceOwners={occMesh?.faceOwners}
+            onEditItem={handleEditTreeItem}
             onToggleSuppressFeature={toggleFeatureSuppression}
             onDeleteFeature={handleContextDeleteFeature}
             onUpdateSketchElements={handleUpdateSketch}

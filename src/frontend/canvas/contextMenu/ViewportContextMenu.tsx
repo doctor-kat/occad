@@ -10,6 +10,15 @@ export interface ViewportContextMenuProps {
   selectedTreeItem: string | null;
   /** Sketch currently being edited (its elements back the sketch-entity menu). */
   activeSketchId: string | null;
+  /**
+   * Owning feature id per CAD face (from the current mesh's `faceOwners`),
+   * indexed by the face id a pick reports. Lets the face menu target the feature
+   * that actually owns the clicked face (Edit Feature/Sketch, accurate
+   * Suppress/Delete) instead of falling back to the tip feature.
+   */
+  faceOwners?: (string | null)[] | null;
+  /** Open a feature or sketch for editing (feature panel / sketch edit mode). */
+  onEditItem: (id: string) => void;
   /** Toggle a feature's suppression (bumps version → rebuild). */
   onToggleSuppressFeature: (featureId: string) => void;
   /** Delete a feature (callback owns any confirmation UI). */
@@ -24,9 +33,13 @@ export interface ViewportContextMenuProps {
  * (see resolveContextTarget). Rendered once at the CADLayout level so it can use
  * the project + feature/sketch actions directly.
  *
- * Postponed items are shown **disabled** rather than hidden, so the menu shape
- * is stable and the gaps are discoverable:
- *  - Face → Edit Feature / Edit Sketch need face→feature attribution.
+ * The face menu resolves the clicked face to its owning feature via the mesh's
+ * `faceOwners` attribution (see faceAttribution.ts): Edit Feature / Edit Sketch
+ * target that feature (and its sketch), and Suppress/Delete act on it. When a
+ * face can't be attributed (owner-less), the menu falls back to the selected
+ * tree feature, else the tip feature.
+ *
+ * Still postponed (shown **disabled** so the menu shape stays stable):
  *  - Edge → Select Loop needs edge/face adjacency topology from the worker.
  *  - Sketch entity → Select Midpoint needs a midpoint-reference primitive.
  * See ROADMAP.md "§6b Remaining".
@@ -35,6 +48,8 @@ export function ViewportContextMenu({
   project,
   selectedTreeItem,
   activeSketchId,
+  faceOwners,
+  onEditItem,
   onToggleSuppressFeature,
   onDeleteFeature,
   onUpdateSketchElements,
@@ -49,13 +64,20 @@ export function ViewportContextMenu({
   if (!contextMenu) return null;
   const { x, y, target } = contextMenu;
 
-  // Face suppress/delete act on the selected feature-tree feature if there is
-  // one, else the tip (last-built) feature — an interim rule until per-face
-  // feature attribution lands (then these will target the clicked face's owner).
+  // Resolve the clicked face to its owning feature (face-accurate). Fall back to
+  // the selected tree feature, else the tip (last-built) feature, when the face
+  // is owner-less or the target isn't a face.
   const orderedFeatures = [...project.features].sort(compareBuildOrder);
   const tipFeature = orderedFeatures[orderedFeatures.length - 1];
   const selectedFeature = project.features.find((f) => f.id === selectedTreeItem);
-  const targetFeature = selectedFeature ?? tipFeature;
+  const ownerId = target.kind === 'face' ? faceOwners?.[target.faceId] ?? null : null;
+  const ownerFeature = ownerId ? project.features.find((f) => f.id === ownerId) : undefined;
+  const targetFeature = ownerFeature ?? selectedFeature ?? tipFeature;
+  // The sketch behind the owning feature (Edit Sketch), when it is sketch-based.
+  const ownerSketch =
+    ownerFeature?.sketchId
+      ? project.sketches.find((s) => s.id === ownerFeature.sketchId)
+      : undefined;
 
   const activeSketch = activeSketchId ? project.sketches.find((s) => s.id === activeSketchId) : undefined;
 
@@ -66,8 +88,24 @@ export function ViewportContextMenu({
       case 'face':
         return (
           <>
-            <Menu.Item disabled>Edit Feature</Menu.Item>
-            <Menu.Item disabled>Edit Sketch</Menu.Item>
+            <Menu.Item
+              disabled={!ownerFeature}
+              onClick={() => {
+                if (ownerFeature) onEditItem(ownerFeature.id);
+                close();
+              }}
+            >
+              Edit Feature{ownerFeature ? ` ${ownerFeature.name}` : ''}
+            </Menu.Item>
+            <Menu.Item
+              disabled={!ownerSketch}
+              onClick={() => {
+                if (ownerSketch) onEditItem(ownerSketch.id);
+                close();
+              }}
+            >
+              Edit Sketch{ownerSketch ? ` ${ownerSketch.name}` : ''}
+            </Menu.Item>
             <Menu.Divider />
             <Menu.Item
               disabled={!targetFeature}

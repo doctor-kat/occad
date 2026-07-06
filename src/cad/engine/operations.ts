@@ -47,7 +47,8 @@ import { applyTransform } from './transforms';
 import { tessellate, extractEdgeVertices } from './tessellation';
 import { SketchSolver } from './SketchSolver';
 import { reprojectExternalGeometry, enrichSketchExternalRefs } from './sketch/externalGeometry';
-import { mapSubShapes, computeFingerprint } from './fingerprint';
+import { mapSubShapes, computeFingerprint, fingerprintAll } from './fingerprint';
+import { attributeFaceOwners, EMPTY_OWNERSHIP, type FaceOwnership } from './faceAttribution';
 import { describeSubShapes } from './selectors/describe';
 import { selectSubShapes } from './selectors';
 import { exportShapeToString, importShapeFromString } from './io';
@@ -408,6 +409,10 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
     const refEnrichments: FeatureRefEnrichment[] = [];
     // Lazily-captured fingerprint upgrades for sketch external-geometry refs (step 3c).
     const sketchRefEnrichments: SketchRefEnrichment[] = [];
+    // Per-face → owning-feature attribution, carried forward across each feature
+    // step so the final body's faces can be traced back to the feature that made
+    // them (context menu Edit Feature/Sketch, face-accurate Suppress/Delete).
+    let faceOwnership: FaceOwnership = EMPTY_OWNERSHIP;
 
     // Deterministic, total build order shared with the feature tree: order by
     // `sequence ?? createdAt`, tie-broken by id. See compareBuildOrder.
@@ -617,6 +622,17 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
             }
           }
           if (currentBody) ctx.shapeStorage.set(`feature_${feature.id}_${shapeIdCounter++}`, currentBody);
+          // Roll face ownership forward: faces surviving this feature keep their
+          // owner; faces it newly introduced are attributed to it. A feature that
+          // didn't touch the body (e.g. MEASURE, a no-op transform) leaves every
+          // fingerprint matching, so ownership is unchanged.
+          if (currentBody) {
+            faceOwnership = attributeFaceOwners(
+              faceOwnership,
+              fingerprintAll(ctx, currentBody, 'face'),
+              feature.id,
+            );
+          }
         }
         processedItems++;
       } catch (err: unknown) {
@@ -633,6 +649,9 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
       const finalShapeId = 'CURRENT_REBUILD_SHAPE';
       ctx.shapeStorage.set(finalShapeId, currentBody);
       const meshData = tessellate(ctx, currentBody, 0.1, 0.5);
+      // Attach face→feature attribution (indexed by the same CAD face id
+      // `faceMapping` reports). A plain array — structured-cloned, not transferred.
+      meshData.faceOwners = faceOwnership.owners;
       const transferables: Transferable[] = [...getTransferables(meshData)];
       for (const edge of Object.values(sketchEdgesMap)) transferables.push(edge.edgeVertices.buffer);
       post({ type: 'rebuildComplete', meshData, shapeId: finalShapeId, sketchEdges: sketchEdgesMap, refEnrichments: refEnrichments.length ? refEnrichments : undefined, sketchRefEnrichments: sketchRefEnrichments.length ? sketchRefEnrichments : undefined }, transferables);
