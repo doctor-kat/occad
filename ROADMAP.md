@@ -28,7 +28,7 @@ started
 | **Measurement / Analysis**   | ✅     | Volume + Bounding Box + Between distance/angle (Measure tab) | —             | Done — validity check & shape healing intentionally skipped |
 | **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
-| **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
+| **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a; RMB context menu — §6b | — | Confirm pan gesture                       |
 | **Selection / picking**      | ✅     | Single-pick model entities; **sketch box/crossing + multi-select** — §6b | —          | Model box/crossing intentionally out of scope — §6b |
 | **Parametric rebuild**       | ✅     | Every body-producing feature type replays in `handleRebuild` (extrude/revolve, 6 primitives, sweep/loft, fillet/chamfer/shell/offset, move/rotate/mirror/scale, standalone booleans, import) | — | — (unknown types now throw, not silently skipped)   |
 | **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
@@ -903,7 +903,7 @@ selection only, right button is free for a context menu.
 |-----------------------------------------|-----------------------------------------------------------|--------|
 | **Left click**                          | Selection only — never moves the camera                   | ✅ done (LMB no longer orbits) |
 | **Middle click / drag**                 | Camera — rotate (orbit); pan with a modifier; wheel zooms | ✅ done (MMB rotate, Ctrl+MMB pan, wheel zoom) |
-| **Right click**                         | Context menu (no camera pan)                              | 🟡 RMB no longer pans; menu still TODO (see §6b Remaining) |
+| **Right click**                         | Context menu (no camera pan)                              | ✅ done — context menu implemented (see §6b "RMB context menu") |
 
 ### Done — camera remapped off the left button (`Scene.tsx`)
 
@@ -919,7 +919,7 @@ tests cover the button map and the Ctrl swap (`cameraMouseButtons.test.ts`).
 
 ### Remaining
 
-- **RMB context menu** — see §6b Remaining (the binding is freed here; the menu UI is still to build).
+- **RMB context menu** — ✅ done; see §6b "RMB context menu".
 - **Pan gesture** — currently Ctrl+MMB; confirm this is the SolidWorks-faithful gesture we want vs. drei's default
   (see open questions in §6b). Verify touch/trackpad still zoom (`enableZoom`).
 
@@ -959,11 +959,39 @@ R3F `onClick` handlers on each entity (`OCCModel` faces/edges/vertices, `Referen
 `selectedTreeItem` for planes/sketches). Canvas-level `onPointerMissed` clears on an empty click. This stays as-is —
 no selection-set refactor, no model box/crossing.
 
+### RMB context menu — ✅ done (2026-07-06)
+
+Right-click in the viewport opens a SolidWorks-style context menu, resolved from the entity under the cursor at
+click time (reusing the continuously-tracked hover state in `viewportStore` — no new raycasting) and, on empty
+space, from the current selection:
+
+| Right-click target                    | Menu items                                                          |
+|---------------------------------------|--------------------------------------------------------------------|
+| **Face**                              | Edit Feature\*, Edit Sketch\*, Suppress/Unsuppress, Delete          |
+| **Edge**                              | Select Loop\*, Clear Selection                                      |
+| **Sketch entity** (in sketch mode)    | Select Chain, Select Midpoint\*, Delete                             |
+| **Empty space + a selection**         | same menu as right-clicking the selected item                      |
+| **Empty space, no selection**         | Zoom to Fit + standard views (Front/Back/Top/Bottom/Left/Right/Iso) |
+
+Architecture: `onContextMenu` on the viewport `Box` (`OpenCascadeViewport`) resolves a `ContextTarget` via the pure
+`resolveContextTarget` (`src/frontend/canvas/contextMenu/contextTarget.ts`) and stores `{x,y,target}` in
+`viewportStore.contextMenu`. `ViewportContextMenu` (rendered once in `CADLayout`, where the project + feature/sketch
+actions live) draws a positioned Mantine `Menu` at the cursor. **Zoom to Fit / standard views** run inside the Canvas
+via `CameraController`, which consumes `viewportStore.cameraCommand` and applies pure framing math
+(`cameraViews.ts`: `boundsFromVertices` + `computeCameraView`) to the camera + OrbitControls. **Select Chain** uses
+the pure `computeSketchChain` (walks shared endpoints). Tests: `contextTarget.test.ts` (15), `cameraViews.test.ts`
+(8); browser-verified (all four menu variants + camera dispatch, 0 console errors).
+
+\* **Postponed, shown disabled** (present in the menu so the shape is stable and the gap is discoverable):
+- **Edit Feature / Edit Sketch** (face) — need per-face → feature attribution (topological naming) that the mesh
+  doesn't carry yet. Interim: **Suppress/Delete** target the selected feature-tree feature if one is selected, else
+  the tip (last-built) feature; wire true per-face ownership to re-enable Edit and make Suppress/Delete face-accurate.
+- **Select Loop** (edge) — needs edge/face adjacency topology from the worker (a loop-query request that walks the
+  shape and returns the picked edge's loop).
+- **Select Midpoint** (sketch entity) — needs a midpoint-reference primitive concept that doesn't exist yet.
+
 ### Remaining (unrelated to selection)
 
-- **RMB context menu** — the right-button binding is freed (§6a) but no menu exists; the browser default still shows.
-  Build an `onContextMenu` (preventDefault) → positioned Mantine `Menu` anchored at the cursor (e.g. *Create Sketch on
-  Face*, *Hide/Show*, *Zoom to Selection*, *Clear Selection*). Independent of box/crossing.
 - **Pan binding** — confirm Ctrl+MMB is the SolidWorks-faithful pan we want vs. drei's default.
 
 ---

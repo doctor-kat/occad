@@ -23,6 +23,7 @@ import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
 import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 import { SketchConstraintToolbar } from './operations/SketchConstraintToolbar';
 import { SketchConstraintList } from './operations/SketchConstraintList';
+import { ViewportContextMenu } from '@/frontend/canvas/contextMenu/ViewportContextMenu';
 
 // Sketch drawing tools. Selecting one of these enters sketch mode rather than
 // opening the OperationPanel.
@@ -109,6 +110,8 @@ export function CADLayout() {
     startSketchEdit,
     stopSketchEdit,
     updateFeatureParameters,
+    toggleFeatureSuppression,
+    deleteFeature,
     applyRefEnrichments,
     applySketchRefEnrichments,
     undo,
@@ -809,6 +812,24 @@ export function CADLayout() {
     });
   };
 
+  // Delete a feature from the viewport context menu, with a confirmation step
+  // (the feature-tree delete is a deliberate click on a specific row; a
+  // right-click → Delete is easier to fire by accident, so guard it).
+  const handleContextDeleteFeature = useCallback((featureId: string) => {
+    const feature = project.features.find((f) => f.id === featureId);
+    if (!feature) return;
+    modals.openConfirmModal({
+      title: 'Delete Feature',
+      children: `Delete "${feature.name}"? This cannot be undone except via Undo.`,
+      labels: { confirm: 'Delete', cancel: 'Cancel' },
+      confirmProps: { color: 'red' },
+      onConfirm: () => {
+        deleteFeature(featureId);
+        notifications.show({ color: 'blue', message: `Deleted ${feature.name}` });
+      },
+    });
+  }, [project.features, deleteFeature]);
+
   const handleOpen = () => {
     fileInputRef.current?.click();
   };
@@ -1297,6 +1318,14 @@ export function CADLayout() {
               <SketchConstraintList sketch={activeSketch} onRemove={handleRemoveConstraint} />
             </>
           )}
+          <ViewportContextMenu
+            project={project}
+            selectedTreeItem={selectedTreeItem}
+            activeSketchId={activeSketchId}
+            onToggleSuppressFeature={toggleFeatureSuppression}
+            onDeleteFeature={handleContextDeleteFeature}
+            onUpdateSketchElements={handleUpdateSketch}
+          />
         </Box>
       </AppShell.Main>
     </AppShell>

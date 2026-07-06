@@ -1,5 +1,37 @@
 import { create } from 'zustand';
 
+/**
+ * What a viewport right-click resolved to. Drives which context menu is shown
+ * (see ViewportContextMenu). Resolved from the entity under the cursor at
+ * right-click time, or — on empty space — from the current selection, so
+ * "right-click nothing with a selection" behaves like right-clicking the
+ * selected item. Empty space with no selection resolves to `camera`.
+ * (Lives here, in the shared layer, so the store doesn't depend on the canvas
+ * layer; the resolution logic in canvas/contextMenu imports this type.)
+ */
+export type ContextTarget =
+  | { kind: 'face'; faceId: number }
+  | { kind: 'edge'; edgeIndex: number }
+  | { kind: 'sketch-entity'; elementId: string }
+  | { kind: 'camera' };
+
+/** Standard camera framings offered by the empty-space context menu. */
+export type CameraViewType = 'fit' | 'front' | 'back' | 'top' | 'bottom' | 'right' | 'left' | 'iso';
+
+/** An open viewport right-click menu: cursor position (client px) + what was hit. */
+export interface ContextMenuState {
+  x: number;
+  y: number;
+  target: ContextTarget;
+}
+
+/** A one-shot camera framing request; `nonce` makes each request distinct so the
+ *  in-Canvas CameraController re-runs even when the same view is picked twice. */
+export interface CameraCommand {
+  view: CameraViewType;
+  nonce: number;
+}
+
 interface ViewportState {
   // Hover state
   hoveredTreeItem: string | null;
@@ -31,6 +63,12 @@ interface ViewportState {
    */
   sketchSelectionBox: { x: number; y: number; w: number; h: number; mode: 'window' | 'crossing' } | null;
 
+  /** Open viewport right-click context menu, or null when closed. */
+  contextMenu: ContextMenuState | null;
+
+  /** Latest one-shot camera framing request (consumed by CameraController). */
+  cameraCommand: CameraCommand | null;
+
   // Sketch-on-face pending state
   pendingSketchOnFace: number | null;
 
@@ -58,6 +96,9 @@ interface ViewportState {
   setSketchSelectionBox: (box: ViewportState['sketchSelectionBox']) => void;
   setSelectedConstraintId: (id: string | null) => void;
   setHoveredConstraintId: (id: string | null) => void;
+  openContextMenu: (menu: ContextMenuState) => void;
+  closeContextMenu: () => void;
+  requestCameraView: (view: CameraViewType) => void;
   clearSelection: () => void;
   clearHover: () => void;
 }
@@ -80,6 +121,8 @@ export const useViewportStore = create<ViewportState>((set) => ({
   selectedConstraintId: null,
   hoveredConstraintId: null,
   sketchSelectionBox: null,
+  contextMenu: null,
+  cameraCommand: null,
   pendingSketchOnFace: null,
   extrudePreview: null,
 
@@ -104,6 +147,10 @@ export const useViewportStore = create<ViewportState>((set) => ({
   setSketchSelectionBox: (box) => set({ sketchSelectionBox: box }),
   setSelectedConstraintId: (id) => set({ selectedConstraintId: id }),
   setHoveredConstraintId: (id) => set({ hoveredConstraintId: id }),
+
+  openContextMenu: (menu) => set({ contextMenu: menu }),
+  closeContextMenu: () => set({ contextMenu: null }),
+  requestCameraView: (view) => set({ cameraCommand: { view, nonce: Date.now() } }),
 
   clearSelection: () => set({
     selectedFaceId: null,

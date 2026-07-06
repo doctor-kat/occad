@@ -5,6 +5,7 @@ import { X, Check, Dot, Minus, NavigationArrow, Circle } from "@phosphor-icons/r
 import type { CADProject, MeshData, SketchEdgeData, Sketch, SketchOperation } from "@/cad/types";
 import type { OCCStatus } from "@/worker/bridge/useOpenCascade";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
+import { resolveContextTarget } from "../contextMenu/contextTarget";
 import { Scene } from "./Scene";
 import { SelectionDisplay } from "./SelectionDisplay";
 import { LoadingOverlay } from "./LoadingOverlay";
@@ -114,6 +115,24 @@ export function OpenCascadeViewport({
       style={{
         overflow: 'hidden',
         backgroundColor: '#0a0a0f',
+      }}
+      onContextMenu={(e) => {
+        // SolidWorks-style right-click menu. The camera is on the middle button
+        // (RIGHT is unbound in OrbitControls), so the right button is free here.
+        // The entity under the cursor is whatever is currently hovered (tracked
+        // continuously on pointer-move); empty space falls back to the selection.
+        e.preventDefault();
+        const s = useViewportStore.getState();
+        const target = resolveContextTarget({
+          inSketchMode: !!activeSketch,
+          hoveredFaceId: s.hoveredFaceId,
+          hoveredEdgeIndex: s.hoveredEdgeIndex,
+          hoveredSketchElementId: s.hoveredSketchElementId,
+          selectedFaceId: s.selectedFaceId,
+          selectedEdgeIndex: s.selectedEdgeIndex,
+          selectedSketchElementIds: s.selectedSketchElementIds,
+        });
+        s.openContextMenu({ x: e.clientX, y: e.clientY, target });
       }}
     >
       {/* Three.js Canvas */}

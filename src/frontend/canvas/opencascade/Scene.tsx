@@ -10,6 +10,7 @@ import { SketchWireframes } from "./SketchWireframes";
 import { ExtrudeArrows } from "./ExtrudeArrows";
 import { SketchOverlay } from "../sketch/SketchOverlay";
 import { SketchCameraOrient } from "../sketch/SketchCameraOrient";
+import { CameraController } from "../contextMenu/CameraController";
 import type { ConstraintInput } from "@/cad/engine/sketch/constraintFactory";
 
 export interface SceneProps {
@@ -169,6 +170,9 @@ export function Scene({
         dampingFactor={0.12}
         mouseButtons={CAMERA_MOUSE_BUTTONS}
       />
+
+      {/* Applies Zoom-to-Fit / standard-view requests from the context menu */}
+      <CameraController mesh={mesh} controlsRef={controlsRef} />
 
       {/* Swing the view normal to the sketch plane when entering a sketch */}
       <SketchCameraOrient activeSketch={activeSketch} />
