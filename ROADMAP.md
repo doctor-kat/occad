@@ -25,7 +25,7 @@ started
 | **Transforms**               | ✅     | Move, Rotate, Mirror, Scale                               | —               | —                                                   |
 | **Advanced modeling**        | ✅     | Sweep, Loft                                               | —               | —                                                   |
 | **Import / Export**          | ✅     | STEP/IGES import, STEP/IGES/STL export (browser-verified) | —               | OBJ import + glTF export (disabled — need custom WASM) |
-| **Measurement / Analysis**   | 🟡     | Volume + Bounding Box (Measure tab, browser-verified)     | —               | Measure (distance/length) still type only           |
+| **Measurement / Analysis**   | ✅     | Volume + Bounding Box + Between distance/angle (Measure tab) | —             | Done — validity check & shape healing intentionally skipped |
 | **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
 | **Mouse model (SolidWorks)** | 🟡     | Camera on MMB (orbit, Ctrl+MMB pan, wheel zoom) — §6a     | —               | RMB menu; confirm pan gesture                       |
@@ -730,11 +730,28 @@ the tree/entity-list shows the group as an expandable folder.
 
 | Tool                           | Status       | OCC API                            |
 |--------------------------------|--------------|------------------------------------|
-| Measure (distance/length)      | 🟡 type only | `BRepExtrema_DistShapeShape`       |
+| Measure (distance)             | ✅ engine + UI (Measure tab "Between") | `BRepExtrema_DistShapeShape` |
+| Measure (angle)                | ✅ engine + UI (acute angle for non-parallel dir'l selections) | `BRepAdaptor_Surface`/`Curve` directions |
 | Volume                         | ✅ engine + UI (Measure tab, browser-verified) | `BRepGProp` / `GProp_GProps` |
 | Bounding Box                   | ✅ engine + UI (Measure tab, browser-verified) | `Bnd_Box` / `BRepBndLib`     |
-| Shape validity check           | ❌            | `BRepCheck_Analyzer`               |
-| Shape healing                  | ❌            | `ShapeFix_Shape` / `Wire` / `Face` |
+| Shape validity check           | ⛔ won't do   | `BRepCheck_Analyzer`               |
+| Shape healing                  | ⛔ won't do   | `ShapeFix_Shape` / `Wire` / `Face` |
+
+> **Section complete (2026-07-06).** Volume, Bounding Box, and Between distance/angle
+> are shipped. Shape validity check and shape healing are intentionally **not** planned —
+> this section is considered done.
+
+**Between distance/angle (added 2026-07-06):** the Measure tab has a second **Between**
+row. While the tab is open, viewport clicks on faces/edges/vertices accumulate into a
+two-slot pick set (`recordMeasurePick` in `CADLayout`); once two are picked the worker
+`measureBetween` request runs `BRepExtrema_DistShapeShape` for the min distance + closest
+points, and — when both selections are directional (planar-face normal / line-edge tangent)
+and non-parallel — reports the acute angle between them (folded to 0–90° via `|dot|`, omitted
+within ~0.5° of parallel). Engine in `analysis.ts` (`measureBetween`), DTOs
+`MeasureBetweenRequest`/`MeasuredBetweenResponse`, covered by `analysis.test.ts`. Volume +
+Bounding Box + the Between panel/first-pick flow browser-verified; the two-pick→distance/angle
+readout is unit-tested (r3f's second synthetic click is dropped by `setPointerCapture`, so the
+E2E stops after the first real pick — repeated face picking is the app's existing selection path).
 
 **Measurement tab UI:** a dedicated tab showing a compact readout —
 `Measure` label · divider · small button `Volume: {value}` · small button `Bounding Box: X mm × Y mm × Z mm`.

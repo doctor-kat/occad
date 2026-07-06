@@ -22,6 +22,7 @@ import {
   handleResolveSelector,
   handleExportShape,
   handleMeasureShape,
+  handleMeasureBetween,
 } from '@/cad/engine/operations';
 
 const openCascadeWasm = '/opencascade.full.wasm';
@@ -122,6 +123,10 @@ self.onmessage = async (e: MessageEvent) => {
 
       case 'measureShape':
         handleMeasureShape(ctx, message.requestId, message.shapeId);
+        break;
+
+      case 'measureBetween':
+        handleMeasureBetween(ctx, message.requestId, message.shapeId, message.a, message.b);
         break;
 
       default:

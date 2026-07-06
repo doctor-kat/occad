@@ -17,6 +17,8 @@ import type {
   StableRef,
   ExportFormat,
   MeasurementData,
+  MeasureBetweenData,
+  MeasureSelection,
 } from "@/cad/types";
 
 export type { CADMeshData as MeshData };
@@ -42,6 +44,8 @@ interface UseOpenCascadeOptions {
   onExported?: (requestId: string, format: ExportFormat, content: string) => void;
   /** Callback when a shape's volume + bounding box have been measured (ROADMAP §4) */
   onMeasured?: (requestId: string, measurement: MeasurementData) => void;
+  /** Callback when the distance/angle between two selections has been measured (ROADMAP §4) */
+  onMeasuredBetween?: (requestId: string, measurement: MeasureBetweenData) => void;
   /** Callback when an error occurs */
   onError?: (message: string, featureId?: string) => void;
   /** Callback when the worker captures fingerprint upgrades for selections (step 3b) */
@@ -146,6 +150,10 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
 
         case "measured":
           optsRef.current.onMeasured?.(msg.requestId, msg.measurement);
+          break;
+
+        case "measuredBetween":
+          optsRef.current.onMeasuredBetween?.(msg.requestId, msg.measurement);
           break;
 
         case "error":
@@ -309,6 +317,23 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     w.postMessage(message);
   }, []);
 
+  // Measure distance/angle between two picked sub-shapes (ROADMAP §4)
+  const measureBetween = useCallback(
+    (requestId: string, shapeId: string, a: MeasureSelection, b: MeasureSelection) => {
+      const w = workerRef.current;
+      if (!w) return;
+      const message: WorkerRequest = {
+        type: "measureBetween",
+        requestId,
+        shapeId,
+        a,
+        b,
+      };
+      w.postMessage(message);
+    },
+    [],
+  );
+
   const clearMesh = useCallback(() => {
     setMesh(null);
     setCurrentShapeId(null);
@@ -339,6 +364,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     resolveSelector,
     exportShape,
     measureShape,
+    measureBetween,
     clearMesh,
     retry,
   };

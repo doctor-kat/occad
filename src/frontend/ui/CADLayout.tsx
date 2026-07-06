@@ -14,7 +14,7 @@ import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { FeatureTreeIcon, EntitiesIcon, MeasureIcon } from '@/frontend/shared/icons';
 import { MeasurePanel } from './MeasurePanel';
-import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat, MeasurementData } from '@/cad/types';
+import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat, MeasurementData, MeasureBetweenData, MeasureSelection } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
@@ -162,6 +162,7 @@ export function CADLayout() {
     resolveSelector,
     exportShape,
     measureShape,
+    measureBetween,
     currentFeatureShapeId,
     buildSketch,
     sketchEdges: occSketchEdges,
@@ -230,6 +231,9 @@ export function CADLayout() {
     },
     onMeasured: (_requestId, result) => {
       setMeasurement(result);
+    },
+    onMeasuredBetween: (_requestId, result) => {
+      setBetweenMeasurement(result);
     },
     onExported: (requestId, format, content) => {
       // Trigger a browser download of the serialized file. The suggested name
@@ -338,6 +342,11 @@ export function CADLayout() {
   // Measurement / Analysis readout (ROADMAP §4) for the Measure sidebar tab.
   const [measurement, setMeasurement] = useState<MeasurementData | null>(null);
 
+  // Distance/angle between two picked sub-shapes (ROADMAP §4). `measurePicks`
+  // accumulates up to two viewport picks while the Measure tab is open.
+  const [measurePicks, setMeasurePicks] = useState<MeasureSelection[]>([]);
+  const [betweenMeasurement, setBetweenMeasurement] = useState<MeasureBetweenData | null>(null);
+
   // (Re)measure whenever the Measure tab is open and the current body changes.
   // Clearing first shows the "Measuring…" state until the worker replies.
   useEffect(() => {
@@ -346,6 +355,32 @@ export function CADLayout() {
     if (!currentFeatureShapeId) return;
     measureShape(crypto.randomUUID(), currentFeatureShapeId);
   }, [activeSidebarTab, currentFeatureShapeId, measureShape]);
+
+  // Reset the two-slot pick set when leaving the Measure tab or when the body
+  // changes (sub-shape indices are only valid against the current body).
+  useEffect(() => {
+    setMeasurePicks([]);
+    setBetweenMeasurement(null);
+  }, [activeSidebarTab, currentFeatureShapeId]);
+
+  // Fire the distance/angle measurement once two sub-shapes are picked.
+  useEffect(() => {
+    if (measurePicks.length < 2 || !currentFeatureShapeId) return;
+    setBetweenMeasurement(null);
+    measureBetween(crypto.randomUUID(), currentFeatureShapeId, measurePicks[0], measurePicks[1]);
+  }, [measurePicks, currentFeatureShapeId, measureBetween]);
+
+  // Record a viewport pick into the two-slot measure set (FIFO, no immediate
+  // duplicate). Called from the face/edge/vertex click handlers when the
+  // Measure tab is active, instead of the normal single-select behaviour.
+  const recordMeasurePick = useCallback((pick: MeasureSelection) => {
+    setMeasurePicks((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.kind === pick.kind && last.index === pick.index) return prev;
+      // Once two are chosen, a new pick starts a fresh pair from the last one.
+      return prev.length >= 2 ? [pick] : [...prev, pick];
+    });
+  }, []);
 
   // Request face geometry from the worker, then create a sketch on that face
   // (the sketch is created in the onFaceGeometry callback above).
@@ -607,6 +642,12 @@ export function CADLayout() {
     setSelectedFaceId(faceId);
     setSelectedEdgeIndex(null);
     setSelectedVertexIndex(null);
+    // In Measure mode, accumulate the pick for distance/angle instead of
+    // jumping to the entities tab.
+    if (activeSidebarTab === 'measure') {
+      recordMeasurePick({ kind: 'face', index: faceId });
+      return;
+    }
     // Switch to entities tab if not already there
     setActiveSidebarTab('entities');
   };
@@ -644,6 +685,10 @@ export function CADLayout() {
     setSelectedFaceId(null);
     setSelectedEdgeIndex(edgeIndex);
     setSelectedVertexIndex(null);
+    if (activeSidebarTab === 'measure') {
+      recordMeasurePick({ kind: 'edge', index: edgeIndex });
+      return;
+    }
     // Switch to entities tab if not already there
     setActiveSidebarTab('entities');
   };
@@ -681,6 +726,9 @@ export function CADLayout() {
     setSelectedFaceId(null);
     setSelectedEdgeIndex(null);
     setSelectedVertexIndex(vertexIndex);
+    if (activeSidebarTab === 'measure') {
+      recordMeasurePick({ kind: 'vertex', index: vertexIndex });
+    }
   };
 
   // Handle background click - clear all selections
@@ -1183,7 +1231,13 @@ export function CADLayout() {
                       )}
                     </Tabs.Panel>
                     <Tabs.Panel value="measure">
-                      <MeasurePanel measurement={measurement} hasBody={!!currentFeatureShapeId} />
+                      <MeasurePanel
+                        measurement={measurement}
+                        hasBody={!!currentFeatureShapeId}
+                        picks={measurePicks}
+                        between={betweenMeasurement}
+                        onClearPicks={() => { setMeasurePicks([]); setBetweenMeasurement(null); }}
+                      />
                     </Tabs.Panel>
             </Tabs>
           </Box>

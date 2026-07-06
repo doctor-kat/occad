@@ -10,6 +10,7 @@ import type { GetFaceGeometryRequest } from './GetFaceGeometryRequest';
 import type { ResolveSelectorRequest } from './ResolveSelectorRequest';
 import type { ExportShapeRequest } from './ExportShapeRequest';
 import type { MeasureShapeRequest } from './MeasureShapeRequest';
+import type { MeasureBetweenRequest } from './MeasureBetweenRequest';
 
 export type {
   InitRequest,
@@ -24,6 +25,7 @@ export type {
   ResolveSelectorRequest,
   ExportShapeRequest,
   MeasureShapeRequest,
+  MeasureBetweenRequest,
 };
 
 // ============================================================================
@@ -43,5 +45,6 @@ export type WorkerRequest =
   | GetFaceGeometryRequest
   | ResolveSelectorRequest
   | ExportShapeRequest
-  | MeasureShapeRequest;
+  | MeasureShapeRequest
+  | MeasureBetweenRequest;
 
