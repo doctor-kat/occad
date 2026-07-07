@@ -3,7 +3,7 @@ import type { CADProject, SketchElement } from '@/cad/types';
 import { compareBuildOrder } from '@/cad/types';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { computeSketchChain } from './contextTarget';
-import { midpointOf, withMidpointPoint } from './sketchMidpoint';
+import { midpointOf } from './sketchMidpoint';
 
 export interface ViewportContextMenuProps {
   project: CADProject;
@@ -22,6 +22,9 @@ export interface ViewportContextMenuProps {
   onEditItem: (id: string) => void;
   /** Highlight the whole edge loop (bounding wire) containing the picked edge. */
   onSelectLoop: (edgeIndex: number) => void;
+  /** Materialize (or reuse) a line's midpoint reference point, tie it there
+   *  parametrically, and select it. Given the picked line's element id. */
+  onSelectMidpoint: (lineId: string) => void;
   /** Toggle a feature's suppression (bumps version → rebuild). */
   onToggleSuppressFeature: (featureId: string) => void;
   /** Delete a feature (callback owns any confirmation UI). */
@@ -43,7 +46,8 @@ export interface ViewportContextMenuProps {
  * tree feature, else the tip feature.
  *
  * Sketch entity → Select Midpoint materializes a construction point at a line's
- * midpoint (see sketchMidpoint.ts) and selects it; disabled for non-lines.
+ * midpoint and ties it there parametrically (onSelectMidpoint → CADLayout, which
+ * adds a midpoint constraint so the point tracks the line); disabled for non-lines.
  */
 export function ViewportContextMenu({
   project,
@@ -52,6 +56,7 @@ export function ViewportContextMenu({
   faceOwners,
   onEditItem,
   onSelectLoop,
+  onSelectMidpoint,
   onToggleSuppressFeature,
   onDeleteFeature,
   onUpdateSketchElements,
@@ -167,15 +172,7 @@ export function ViewportContextMenu({
             <Menu.Item
               disabled={!canMidpoint}
               onClick={() => {
-                if (activeSketch) {
-                  // Materialize (or reuse) a construction point at the line's
-                  // midpoint, then select it so it can be constrained/dimensioned.
-                  const { elements: next, pointId } = withMidpointPoint(elements, target.elementId);
-                  if (pointId) {
-                    if (next !== elements) onUpdateSketchElements(activeSketch.id, next);
-                    setSketchElementSelection([pointId]);
-                  }
-                }
+                onSelectMidpoint(target.elementId);
                 close();
               }}
             >

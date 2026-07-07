@@ -77,6 +77,10 @@ export function createConstraint(id: string, input: ConstraintInput): PlanegcsCo
     case 'angle':
       return { id, type: 'l2l_angle_ll', l1_id: input.l1Id, l2_id: input.l2Id, angle: input.angle, driving: true };
 
+    case 'midpoint':
+      // P is the midpoint of A–B iff A and B are symmetric about P.
+      return { id, type: 'p2p_symmetric_ppp', p1_id: input.p1Id, p2_id: input.p2Id, p_id: input.midId };
+
     default: {
       // Exhaustiveness guard
       const _never: never = input;
@@ -100,4 +104,5 @@ export const CONSTRAINT_ARITY: Record<ConstraintKind, number> = {
   equal: 2,
   tangent: 2,
   angle: 2,
+  midpoint: 3,
 };

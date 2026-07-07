@@ -17,7 +17,7 @@ started
 | Area                         | Status | Done                                                      | Partial         | Todo                                                |
 |------------------------------|--------|-----------------------------------------------------------|-----------------|-----------------------------------------------------|
 | **Sketch primitives**        | ✅     | Line, Rectangle, Circle, Arc, Ellipse, Polygon (+ variants) | —               | — (Bezier won't implement — see §1.1.1)             |
-| **Sketch constraints**       | ✅     | 10 constraints end-to-end (UI+solver+e2e)                 | —               | Midpoint, Symmetric                                 |
+| **Sketch constraints**       | ✅     | 11 constraints end-to-end (UI+solver+e2e); Midpoint via Select Midpoint | —          | Symmetric                                           |
 | **Sketch-based features**    | ✅     | Extrude Boss/Cut, Revolve Boss/Cut                        | —               | —                                                   |
 | **Primitives**               | ✅     | Box, Cylinder, Sphere, Cone, Torus, Wedge                 | —               | —                                                   |
 | **Boolean ops**              | ✅     | Union/Subtract/Intersect (engine) + standalone Union/Intersect wired into rebuild | — | —                                                   |
@@ -247,12 +247,15 @@ the tree/entity-list shows the group as an expandable folder.
 | Radius        |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
 | Tangent       |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
 | Fixed         |   n/a¹  |         —          |      —      |  —  | 🟡     |
-| Midpoint      |    ❌    |         ❌          |      ❌      |  ❌  | ❌²     |
+| Midpoint      |    ✅    |         ✅          |     ✅³     |  —  | ✅³    |
 | Symmetric     |    ❌    |         ❌          |      ❌      |  ❌  | ❌²     |
 
 ¹ Fixed is modeled by setting `primitive.fixed = true`, not as a planegcs constraint object.
-² Midpoint & Symmetric have no single planegcs primitive (`symmetric` doesn't exist; `midpoint_on_line_*`
-  is line-midpoint-on-line, not point-at-midpoint). They require *composing* multiple constraints — deferred.
+² Symmetric has no single planegcs primitive for our case and would need *composing* multiple constraints — deferred.
+³ Midpoint uses planegcs' `p2p_symmetric_ppp` (the two endpoints symmetric about the point ⇒ the point is the
+  midpoint). Created via the **Select Midpoint** context-menu item on a line (not a toolbar constraint button), so it
+  has no standalone toolbar UI/e2e. See §6b "Select Midpoint". (The earlier "no single primitive" note was wrong —
+  `p2p_symmetric_ppp` exists.)
 
 **Status:** (see `TODO.md` for the live plan)
 
@@ -271,7 +274,9 @@ the tree/entity-list shows the group as an expandable folder.
 3. ✅ **Point-level selection** — `SketchOverlay` renders clickable endpoint/center handles in selection mode;
    coincident/distance read the selected point-primitive ids. Selection now persists across incidental remounts
    (only cleared when switching into a drawing tool).
-4. ❌ **Midpoint / Symmetric** — no single planegcs primitive; require composing multiple constraints. Deferred.
+4. 🟡 **Midpoint ✅ / Symmetric ❌** — Midpoint is done via `p2p_symmetric_ppp` (`createConstraint('midpoint', …)`),
+   created by the **Select Midpoint** context-menu item on a line (§6b). Symmetric still needs multi-constraint
+   composition — deferred.
 5. 🟡 **Auto-constraints on draw (SolidWorks "sketch relations").** **Rectangle done (2026-06-27):**
    `inferAutoConstraints(elements)` (`engine/sketch/autoConstraints.ts`) emits 2 Horizontal (top/bottom) + 2 Vertical
    (sides) for every `RECTANGLE` (covers corner **and** center rectangle); corners are coincident by construction
@@ -1012,11 +1017,19 @@ the pure `computeSketchChain` (walks shared endpoints). Tests: `contextTarget.te
 
 > **Done (2026-07-06) — Select Midpoint.** Materializes the missing midpoint-reference primitive: `withMidpointPoint`
 > (`sketchMidpoint.ts`) appends a construction `POINT` at a straight line's midpoint (id `${lineId}_mid`, idempotent
-> so re-selecting reuses it) and the menu selects it (`setSketchElementSelection`) so it can be constrained/
-> dimensioned like any point. Enabled only for lines (`midpointOf` returns null otherwise). A true *parametric*
-> midpoint relation still awaits the deferred Midpoint constraint (FEATURES §1.2 — no single planegcs primitive), so
-> the point sits at the current midpoint but isn't yet bound to track the line. Tests: `sketchMidpoint.test.ts`
-> (midpoint math, append + idempotence, non-line null), `ViewportContextMenu.test.tsx` (menu appends + selects it).
+> so re-selecting reuses it) and the menu selects it so it can be constrained/dimensioned like any point. Enabled only
+> for lines (`midpointOf` returns null otherwise).
+>
+> **Made parametric (2026-07-07).** `onSelectMidpoint` (→ `CADLayout.handleSelectMidpoint`) now adds a **midpoint
+> constraint** alongside the point — `createConstraint('midpoint', …)` → planegcs `p2p_symmetric_ppp` binding the
+> line's endpoints (`${lineId}_p1`/`_p2`) symmetric about the point (`${lineId}_mid`), so it **tracks the line** as
+> the sketch solves (not just a snapshot of the current midpoint). The element + constraint are applied atomically via
+> the new shared `applySketchElements(sketchId, elements, extraConstraints)` (extracted from `handleUpdateSketch`);
+> the deterministic constraint id (`${lineId}_mid_sym`) keeps it idempotent across re-solves. This retires the
+> previously-deferred Midpoint constraint (FEATURES §1.2 — the old "no single planegcs primitive" note was wrong;
+> `p2p_symmetric_ppp` exists). Tests: `sketchMidpoint.test.ts` (point math), `constraintFactory.test.ts` (+3: object
+> shape + two real-solver solves proving the point pins to the midpoint and follows a moved endpoint),
+> `ViewportContextMenu.test.tsx` (menu delegates to `onSelectMidpoint`; disabled for non-lines).
 
 **§6b remaining:** all previously-disabled context-menu items are now implemented.
 
@@ -1161,7 +1174,8 @@ concrete, kernel-staying-the-same improvements fall out of the analysis (below).
 2. **Remaining primitives** — Sphere, Cone, Torus, Wedge: add cases to `handleRebuild` + `CreatePrimitive` handler.
    Small, self-contained.
 3. **Constraint editing UI** — ✅ done: all 10 constraints (toolbar + list/delete + point-level selection + e2e).
-   Remaining only: Midpoint & Symmetric (need multi-constraint composition; no single planegcs primitive).
+   Remaining only: Symmetric (needs multi-constraint composition). Midpoint is done via `p2p_symmetric_ppp`
+   (Select Midpoint, §6b).
 4. **Transforms** — ✅ done: Move/Rotate/Mirror/Scale via `gp_Trsf` (engine + rebuild + e2e).
 5. **Modifications** — Fillet/Chamfer/Shell/Offset (needs edge/face selection plumbing).
 6. **Import/Export** — STEP/STL/glTF first (most requested interchange).

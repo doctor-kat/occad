@@ -11,7 +11,8 @@ export type ConstraintKind =
   | 'radius'
   | 'equal'
   | 'tangent'
-  | 'angle';
+  | 'angle'
+  | 'midpoint';
 
 /** Discriminated input describing which entities a constraint applies to. */
 export type ConstraintInput =
@@ -27,4 +28,7 @@ export type ConstraintInput =
   | { kind: 'radius'; targetId: string; radius: number; isArc?: boolean }
   | { kind: 'equal'; l1Id: string; l2Id: string }
   | { kind: 'tangent'; lineId: string; circleId: string }
-  | { kind: 'angle'; l1Id: string; l2Id: string; angle: number };
+  | { kind: 'angle'; l1Id: string; l2Id: string; angle: number }
+  // Point `midId` is the midpoint of the segment between endpoints `p1Id`/`p2Id`
+  // (the two endpoints are symmetric about it). See createConstraint.
+  | { kind: 'midpoint'; p1Id: string; p2Id: string; midId: string };

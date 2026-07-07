@@ -26,6 +26,7 @@ function baseProps() {
     activeSketchId: null,
     onEditItem: vi.fn(),
     onSelectLoop: vi.fn(),
+    onSelectMidpoint: vi.fn(),
     onToggleSuppressFeature: vi.fn(),
     onDeleteFeature: vi.fn(),
     onUpdateSketchElements: vi.fn(),
@@ -68,7 +69,7 @@ describe('ViewportContextMenu — face attribution', () => {
     expect(props.onSelectLoop).toHaveBeenCalledWith(3);
   });
 
-  it('Select Midpoint materializes a midpoint point and selects it', () => {
+  it('Select Midpoint delegates to onSelectMidpoint for a line', () => {
     const props = baseProps();
     // Active sketch with a single line.
     const sketch = {
@@ -83,12 +84,22 @@ describe('ViewportContextMenu — face attribution', () => {
     renderWithProviders(<ViewportContextMenu {...props} />);
     fireEvent.click(screen.getByText('Select Midpoint'));
 
-    // Appends a point at (4,0) and selects it.
-    expect(props.onUpdateSketchElements).toHaveBeenCalledWith(
-      'sk1',
-      expect.arrayContaining([expect.objectContaining({ id: 'L1_mid', type: 'point', x: 4, y: 0 })]),
-    );
-    expect(useViewportStore.getState().selectedSketchElementIds).toEqual(['L1_mid']);
+    expect(props.onSelectMidpoint).toHaveBeenCalledWith('L1');
+  });
+
+  it('disables Select Midpoint for a non-line entity', () => {
+    const props = baseProps();
+    const sketch = {
+      id: 'sk1', name: 'Sketch1', plane: { type: 'xy' }, primitives: [], constraints: [],
+      isClosed: false, createdAt: 0, updatedAt: 0,
+      elements: [{ type: 'circle', id: 'C1', center: { x: 0, y: 0 }, radius: 3 }],
+    };
+    props.project.sketches = [sketch] as unknown as CADProject['sketches'];
+    props.activeSketchId = 'sk1';
+    useViewportStore.getState().openContextMenu({ x: 10, y: 10, target: { kind: 'sketch-entity', elementId: 'C1' } });
+
+    renderWithProviders(<ViewportContextMenu {...props} />);
+    expect(screen.getByText('Select Midpoint').closest('button')).toBeDisabled();
   });
 
   it('disables Edit Feature/Sketch when the face is owner-less', () => {

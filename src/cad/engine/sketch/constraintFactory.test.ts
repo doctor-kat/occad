@@ -62,12 +62,15 @@ describe('createConstraint — object shape', () => {
     expect(createConstraint('c', { kind: 'equal', l1Id: 'a', l2Id: 'b' })).toMatchObject({ type: 'equal_length' });
     expect(createConstraint('c', { kind: 'tangent', lineId: 'L', circleId: 'C' })).toMatchObject({ type: 'tangent_lc' });
     expect(createConstraint('c', { kind: 'angle', l1Id: 'a', l2Id: 'b', angle: 1 })).toMatchObject({ type: 'l2l_angle_ll', angle: 1 });
+    expect(createConstraint('c', { kind: 'midpoint', p1Id: 'a', p2Id: 'b', midId: 'm' })).toMatchObject({
+      type: 'p2p_symmetric_ppp', p1_id: 'a', p2_id: 'b', p_id: 'm',
+    });
   });
 
   it('declares arity for every kind', () => {
     expect(Object.keys(CONSTRAINT_ARITY).sort()).toEqual(
       [
-        'angle', 'coincident', 'distance', 'equal', 'horizontal', 'horizontal-distance',
+        'angle', 'coincident', 'distance', 'equal', 'horizontal', 'horizontal-distance', 'midpoint',
         'parallel', 'perpendicular', 'point-line-distance', 'radius', 'tangent', 'vertical', 'vertical-distance',
       ],
     );
@@ -134,6 +137,31 @@ describe('createConstraint — real planegcs solve', () => {
     expect(status).toBe(0);
     expect(Math.abs(byId.b.y - byId.a.y)).toBeCloseTo(20, 4);
     expect(byId.b.x).toBeCloseTo(5, 4); // X untouched
+  });
+
+  it('midpoint: pins a point to the midpoint of a segment', async () => {
+    // Endpoints fixed; the free point must land at their midpoint (5, 3).
+    const prims = [pt('a', 0, 0, true), pt('b', 10, 6, true), pt('m', 1, 1)];
+    const { status, byId } = await solve(prims, [
+      createConstraint('c', { kind: 'midpoint', p1Id: 'a', p2Id: 'b', midId: 'm' }),
+    ]);
+    expect(status).toBe(0);
+    expect(byId.m.x).toBeCloseTo(5, 4);
+    expect(byId.m.y).toBeCloseTo(3, 4);
+  });
+
+  it('midpoint: the point tracks the line when an endpoint moves', async () => {
+    // Point pinned to the midpoint, then endpoint b pulled to (20,0) via a distance
+    // constraint; the midpoint must follow to (10, 0).
+    const prims = [pt('a', 0, 0, true), pt('b', 10, 0), pt('m', 5, 0)];
+    const { status, byId } = await solve(prims, [
+      createConstraint('c1', { kind: 'midpoint', p1Id: 'a', p2Id: 'b', midId: 'm' }),
+      createConstraint('c2', { kind: 'distance', p1Id: 'a', p2Id: 'b', distance: 20 }),
+    ]);
+    expect(status).toBe(0);
+    expect(dist(byId.a, byId.b)).toBeCloseTo(20, 4);
+    expect(byId.m.x).toBeCloseTo((byId.a.x + byId.b.x) / 2, 4);
+    expect(byId.m.y).toBeCloseTo((byId.a.y + byId.b.y) / 2, 4);
   });
 
   it('parallel: makes a line parallel to a fixed horizontal line', async () => {

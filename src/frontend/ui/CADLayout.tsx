@@ -17,6 +17,7 @@ import { MeasurePanel } from './MeasurePanel';
 import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat, MeasurementData, MeasureBetweenData, MeasureSelection } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
+import { withMidpointPoint } from '@/frontend/canvas/contextMenu/sketchMidpoint';
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
 import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/engine/sketch/originPoint';
 import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
@@ -590,11 +591,18 @@ export function CADLayout() {
     getEdgeLoop(`loop-${Date.now()}`, currentFeatureShapeId, edgeIndex);
   }, [currentFeatureShapeId, getEdgeLoop]);
 
-  // Handle sketch update
-  const handleUpdateSketch = (sketchId: string, elements: SketchElement[]) => {
+  // Apply a set of sketch elements (map → primitives, regenerate auto-relations,
+  // re-solve). `extraConstraints` are additional manual constraints to merge in
+  // atomically with the element change (e.g. a midpoint relation created together
+  // with its point) — deterministically-ided so re-runs stay idempotent.
+  const applySketchElements = (
+    sketchId: string,
+    elements: SketchElement[],
+    extraConstraints: any[] = [],
+  ) => {
     // First update local elements so UI reflects changes immediately if needed
     updateSketchElements(sketchId, elements);
-    
+
     // Then trigger worker build/solve
     const sketch = project.sketches.find((s) => s.id === sketchId);
     if (sketch) {
@@ -604,8 +612,10 @@ export function CADLayout() {
 
       // Regenerate auto-constraints (e.g. a rectangle's H/V relations) from the
       // current elements every edit — deterministic ids make this idempotent.
-      // Keep the user's manual constraints (untagged) and replace the inferred set.
-      const manualConstraints = (sketch.constraints || []).filter((c: any) => !c.auto);
+      // Keep the user's manual constraints (untagged) and replace the inferred set;
+      // drop any manual constraint an extra one replaces (same id) so it's not doubled.
+      const extraIds = new Set(extraConstraints.map((c) => c.id));
+      const manualConstraints = (sketch.constraints || []).filter((c: any) => !c.auto && !extraIds.has(c.id));
       // Auto-relations: a rectangle's H/V edges + coincidence for any endpoint/
       // corner/center snapped onto the origin (see originPoint.inferOriginCoincidence).
       const autoConstraints = [...inferAutoConstraints(elements), ...inferOriginCoincidence(elements)];
@@ -616,9 +626,32 @@ export function CADLayout() {
         // Every sketch carries a fixed origin point primitive (the (0,0) of the
         // workplane) so geometry can be constrained to it; see originPoint.ts.
         primitives: withOriginPrimitive([...newPrimitives, ...externalPrims]),
-        constraints: [...manualConstraints, ...autoConstraints],
+        constraints: [...manualConstraints, ...extraConstraints, ...autoConstraints],
       });
     }
+  };
+
+  // Handle sketch update
+  const handleUpdateSketch = (sketchId: string, elements: SketchElement[]) => {
+    applySketchElements(sketchId, elements);
+  };
+
+  // "Select Midpoint": materialize (or reuse) a construction point at a line's
+  // midpoint and tie it there parametrically with a midpoint constraint, so it
+  // tracks the line as the sketch solves, then select it.
+  const handleSelectMidpoint = (lineId: string) => {
+    if (!activeSketchId) return;
+    const sketch = project.sketches.find((s) => s.id === activeSketchId);
+    if (!sketch) return;
+    const { elements: nextElements, pointId } = withMidpointPoint(sketch.elements, lineId);
+    if (!pointId) return;
+    // Endpoints of the line map to `${lineId}_p1`/`_p2`; the midpoint point's
+    // primitive id is its element id. p2p_symmetric_ppp binds the point to the mid.
+    const midConstraint = createConstraint(`${lineId}_mid_sym`, {
+      kind: 'midpoint', p1Id: `${lineId}_p1`, p2Id: `${lineId}_p2`, midId: pointId,
+    });
+    applySketchElements(activeSketchId, nextElements, [midConstraint]);
+    useViewportStore.getState().setSketchElementSelection([pointId]);
   };
 
   // Delete a single entity from the active sketch (from the sidebar entity list).
@@ -1337,6 +1370,7 @@ export function CADLayout() {
             faceOwners={occMesh?.faceOwners}
             onEditItem={handleEditTreeItem}
             onSelectLoop={handleSelectLoop}
+            onSelectMidpoint={handleSelectMidpoint}
             onToggleSuppressFeature={toggleFeatureSuppression}
             onDeleteFeature={handleContextDeleteFeature}
             onUpdateSketchElements={handleUpdateSketch}
