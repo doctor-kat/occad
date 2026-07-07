@@ -13,9 +13,11 @@ export interface FeatureTreeProps {
   onDelete?: (id: string) => void;
   isCompact?: boolean;
   onToggleSidebar?: () => void;
+  /** Reorder a feature relative to another (drag-and-drop). */
+  onReorder?: (draggedId: string, targetId: string, place: 'before' | 'after') => void;
 }
 
-export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onToggleSidebar }: FeatureTreeProps) {
+export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onToggleSidebar, onReorder }: FeatureTreeProps) {
   const theme = useMantineTheme();
 
   if (isCompact) {
@@ -68,6 +70,7 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
               onEdit={onEdit}
               onDelete={onDelete}
               isCompact={false}
+              onReorder={onReorder}
             />
           ))}
 

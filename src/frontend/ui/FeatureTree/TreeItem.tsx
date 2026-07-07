@@ -98,9 +98,11 @@ export interface TreeItemProps {
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
   isCompact?: boolean;
+  /** Called when a feature is dropped relative to another feature (drag-reorder). */
+  onReorder?: (draggedId: string, targetId: string, place: 'before' | 'after') => void;
 }
 
-export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact }: TreeItemProps) {
+export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onReorder }: TreeItemProps) {
   const setHoveredTreeItem = useViewportStore((state) => state.setHoveredTreeItem);
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = item.isExpanded !== false;
@@ -108,6 +110,10 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
   const isVisible = item.visible !== false;
   const theme = useMantineTheme();
   const [isHovered, setIsHovered] = useState(false);
+  const [dropIndicator, setDropIndicator] = useState<'before' | 'after' | null>(null);
+
+  // Only top-level features participate in drag-reorder.
+  const isDraggable = !!onReorder && depth === 0 && item.type === FeatureTreeItemType.FEATURE;
 
   // Don't allow editing/deleting reference geometry (planes and origin)
   const canEdit = item.type !== FeatureTreeItemType.REFERENCE_GEOMETRY;
@@ -148,6 +154,26 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
         wrap="nowrap"
         className="tree-item-row"
         data-selected={isSelected}
+        draggable={isDraggable}
+        onDragStart={isDraggable ? (e) => {
+          e.dataTransfer.setData('application/x-feature-id', item.id);
+          e.dataTransfer.effectAllowed = 'move';
+        } : undefined}
+        onDragOver={isDraggable ? (e) => {
+          if (!e.dataTransfer.types.includes('application/x-feature-id')) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          const rect = e.currentTarget.getBoundingClientRect();
+          setDropIndicator(e.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
+        } : undefined}
+        onDragLeave={isDraggable ? () => setDropIndicator(null) : undefined}
+        onDrop={isDraggable ? (e) => {
+          e.preventDefault();
+          const draggedId = e.dataTransfer.getData('application/x-feature-id');
+          const place = dropIndicator ?? 'before';
+          setDropIndicator(null);
+          if (draggedId && draggedId !== item.id) onReorder!(draggedId, item.id, place);
+        } : undefined}
         style={{
           height: 32,
           paddingLeft: depth * 16 + 8,
@@ -162,8 +188,11 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
             : isHovered
               ? `1px solid ${theme.colors.orange[5]}33`
               : '1px solid transparent',
+          borderTop: dropIndicator === 'before' ? `2px solid ${theme.colors.blue[5]}` : undefined,
+          borderBottom: dropIndicator === 'after' ? `2px solid ${theme.colors.blue[5]}` : undefined,
           borderRadius: theme.radius.sm,
           opacity: isVisible ? 1 : 0.5,
+          cursor: isDraggable ? 'grab' : undefined,
           transition: 'all 150ms',
         }}
         onMouseEnter={() => {
@@ -319,6 +348,7 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
               onEdit={onEdit}
               onDelete={onDelete}
               isCompact={isCompact}
+              onReorder={onReorder}
             />
           ))}
         </Box>

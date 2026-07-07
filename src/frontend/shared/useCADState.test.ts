@@ -744,6 +744,27 @@ describe("useCADState — deterministic build order", () => {
     expect(result.current.project.version).toBeGreaterThan(before);
   });
 
+  // Drag-and-drop reorder: drop the dragged feature before/after a target.
+  it("reorderFeatureRelative: drops a feature before a target", () => {
+    const { result, ids } = addThreeFeatures();
+    act(() => result.current.reorderFeatureRelative(ids.C, ids.A, "before"));
+    expect(featureOrder(result)).toEqual(["C", "A", "B"]);
+  });
+
+  it("reorderFeatureRelative: drops a feature after a target", () => {
+    const { result, ids } = addThreeFeatures();
+    act(() => result.current.reorderFeatureRelative(ids.A, ids.C, "after"));
+    expect(featureOrder(result)).toEqual(["B", "C", "A"]);
+  });
+
+  it("reorderFeatureRelative: dropping a feature onto itself is a no-op", () => {
+    const { result, ids } = addThreeFeatures();
+    const before = result.current.project.version;
+    act(() => result.current.reorderFeatureRelative(ids.B, ids.B, "before"));
+    expect(featureOrder(result)).toEqual(["A", "B", "C"]);
+    expect(result.current.project.version).toBe(before);
+  });
+
   it("applyRefEnrichments persists fingerprinted refs WITHOUT bumping version", () => {
     const { result } = renderHook(() => useCADState());
     let filletId = "";

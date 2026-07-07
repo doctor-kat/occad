@@ -113,6 +113,7 @@ export function CADLayout() {
     updateFeatureParameters,
     toggleFeatureSuppression,
     deleteFeature,
+    reorderFeatureRelative,
     applyRefEnrichments,
     applySketchRefEnrichments,
     undo,
@@ -1270,6 +1271,7 @@ export function CADLayout() {
                         onDelete={deleteTreeItem}
                         isCompact={!isSidebarOpen}
                         onToggleSidebar={toggleSidebar}
+                        onReorder={reorderFeatureRelative}
                       />
                     </Tabs.Panel>
                     <Tabs.Panel value="entities">

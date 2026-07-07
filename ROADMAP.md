@@ -26,12 +26,12 @@ started
 | **Advanced modeling**        | ✅     | Sweep, Loft                                               | —               | —                                                   |
 | **Import / Export**          | ✅     | STEP/IGES import, STEP/IGES/STL export (browser-verified) | —               | OBJ import + glTF export (disabled — need custom WASM) |
 | **Measurement / Analysis**   | ✅     | Volume + Bounding Box + Between distance/angle (Measure tab) | —             | Done — validity check & shape healing intentionally skipped |
-| **Feature tree**             | ✅     | Tree, reorder, suppress, visibility, edit                 | —               | Wire reorder to drag handler                        |
+| **Feature tree**             | ✅     | Tree, drag-and-drop reorder, suppress, visibility, edit    | —               | —                                                   |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
 | **Mouse model (SolidWorks)** | ✅     | Camera on MMB (orbit, Ctrl+MMB pan, Shift+MMB zoom, wheel zoom) — §6a; RMB context menu — §6b | — | — |
 | **Selection / picking**      | ✅     | Single-pick model entities; **sketch box/crossing + multi-select** — §6b | —          | Model box/crossing intentionally out of scope — §6b |
 | **Parametric rebuild**       | ✅     | Every body-producing feature type replays in `handleRebuild` (extrude/revolve, 6 primitives, sweep/loft, fillet/chamfer/shell/offset, move/rotate/mirror/scale, standalone booleans, import) | — | — (unknown types now throw, not silently skipped)   |
-| **Deterministic topology**   | 🟡     | Fingerprint-stable selections survive rebuild (steps 1–4) | —               | Boolean exact-history (deferred) — see below        |
+| **Deterministic topology**   | ✅     | Fingerprint-stable selections survive rebuild (steps 1–4); boolean exact-history won't be pursued | —      | Closed — boolean exact-history dropped, not planned |
 
 **Overall:** Sketch + constraints + extrude/revolve + all 6 primitives + modification + transform + standalone
 boolean pipeline is solid. The biggest remaining gap is the **IO** family (OBJ import / glTF export need a
@@ -879,7 +879,7 @@ E2E stops after the first real pick — repeated face picking is the app's exist
 | Feature                          | Status | Notes                                                     |
 |----------------------------------|--------|-----------------------------------------------------------|
 | Feature tree (hierarchy)         | ✅      | `FeatureTree.tsx`                                         |
-| Reorder features                 | ✅      | `reorderFeature`                                          |
+| Reorder features                 | ✅      | `reorderFeature` (index) + `reorderFeatureRelative` — drag-and-drop in the tree |
 | Suppress / unsuppress            | ✅      | `toggleFeatureSuppression`                                |
 | Visibility toggle                | ✅      | per-feature `isVisible`                                   |
 | Edit feature parameters          | ✅      | `OperationPanel`                                          |
@@ -1191,7 +1191,8 @@ The classic CAD **topological-naming problem**: every face/edge selection used t
 Those indices renumber on any topology-changing edit (booleans, upstream edits, reorder, suppress),
 so a stored `edge-7` could silently bind to a *different* sub-shape. This was driven to ground in a
 multi-step effort (formerly tracked in `DETERMINISTIC.md`, now folded here). **Status: ✅ complete**
-for this app's op set; one refinement deliberately deferred (below).
+for this app's op set. One further refinement (boolean exact-history) was evaluated and **will not be
+pursued** (below).
 
 **What shipped**
 
@@ -1224,8 +1225,8 @@ scaffold over OCC `BRepTools_History` / maker `Modified`/`Generated`/`IsDeleted`
 model a modification's edges/faces are selected against the *same* body the modification then acts on
 (selection-origin == use-point), so the fingerprint already re-anchors them across renumbers
 (modifications e2e 6/6). Exact history only pays off once selections carry a *creation-time* stable id
-to propagate across intervening booleans — the scaffold is ready for that day. Deferred rather than
-shipped as speculative dead code.
+to propagate across intervening booleans — the scaffold is ready for that day, but we are **not
+planning to build it**. Left as scaffold rather than shipped as speculative dead code.
 
 **Gotchas for whoever extends this**
 - `useOpenCascade` is instantiated **once** in `CADLayout` — a second call spawns a separate worker
@@ -1309,6 +1310,16 @@ living doc into the "Deterministic topology & stable selections" section above. 
 resolution deferred (no payoff for the current selection model). Earlier (2026-06-23): implemented the
 Modifications family (fillet/chamfer/shell/offset) end-to-end and reorganized the operations bar into
 area-based tabs. Keep statuses honest — only mark ✅ when types + engine + rebuild + UI are all wired._
+
+---
+
+_Last updated: 2026-07-07 — closed out two remaining items. (1) Marked **Deterministic topology** ✅
+and dropped boolean exact-history as won't-pursue (scaffold `history.ts` left in place, not wired).
+(2) Implemented **feature-tree drag-and-drop reorder**: top-level FEATURE tree items are now `draggable`
+with a before/after drop indicator (`TreeItem.tsx`); drop calls the new `reorderFeatureRelative`
+(`useCADState.ts`), which maps target+placement to the existing index-based `reorderFeature`. Reference
+geometry and standalone sketches are not draggable. 3 new `useCADState.test.ts` cases (before/after/self
+no-op); build clean; 557/557 tests green._
 
 ---
 

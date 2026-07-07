@@ -676,6 +676,19 @@ export function useCADState() {
     });
   }, [setProject]);
 
+  // Reorder a feature relative to another feature (drag-and-drop in the tree).
+  // Drops the dragged feature immediately before/after the target in build order,
+  // translating to the index-based `reorderFeature` against the ordered feature list.
+  const reorderFeatureRelative = useCallback((draggedId: string, targetId: string, place: 'before' | 'after') => {
+    if (draggedId === targetId) return;
+    const ordered = [...project.features].sort(compareBuildOrder);
+    const without = ordered.filter((f) => f.id !== draggedId);
+    const targetIndex = without.findIndex((f) => f.id === targetId);
+    if (targetIndex === -1) return;
+    const newIndex = place === 'before' ? targetIndex : targetIndex + 1;
+    reorderFeature(draggedId, newIndex);
+  }, [project.features, reorderFeature]);
+
   // Save project
   const saveProject = useCallback(() => {
     setProject((prev) => ({
@@ -849,6 +862,7 @@ export function useCADState() {
     toggleFeatureVisibility,
     deleteFeature,
     reorderFeature,
+    reorderFeatureRelative,
 
     // Project actions
     saveProject,
