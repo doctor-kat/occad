@@ -45,7 +45,7 @@ describe('CAD icon set', () => {
   });
 
   it('every manifest entry maps to an exported component', () => {
-    expect(cadIconManifest.length).toBe(83);
+    expect(cadIconManifest.length).toBe(82);
     for (const meta of cadIconManifest) {
       const Comp = (icons as Record<string, unknown>)[meta.name];
       expect(typeof Comp, `${meta.name} should be exported`).toBe('function');

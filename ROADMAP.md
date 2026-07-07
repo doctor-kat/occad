@@ -17,7 +17,7 @@ started
 | Area                         | Status | Done                                                      | Partial         | Todo                                                |
 |------------------------------|--------|-----------------------------------------------------------|-----------------|-----------------------------------------------------|
 | **Sketch primitives**        | ✅     | Line, Rectangle, Circle, Arc, Ellipse, Polygon (+ variants) | —               | — (Bezier won't implement — see §1.1.1)             |
-| **Sketch constraints**       | ✅     | 11 constraints end-to-end (UI+solver+e2e); Midpoint via Select Midpoint | —          | Symmetric                                           |
+| **Sketch constraints**       | ✅     | 11 constraints end-to-end (UI+solver+e2e); Midpoint via Select Midpoint | —          | — (Symmetric won't implement — see §1.2)            |
 | **Sketch-based features**    | ✅     | Extrude Boss/Cut, Revolve Boss/Cut                        | —               | —                                                   |
 | **Primitives**               | ✅     | Box, Cylinder, Sphere, Cone, Torus, Wedge                 | —               | —                                                   |
 | **Boolean ops**              | ✅     | Union/Subtract/Intersect (engine) + standalone Union/Intersect wired into rebuild | — | —                                                   |
@@ -248,10 +248,11 @@ the tree/entity-list shows the group as an expandable folder.
 | Tangent       |    ✅    |         ✅          |      ✅      |  ✅  | ✅     |
 | Fixed         |   n/a¹  |         —          |      —      |  —  | 🟡     |
 | Midpoint      |    ✅    |         ✅          |     ✅³     |  —  | ✅³    |
-| Symmetric     |    ❌    |         ❌          |      ❌      |  ❌  | ❌²     |
+| Symmetric     |   🚫    |        🚫         |     🚫      | 🚫  | 🚫²    |
 
 ¹ Fixed is modeled by setting `primitive.fixed = true`, not as a planegcs constraint object.
-² Symmetric has no single planegcs primitive for our case and would need *composing* multiple constraints — deferred.
+² Symmetric — 🚫 **won't implement.** Its `SymmetricIcon` and the manifest entry were removed. (planegcs does have
+  `p2p_symmetric_ppl` — two points symmetric about a line — so it *could* be wired, but it's out of scope.)
 ³ Midpoint uses planegcs' `p2p_symmetric_ppp` (the two endpoints symmetric about the point ⇒ the point is the
   midpoint). Created via the **Select Midpoint** context-menu item on a line (not a toolbar constraint button), so it
   has no standalone toolbar UI/e2e. See §6b "Select Midpoint". (The earlier "no single primitive" note was wrong —
@@ -274,9 +275,9 @@ the tree/entity-list shows the group as an expandable folder.
 3. ✅ **Point-level selection** — `SketchOverlay` renders clickable endpoint/center handles in selection mode;
    coincident/distance read the selected point-primitive ids. Selection now persists across incidental remounts
    (only cleared when switching into a drawing tool).
-4. 🟡 **Midpoint ✅ / Symmetric ❌** — Midpoint is done via `p2p_symmetric_ppp` (`createConstraint('midpoint', …)`),
-   created by the **Select Midpoint** context-menu item on a line (§6b). Symmetric still needs multi-constraint
-   composition — deferred.
+4. **Midpoint ✅ / Symmetric 🚫** — Midpoint is done via `p2p_symmetric_ppp` (`createConstraint('midpoint', …)`),
+   created by the **Select Midpoint** context-menu item on a line (§6b). Symmetric **won't be implemented** (out of
+   scope); its icon/manifest entry were removed.
 5. 🟡 **Auto-constraints on draw (SolidWorks "sketch relations").** **Rectangle done (2026-06-27):**
    `inferAutoConstraints(elements)` (`engine/sketch/autoConstraints.ts`) emits 2 Horizontal (top/bottom) + 2 Vertical
    (sides) for every `RECTANGLE` (covers corner **and** center rectangle); corners are coincident by construction
@@ -1173,9 +1174,8 @@ concrete, kernel-staying-the-same improvements fall out of the analysis (below).
    ignores derived enrichments); Toolbar buttons + Ctrl/⌘+Z·Y; undo rebuilds.
 2. **Remaining primitives** — Sphere, Cone, Torus, Wedge: add cases to `handleRebuild` + `CreatePrimitive` handler.
    Small, self-contained.
-3. **Constraint editing UI** — ✅ done: all 10 constraints (toolbar + list/delete + point-level selection + e2e).
-   Remaining only: Symmetric (needs multi-constraint composition). Midpoint is done via `p2p_symmetric_ppp`
-   (Select Midpoint, §6b).
+3. **Constraint editing UI** — ✅ done: all 10 constraints (toolbar + list/delete + point-level selection + e2e),
+   plus Midpoint via `p2p_symmetric_ppp` (Select Midpoint, §6b). Symmetric is 🚫 won't-implement (out of scope).
 4. **Transforms** — ✅ done: Move/Rotate/Mirror/Scale via `gp_Trsf` (engine + rebuild + e2e).
 5. **Modifications** — Fillet/Chamfer/Shell/Offset (needs edge/face selection plumbing).
 6. **Import/Export** — STEP/STL/glTF first (most requested interchange).

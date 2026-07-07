@@ -287,17 +287,6 @@ export const EqualIcon = (props: CadIconProps) => (
   </CadIcon>
 );
 
-/** Symmetric — Geometric Constraints */
-export const SymmetricIcon = (props: CadIconProps) => (
-  <CadIcon {...props}>
-    <line x1="16" y1="6" x2="16" y2="26" style={{ "stroke": "var(--accent2)", "strokeDasharray": "2 2.4" }} />
-    <circle cx="8" cy="16" r="2" style={{ "fill": "var(--ink)", "stroke": "none" }} />
-    <circle cx="24" cy="16" r="2" style={{ "fill": "var(--ink)", "stroke": "none" }} />
-    <path d="M10.5 12.5 L13.5 16 L10.5 19.5" style={{ "stroke": "var(--accent2)" }} />
-    <path d="M21.5 12.5 L18.5 16 L21.5 19.5" style={{ "stroke": "var(--accent2)" }} />
-  </CadIcon>
-);
-
 /** Fix / Ground — Geometric Constraints */
 export const FixGroundIcon = (props: CadIconProps) => (
   <CadIcon {...props}>

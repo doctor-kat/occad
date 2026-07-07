@@ -153,11 +153,6 @@ export const cadIconManifest: CadIconMeta[] = [
     "section": "Geometric Constraints"
   },
   {
-    "name": "SymmetricIcon",
-    "label": "Symmetric",
-    "section": "Geometric Constraints"
-  },
-  {
     "name": "FixGroundIcon",
     "label": "Fix / Ground",
     "section": "Geometric Constraints"
