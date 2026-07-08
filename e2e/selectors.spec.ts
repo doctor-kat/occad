@@ -70,13 +70,11 @@ test.describe('Selector system', () => {
     });
 
     // Note: the flagship "%cylinder on a cylinder" case from the TODO is not
-    // covered here — investigating turned up that all curved primitives
-    // (sphere/cylinder/cone/torus) tessellate to 0 vertices in this build,
-    // a pre-existing bug unrelated to the selector system (reproduces with no
-    // selector involved at all: create a Sphere -> "Rebuild complete. Received
-    // mesh with 0 vertices."). Tracked as a follow-up in ROADMAP.md instead of
-    // blocking this e2e suite on it. `%plane`/geomType-tag matching itself is
-    // covered by the pure `evaluate.test.ts` unit suite.
+    // covered here. (The "curved primitives tessellate to 0 vertices" note that
+    // previously lived here was a misdiagnosis — investigated 2026-07-08, curved
+    // primitives tessellate fine; the "0 vertices" log is the initial empty-project
+    // rebuild on page load, not the primitive's. See ROADMAP.md.) `%plane`/geomType-tag
+    // matching itself is covered by the pure `evaluate.test.ts` unit suite.
     test('box -> shell via |Z removes both horizontal faces (multi-match) -> valid solid', async ({ page }) => {
         test.setTimeout(60000);
         const boxButton = page.locator('button').filter({ hasText: /^Box$/ });

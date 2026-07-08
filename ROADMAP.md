@@ -24,7 +24,7 @@ started
 | **Modifications**            | ✅     | Fillet, Chamfer, Shell, Offset                            | —               | —                                                   |
 | **Transforms**               | ✅     | Move, Rotate, Mirror, Scale                               | —               | —                                                   |
 | **Advanced modeling**        | ✅     | Sweep, Loft                                               | —               | —                                                   |
-| **Import / Export**          | ✅     | STEP/IGES import, STEP/IGES/STL export (browser-verified) | —               | OBJ import + glTF export (disabled — need custom WASM) |
+| **Import / Export**          | ✅     | STEP/IGES import, STEP/IGES/STL export (browser-verified) | —               | — (OBJ import + glTF export dropped — need custom WASM, not pursued) |
 | **Measurement / Analysis**   | ✅     | Volume + Bounding Box + Between distance/angle (Measure tab) | —             | Done — validity check & shape healing intentionally skipped |
 | **Feature tree**             | ✅     | Tree, drag-and-drop reorder, suppress, visibility, edit    | —               | —                                                   |
 | **Undo / Redo**              | ✅     | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds              | —               | —                                                   |
@@ -34,8 +34,8 @@ started
 | **Deterministic topology**   | ✅     | Fingerprint-stable selections survive rebuild (steps 1–4); boolean exact-history won't be pursued | —      | Closed — boolean exact-history dropped, not planned |
 
 **Overall:** Sketch + constraints + extrude/revolve + all 6 primitives + modification + transform + standalone
-boolean pipeline is solid. The biggest remaining gap is the **IO** family (OBJ import / glTF export need a
-custom WASM build).
+boolean pipeline is solid. The core feature set is complete; OBJ import / glTF export are dropped (they'd
+need a custom WASM build and aren't being pursued).
 
 > **Parametric rebuild finished (2026-07-06):** every body-producing `FeatureOperation` now has an explicit
 > branch in `handleRebuild` (`operations.ts`) — extrude/revolve boss+cut, all 6 primitives, sweep/loft,
@@ -1422,13 +1422,12 @@ selector input (off by default, so Phase 3 behavior is unchanged unless opted in
 Then Phase 5 (e2e, closing out §9.1): `e2e/selectors.spec.ts` (3 tests, real WASM) — box -> fillet
 via `|Z` (the flagship "all vertical edges" case) -> valid rounded solid; box -> shell via `>Z`
 (single top face) -> valid hollowed solid; box -> shell via `|Z` (both horizontal faces,
-multi-match) -> valid solid. All pass. **Follow-up bug found while writing these, unrelated to
-selectors:** every curved primitive (Sphere/Cylinder/Cone/Torus) tessellates to 0 vertices in this
-build — reproduces with zero selector involvement (create a bare Sphere -> "Rebuild complete.
-Received mesh with 0 vertices" in the console, confirmed for both Sphere and Cylinder). Planar
-primitives (Box) and sketch-based features are unaffected. Not investigated further here (out of
-scope for §9.1); worth a dedicated session — likely in `tessellate`/`operations.ts`'s primitive
-handlers or a mesh-buffer size mismatch specific to curved surfaces. Selector system status flipped
+multi-match) -> valid solid. All pass. **~~Follow-up bug: curved primitives tessellate to 0
+vertices~~ — investigated 2026-07-08 and confirmed a misdiagnosis, no code defect.** Driving the
+real app (Sphere -> 1305 vertices, Cylinder -> 835 vertices across 3 faces) shows curved primitives
+tessellate correctly. The "Received mesh with 0 vertices" line that prompted this note is the
+**initial empty-project rebuild** logged on page load (`~2.5s`, before any feature exists), not the
+primitive's rebuild (`~8s`, which reports the real node count). Nothing to fix. Selector system status flipped
 to ✅ in the table above (0–5 all done; viewport highlight of resolved sub-shapes remains an
 optional, never-blocking follow-up). `TODO.md` deleted — this file is now the sole source of truth
 for the feature's status._
