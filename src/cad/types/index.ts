@@ -16,6 +16,7 @@ export * from './sketch/SketchPolygon';
 export * from './sketch/SketchEllipse';
 export * from './sketch/SketchBezier';
 export * from './sketch/SketchPoint';
+export * from './sketch/SketchGroup';
 export * from './sketch/SketchElement';
 export * from './sketch/Workplane';
 export * from './sketch/SketchPlane/PlaneType';

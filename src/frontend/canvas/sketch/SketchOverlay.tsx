@@ -27,6 +27,7 @@ import {
   buildThreePointCenterRectangle,
   buildParallelogram,
 } from '@/cad/engine/sketch/sketchShapeBuilders';
+import { expandSelection } from '@/cad/engine/sketch/sketchGroups';
 import {
   circleFromThreePoints,
   centerpointArc,
@@ -272,7 +273,6 @@ export function SketchOverlay({
   const selectedSketchElementIds = useViewportStore((s) => s.selectedSketchElementIds);
   const hoveredElementId = useViewportStore((s) => s.hoveredSketchElementId);
   const setHoveredElementId = useViewportStore((s) => s.setHoveredSketchElementId);
-  const toggleSketchElementSelection = useViewportStore((s) => s.toggleSketchElementSelection);
   const setSketchElementSelection = useViewportStore((s) => s.setSketchElementSelection);
   const clearSketchSelection = useViewportStore((s) => s.clearSketchSelection);
   const setSketchSelectionBox = useViewportStore((s) => s.setSketchSelectionBox);
@@ -285,13 +285,18 @@ export function SketchOverlay({
   // Shift/Ctrl/Cmd-click toggles it into/out of a multi-selection (for constraints).
   const selectOrToggle = useCallback(
     (id: string, e: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }) => {
+      // A grouped element selects/deselects as a whole unit (all siblings together).
+      const unit = expandSelection(sketch.elements, id);
       if (isMultiSelectClick(e)) {
-        toggleSketchElementSelection(id);
+        const current = new Set(selectedRef.current);
+        const alreadyIn = unit.every((u) => current.has(u));
+        unit.forEach((u) => (alreadyIn ? current.delete(u) : current.add(u)));
+        setSketchElementSelection(Array.from(current));
       } else {
-        setSketchElementSelection([id]);
+        setSketchElementSelection(unit);
       }
     },
-    [toggleSketchElementSelection, setSketchElementSelection]
+    [sketch.elements, setSketchElementSelection]
   );
   // Badge placement for each constraint: a tiny square just above the constrained
   // entity's midpoint. Clicking a badge selects that constraint.
@@ -924,11 +929,17 @@ export function SketchOverlay({
             setPoints([snappedPoint]);
           } else if (points.length === 1) {
             const { corner1, corner2 } = buildCenterRectangle(points[0], snappedPoint);
+            // The rectangle, its center point, and the two construction diagonals form
+            // one composite group so they select / delete / hover as a single unit.
+            const groupId = crypto.randomUUID();
+            const groupType = 'center-rectangle' as const;
             const newRect: SketchElement = {
               type: SketchElementType.RECTANGLE,
               id: crypto.randomUUID(),
               corner1,
               corner2,
+              groupId,
+              groupType,
             };
             // Add the center point and the two construction diagonals (which cross
             // at the center), mirroring SolidWorks' center-rectangle relations.
@@ -938,6 +949,8 @@ export function SketchOverlay({
               id: crypto.randomUUID(),
               x: center.x,
               y: center.y,
+              groupId,
+              groupType,
             };
             const diagLines: SketchElement[] = diagonals.map(([start, end]) => ({
               type: SketchElementType.LINE,
@@ -945,6 +958,8 @@ export function SketchOverlay({
               start,
               end,
               construction: true,
+              groupId,
+              groupType,
             }));
             onElementsChange(sketch.id, [...sketch.elements, newRect, centerPoint, ...diagLines]);
             setPoints([]);
@@ -1416,7 +1431,13 @@ export function SketchOverlay({
 
       {/* Render existing sketch elements */}
       {sketch.elements.map((element) => {
+        // Grouped elements highlight as one unit: hovering any sibling (or the group's
+        // folder row in the sidebar) highlights the whole group.
+        const hoveredGroupId = hoveredElementId
+          ? sketch.elements.find((e) => e.id === hoveredElementId)?.groupId
+          : undefined;
         const isHovered = hoveredElementId === element.id
+          || (Boolean(element.groupId) && element.groupId === hoveredGroupId)
           || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === element.id);
         const isSelected = selectedElementIds.has(element.id)
           || (activeOperation === SketchOperation.DIMENSION && pendingDimTarget?.kind === 'line' && pendingDimTarget.id === element.id);

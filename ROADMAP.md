@@ -194,7 +194,27 @@ Polygon, Ellipse, Bezier are plain compact buttons (no variants). `OperationGrou
 - **Bezier** — 🚫 won't implement. The `SketchBezier` type + toolbar button still exist but there is no
   builder; it remains a known dead button.
 
-### 1.1.2 Primitive groups / folders — ❌ planned
+### 1.1.2 Primitive groups / folders — ✅ done (2026-07-08)
+
+> **Done (2026-07-08):** Composite sketch entities ship. Center Rectangle now emits its rectangle, center
+> point, and two construction diagonals as one **group** (shared `groupId`/`groupType` on each child —
+> the least-invasive "membership on the element" model, so children can never drift out of sync with a
+> parallel array). Group membership is derived purely from the flat element list by
+> `src/cad/engine/sketch/sketchGroups.ts` (`buildEntityList`, `expandSelection`, `isGroupSelected`,
+> `groupChildIds`, `removeUnit`). `SketchEntitiesPanel` renders a group as one expandable **folder** row
+> ("Center Rectangle 1") that collapses/expands to its child primitives; clicking the folder selects all
+> children, and the folder reads selected when every child is in the selection. `SketchOverlay` treats a
+> grouped element as one unit for selection (`selectOrToggle` expands to siblings) and hover (hovering any
+> sibling highlights the whole group). `CADLayout.handleRemoveSketchElement` deletes the whole unit
+> (group id *or* any grouped element → all siblings dropped in one step). Construction diagonals stay
+> construction-only (unchanged wire building). Types: `SketchGroup.ts` (`SketchGroupType`, `GROUP_LABELS`,
+> `SketchGroupMembership` intersected into the `SketchElement` union). Tests: `sketchGroups.test.ts` (6,
+> pure helpers), `SketchEntitiesPanel.test.tsx` (+5: folder collapse/expand, group-select, all-children
+> → selected, group-delete). Browser-verified end-to-end: drawing a Center Rectangle produces one
+> "Center Rectangle 1" folder over 4 elements; expand reveals Rectangle/Point/Line/Line; clicking selects
+> all; deleting the folder removes all 4 at once. **Generalization** to other composites (slot, mirror
+> sets, etc.) is straightforward — any producer sets a shared `groupId`/`groupType` — but Center Rectangle
+> is the only producer today.
 
 Goal: a composite sketch entity that **owns** a set of underlying primitives so they behave as one unit in
 the tree, selection, and deletion — like a SolidWorks feature that expands to reveal its geometry.

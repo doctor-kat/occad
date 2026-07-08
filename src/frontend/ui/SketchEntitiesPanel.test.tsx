@@ -84,4 +84,53 @@ describe('SketchEntitiesPanel', () => {
     expect(onRemoveElement).toHaveBeenCalledWith('l1');
     expect(useViewportStore.getState().selectedSketchElementIds).not.toContain('l1');
   });
+
+  describe('groups', () => {
+    const grouped = {
+      ...sketch,
+      elements: [
+        { type: SketchElementType.RECTANGLE, id: 'r', corner1: { x: -1, y: -1 }, corner2: { x: 1, y: 1 }, groupId: 'g', groupType: 'center-rectangle' },
+        { type: SketchElementType.POINT, id: 'ctr', x: 0, y: 0, groupId: 'g', groupType: 'center-rectangle' },
+        { type: SketchElementType.LINE, id: 'd1', start: { x: -1, y: -1 }, end: { x: 1, y: 1 }, construction: true, groupId: 'g', groupType: 'center-rectangle' },
+      ],
+    } as unknown as Sketch;
+
+    it('renders a group as one collapsed folder row, hiding its children', () => {
+      renderWithProviders(<SketchEntitiesPanel sketch={grouped} />);
+      expect(screen.getByText('Center Rectangle 1')).toBeInTheDocument();
+      expect(screen.getByTestId('sketch-group-g')).toBeInTheDocument();
+      // Collapsed: child rows not shown yet.
+      expect(screen.queryByTestId('sketch-entity-r')).not.toBeInTheDocument();
+    });
+
+    it('expands to reveal child rows', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<SketchEntitiesPanel sketch={grouped} />);
+      await user.click(screen.getByTestId('sketch-group-toggle-g'));
+      expect(screen.getByTestId('sketch-entity-r')).toBeInTheDocument();
+      expect(screen.getByTestId('sketch-entity-ctr')).toBeInTheDocument();
+      expect(screen.getByTestId('sketch-entity-d1')).toBeInTheDocument();
+    });
+
+    it('clicking the group selects all its children', async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<SketchEntitiesPanel sketch={grouped} />);
+      await user.click(screen.getByTestId('sketch-group-g'));
+      expect(useViewportStore.getState().selectedSketchElementIds).toEqual(['r', 'ctr', 'd1']);
+    });
+
+    it('marks the group selected when all children are in the selection', () => {
+      useViewportStore.setState({ selectedSketchElementIds: ['r', 'ctr', 'd1'] });
+      renderWithProviders(<SketchEntitiesPanel sketch={grouped} />);
+      expect(screen.getByTestId('sketch-group-g')).toHaveAttribute('data-selected', 'true');
+    });
+
+    it('deleting the group calls onRemoveElement with the group id', async () => {
+      const user = userEvent.setup();
+      const onRemoveElement = vi.fn();
+      renderWithProviders(<SketchEntitiesPanel sketch={grouped} onRemoveElement={onRemoveElement} />);
+      await user.click(screen.getByTestId('sketch-group-delete-g'));
+      expect(onRemoveElement).toHaveBeenCalledWith('g');
+    });
+  });
 });

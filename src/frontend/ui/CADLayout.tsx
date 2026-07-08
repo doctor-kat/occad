@@ -23,6 +23,7 @@ import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFrom
 import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/engine/sketch/originPoint';
 import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
 import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
+import { removeUnit } from '@/cad/engine/sketch/sketchGroups';
 import { SketchConstraintToolbar } from './operations/SketchConstraintToolbar';
 import { SketchConstraintList } from './operations/SketchConstraintList';
 import { ViewportContextMenu } from '@/frontend/canvas/contextMenu/ViewportContextMenu';
@@ -675,12 +676,13 @@ export function CADLayout() {
     useViewportStore.getState().setSketchElementSelection([pointId]);
   };
 
-  // Delete a single entity from the active sketch (from the sidebar entity list).
+  // Delete an entity from the active sketch (from the sidebar entity list). If the
+  // target is a group (or a grouped element), the whole composite is removed in one step.
   const handleRemoveSketchElement = (elementId: string) => {
     if (!activeSketchId) return;
     const sketch = project.sketches.find((s) => s.id === activeSketchId);
     if (!sketch) return;
-    handleUpdateSketch(activeSketchId, sketch.elements.filter((el) => el.id !== elementId));
+    handleUpdateSketch(activeSketchId, removeUnit(sketch.elements, elementId));
   };
 
   // While editing a sketch, surface its entity list in the left sidebar so the
