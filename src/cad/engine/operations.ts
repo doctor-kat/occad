@@ -37,7 +37,7 @@ import type {
   MeasureSelection,
   TessellationQuality,
 } from '@/cad/types';
-import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuildOrder } from '@/cad/types';
+import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuildOrder, isRolledBack } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
 import { post, bodyTessellation } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
@@ -438,6 +438,10 @@ export async function handleRebuild(
     for (const item of items) {
       try {
         post({ type: 'rebuildProgress', progress: processedItems / totalItems, currentFeatureId: item.data.id });
+
+        // History rollback bar: items past the bar are skipped (like suppression,
+        // but via the bar so the distinction is preserved). See ROADMAP.md §8.
+        if (isRolledBack(item.data, project.rollbackBar)) { processedItems++; continue; }
 
         if (item.type === 'sketch') {
           const sketch = item.data;

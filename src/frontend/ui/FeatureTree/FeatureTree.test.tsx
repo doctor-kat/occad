@@ -92,4 +92,33 @@ describe("FeatureTree", () => {
     expect(screen.queryByText("Feature Tree")).not.toBeInTheDocument();
     expect(screen.queryByText("Front Plane")).not.toBeInTheDocument();
   });
+
+  describe("history rollback bar", () => {
+    const featureA: FeatureTreeItem = { id: "a", name: "A", type: "feature", visible: true };
+    const featureB: FeatureTreeItem = { id: "b", name: "B", type: "feature", visible: true, rolledBack: true };
+    const rollbackProps = {
+      ...defaultProps,
+      items: [...refGeometryItems, featureA, featureB],
+      onMoveRollbackBar: vi.fn(),
+      rollbackBarIndex: 1,
+    };
+
+    it("renders the rollback bar when a move handler is provided", () => {
+      renderWithProviders(<FeatureTree {...rollbackProps} />);
+      expect(screen.getByTestId("rollback-bar")).toBeInTheDocument();
+    });
+
+    it("does not render the bar without a move handler", () => {
+      renderWithProviders(<FeatureTree {...defaultProps} />);
+      expect(screen.queryByTestId("rollback-bar")).not.toBeInTheDocument();
+    });
+
+    it("marks a rolled-back row via data-rolled-back", () => {
+      renderWithProviders(<FeatureTree {...rollbackProps} />);
+      const rowB = screen.getByText("B").closest(".tree-item-row");
+      const rowA = screen.getByText("A").closest(".tree-item-row");
+      expect(rowB).toHaveAttribute("data-rolled-back", "true");
+      expect(rowA).toHaveAttribute("data-rolled-back", "false");
+    });
+  });
 });

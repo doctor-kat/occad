@@ -24,8 +24,29 @@ import {
   Vector3D,
   PlaneType,
   compareBuildOrder,
-  orderKey
+  orderKey,
+  isRolledBack,
+  rollbackIndexForThreshold,
+  rollbackThresholdForIndex
 } from '@/cad/types';
+
+/**
+ * Sequence to give a newly added sketch/feature so it lands just *before* the
+ * rollback bar (i.e. as the last "present" item) instead of at the very end
+ * where it would fall past the bar and be immediately rolled back / hidden.
+ * Returns `undefined` when there is no active bar (append normally by createdAt).
+ * See ROADMAP.md §8 "Insert feature while rolled back".
+ */
+function sequenceAtBar(prev: CADProject): number | undefined {
+  if (prev.rollbackBar == null) return undefined;
+  const bar = prev.rollbackBar;
+  const activeKeys = [...prev.sketches, ...prev.features]
+    .map(orderKey)
+    .filter((k) => k <= bar)
+    .sort((a, b) => a - b);
+  const lastActive = activeKeys.length ? activeKeys[activeKeys.length - 1] : bar - 1;
+  return (lastActive + bar) / 2;
+}
 
 /** Create a Workplane (gp_Ax3) from plane definition */
 function createWorkplane(type: PlaneType, origin?: Point3D, normal?: Vector3D, offset: number = 0): Workplane {
@@ -246,6 +267,7 @@ export function useCADState() {
             name: sketch.name,
             type: FeatureTreeItemType.SKETCH,
             visible: sketch.isVisible !== false,
+            rolledBack: isRolledBack(sketch, project.rollbackBar),
             error: itemErrors[sketch.id],
             data: sketch,
           },
@@ -255,12 +277,14 @@ export function useCADState() {
     // Add features (with their sketches as children)
     project.features.forEach((feature) => {
       const associatedSketch = project.sketches.find((s) => s.id === feature.sketchId);
+      const featureRolledBack = isRolledBack(feature, project.rollbackBar);
       const featureItem: FeatureTreeItem = {
         id: feature.id,
         name: feature.name,
         type: FeatureTreeItemType.FEATURE,
         isExpanded: feature.isExpanded,
         visible: feature.isVisible !== false,
+        rolledBack: featureRolledBack,
         error: itemErrors[feature.id],
         data: feature,
       };
@@ -272,6 +296,8 @@ export function useCADState() {
             name: associatedSketch.name,
             type: FeatureTreeItemType.SKETCH,
             visible: associatedSketch.isVisible !== false,
+            // A consumed sketch greys out with its owning feature.
+            rolledBack: featureRolledBack || isRolledBack(associatedSketch, project.rollbackBar),
             error: itemErrors[associatedSketch.id],
             data: associatedSketch,
           },
@@ -292,6 +318,53 @@ export function useCADState() {
 
     return tree;
   }, [project, itemErrors]);
+
+  // Build-order keys of the top-level tree rows the rollback bar sits between
+  // (standalone sketches + features; reference geometry is pinned above and not
+  // part of the build order). Used to convert the bar's index ↔ its threshold.
+  const orderedTopLevelKeys = useMemo(() => {
+    const sketchIdsUsedByFeatures = new Set(
+      project.features.map((f) => f.sketchId).filter(Boolean)
+    );
+    return [
+      ...project.sketches.filter((s) => !sketchIdsUsedByFeatures.has(s.id)),
+      ...project.features,
+    ]
+      .sort(compareBuildOrder)
+      .map(orderKey);
+  }, [project]);
+
+  // The rollback bar's current position as an index into the top-level rows
+  // (0 = above everything, N = below everything / nothing rolled back).
+  const rollbackBarIndex = useMemo(
+    () => rollbackIndexForThreshold(orderedTopLevelKeys, project.rollbackBar),
+    [orderedTopLevelKeys, project.rollbackBar]
+  );
+
+  // Move the rollback bar to sit *before* top-level row `newIndex`, rebuilding
+  // with only the rows above it. Bumps version so the worker replays the gated
+  // history. `newIndex >= rows` clears the bar (full fast-forward).
+  const moveRollbackBar = useCallback((newIndex: number) => {
+    setProject((prev) => {
+      const sketchIdsUsedByFeatures = new Set(
+        prev.features.map((f) => f.sketchId).filter(Boolean)
+      );
+      const keys = [
+        ...prev.sketches.filter((s) => !sketchIdsUsedByFeatures.has(s.id)),
+        ...prev.features,
+      ]
+        .sort(compareBuildOrder)
+        .map(orderKey);
+      const rollbackBar = rollbackThresholdForIndex(keys, newIndex);
+      if (rollbackBar === prev.rollbackBar) return prev;
+      return {
+        ...prev,
+        version: prev.version + 1,
+        updatedAt: Date.now(),
+        rollbackBar,
+      };
+    });
+  }, [setProject]);
 
   // Operation selection
   const selectOperation = useCallback((operation: Operation) => {
@@ -343,7 +416,9 @@ export function useCADState() {
       ...prev,
       version: prev.version + 1,
       updatedAt: Date.now(),
-      sketches: [...prev.sketches, newSketch],
+      // If the history is rolled back, slot the new sketch at the bar so it
+      // stays "present" rather than landing past the bar (hidden).
+      sketches: [...prev.sketches, { ...newSketch, sequence: sequenceAtBar(prev) }],
     }));
 
     return newSketch;
@@ -508,7 +583,9 @@ export function useCADState() {
       ...prev,
       version: prev.version + 1,
       updatedAt: Date.now(),
-      features: [...prev.features, newFeature],
+      // If the history is rolled back, slot the new feature at the bar so it
+      // stays "present" rather than landing past the bar (hidden).
+      features: [...prev.features, { ...newFeature, sequence: sequenceAtBar(prev) }],
       // Auto-hide consumed sketch
       sketches: sketchId
         ? prev.sketches.map((s) =>
@@ -831,6 +908,7 @@ export function useCADState() {
     activeSketchId,
     rebuildState,
     featureTree,
+    rollbackBarIndex,
 
     // Actions
     selectOperation,
@@ -863,6 +941,7 @@ export function useCADState() {
     deleteFeature,
     reorderFeature,
     reorderFeatureRelative,
+    moveRollbackBar,
 
     // Project actions
     saveProject,

@@ -1031,3 +1031,75 @@ describe("useCADState — deterministic build order", () => {
     expect(compareBuildOrder(sketch, extrude)).toBeLessThan(0);
   });
 });
+
+/**
+ * History rollback bar (ROADMAP.md §8): a non-destructive marker that rewinds
+ * the build to only the features above it. Distinct from suppress/undo.
+ */
+describe("useCADState — history rollback bar", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+
+  function addThreeFeatures() {
+    const { result } = renderHook(() => useCADState());
+    const ids: Record<string, string> = {};
+    act(() => { vi.setSystemTime(1000); ids.A = result.current.addFeature("A", "box" as any).id; });
+    act(() => { vi.setSystemTime(2000); ids.B = result.current.addFeature("B", "box" as any).id; });
+    act(() => { vi.setSystemTime(3000); ids.C = result.current.addFeature("C", "box" as any).id; });
+    return { result, ids };
+  }
+
+  const rolledBackNames = (result: { current: ReturnType<typeof useCADState> }) =>
+    result.current.featureTree.filter((i) => i.rolledBack).map((i) => i.name);
+
+  it("starts with the bar at the bottom (nothing rolled back)", () => {
+    const { result } = addThreeFeatures();
+    expect(result.current.rollbackBarIndex).toBe(3);
+    expect(rolledBackNames(result)).toEqual([]);
+    expect(result.current.project.rollbackBar).toBeUndefined();
+  });
+
+  it("rewinds: moving the bar up greys and skips the features below it", () => {
+    const { result } = addThreeFeatures();
+    act(() => result.current.moveRollbackBar(1)); // only A is present
+    expect(result.current.rollbackBarIndex).toBe(1);
+    expect(rolledBackNames(result)).toEqual(["B", "C"]);
+  });
+
+  it("fast-forwards: moving the bar back to the bottom clears the rollback", () => {
+    const { result } = addThreeFeatures();
+    act(() => result.current.moveRollbackBar(1));
+    act(() => result.current.moveRollbackBar(3));
+    expect(result.current.project.rollbackBar).toBeUndefined();
+    expect(rolledBackNames(result)).toEqual([]);
+  });
+
+  it("bumps version so moving the bar triggers a rebuild", () => {
+    const { result } = addThreeFeatures();
+    const before = result.current.project.version;
+    act(() => result.current.moveRollbackBar(2));
+    expect(result.current.project.version).toBeGreaterThan(before);
+  });
+
+  it("inserts a new feature at the bar (present), not past it (hidden)", () => {
+    const { result } = addThreeFeatures();
+    act(() => result.current.moveRollbackBar(1)); // present: [A], rolled back: [B, C]
+    let newId = "";
+    act(() => { vi.setSystemTime(4000); newId = result.current.addFeature("D", "box" as any).id; });
+
+    // D lands between A and B (present), and B/C stay rolled back after it.
+    const order = [...result.current.project.features].sort(compareBuildOrder).map((f) => f.name);
+    expect(order).toEqual(["A", "D", "B", "C"]);
+    const dItem = result.current.featureTree.find((i) => i.id === newId)!;
+    expect(dItem.rolledBack).toBe(false);
+    expect(rolledBackNames(result)).toEqual(["B", "C"]);
+  });
+});

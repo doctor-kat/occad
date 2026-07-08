@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { orderKey, compareBuildOrder, type OrderableItem } from "./buildOrder";
+import {
+  orderKey,
+  compareBuildOrder,
+  isRolledBack,
+  rollbackIndexForThreshold,
+  rollbackThresholdForIndex,
+  type OrderableItem,
+} from "./buildOrder";
 
 const item = (id: string, createdAt: number, sequence?: number): OrderableItem => ({
   id,
@@ -62,5 +69,54 @@ describe("compareBuildOrder", () => {
     const moved = items.map((i) => (i.id === "third" ? { ...i, sequence: 50 } : i));
     moved.sort(compareBuildOrder);
     expect(moved.map((i) => i.id)).toEqual(["third", "first", "second"]);
+  });
+});
+
+describe("history rollback bar", () => {
+  describe("isRolledBack", () => {
+    it("rolls back nothing when the bar is undefined", () => {
+      expect(isRolledBack(item("a", 100))).toBe(false);
+      expect(isRolledBack(item("a", 100), null)).toBe(false);
+    });
+
+    it("rolls back items strictly past the bar (the item at the bar stays active)", () => {
+      expect(isRolledBack(item("a", 100), 150)).toBe(false); // above
+      expect(isRolledBack(item("a", 150), 150)).toBe(false); // exactly at
+      expect(isRolledBack(item("a", 200), 150)).toBe(true); // below
+    });
+
+    it("uses the sequence override, not createdAt", () => {
+      expect(isRolledBack(item("a", 999, 50), 100)).toBe(false);
+    });
+  });
+
+  describe("index ↔ threshold round-trips", () => {
+    const keys = [100, 200, 300];
+
+    it("undefined threshold = bar at the bottom (all active)", () => {
+      expect(rollbackIndexForThreshold(keys, undefined)).toBe(3);
+    });
+
+    it("counts active items at/above the bar", () => {
+      expect(rollbackIndexForThreshold(keys, 250)).toBe(2);
+      expect(rollbackIndexForThreshold(keys, 50)).toBe(0);
+    });
+
+    it("index at/beyond the end clears the bar (no rollback)", () => {
+      expect(rollbackThresholdForIndex(keys, 3)).toBeUndefined();
+      expect(rollbackThresholdForIndex(keys, 99)).toBeUndefined();
+    });
+
+    it("index 0 rolls everything back", () => {
+      const t = rollbackThresholdForIndex(keys, 0);
+      expect(rollbackIndexForThreshold(keys, t)).toBe(0);
+    });
+
+    it("a mid threshold slots between neighbours and round-trips", () => {
+      for (let i = 0; i <= keys.length; i++) {
+        const t = rollbackThresholdForIndex(keys, i);
+        expect(rollbackIndexForThreshold(keys, t)).toBe(i);
+      }
+    });
   });
 });

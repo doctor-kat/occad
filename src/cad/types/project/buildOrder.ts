@@ -48,3 +48,37 @@ export function compareBuildOrder(a: OrderableItem, b: OrderableItem): number {
   // order is fully determined by the data, not by who happened to be first.
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
+
+/**
+ * True when `item` falls *after* the history rollback bar and should therefore
+ * be skipped on rebuild / greyed in the tree. `rollbackBar` is a threshold in
+ * the `orderKey` domain; `undefined`/`null` means no rollback (nothing skipped).
+ * The comparison is strict so the item sitting exactly *at* the bar (i.e. the
+ * last "present" item, keyed equal to the bar) stays active.
+ */
+export function isRolledBack(item: OrderableItem, rollbackBar?: number | null): boolean {
+  return rollbackBar != null && orderKey(item) > rollbackBar;
+}
+
+/**
+ * Number of items that are still active (at/above the bar) given a threshold —
+ * i.e. the bar's index within the build-ordered list. `undefined` threshold ⇒
+ * every item is active (bar at the bottom).
+ */
+export function rollbackIndexForThreshold(orderedKeys: number[], rollbackBar?: number | null): number {
+  if (rollbackBar == null) return orderedKeys.length;
+  return orderedKeys.filter((k) => k <= rollbackBar).length;
+}
+
+/**
+ * Threshold that places the bar *before* build-order index `index` (0 = above
+ * everything, length = below everything / no rollback). Pure inverse of
+ * `rollbackIndexForThreshold` over a sorted key list.
+ */
+export function rollbackThresholdForIndex(orderedKeys: number[], index: number): number | undefined {
+  const n = orderedKeys.length;
+  const clamped = Math.max(0, Math.min(index, n));
+  if (clamped >= n) return undefined;                       // nothing rolled back
+  if (clamped === 0) return orderedKeys[0] - 1;             // everything rolled back
+  return (orderedKeys[clamped - 1] + orderedKeys[clamped]) / 2; // between neighbours
+}

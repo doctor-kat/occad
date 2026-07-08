@@ -1,7 +1,9 @@
+import { Fragment, useState } from 'react';
 import { SketchModeIcon } from '@/frontend/shared/icons';
-import { FeatureTreeItem as TreeItemType } from '@/cad/types';
+import { FeatureTreeItem as TreeItemType, FeatureTreeItemType } from '@/cad/types';
 import { Stack, Box, ScrollArea, Text, useMantineTheme } from '@mantine/core';
 import { TreeItem } from './TreeItem';
+import { RollbackBar, ROLLBACK_BAR_DND_TYPE } from './RollbackBar';
 
 export interface FeatureTreeProps {
   items: TreeItemType[];
@@ -15,10 +17,16 @@ export interface FeatureTreeProps {
   onToggleSidebar?: () => void;
   /** Reorder a feature relative to another (drag-and-drop). */
   onReorder?: (draggedId: string, targetId: string, place: 'before' | 'after') => void;
+  /** Current history rollback-bar position (index among top-level flow rows). */
+  rollbackBarIndex?: number;
+  /** Move the rollback bar to sit before flow-row `newIndex`. */
+  onMoveRollbackBar?: (newIndex: number) => void;
 }
 
-export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onToggleSidebar, onReorder }: FeatureTreeProps) {
+export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onReorder, rollbackBarIndex, onMoveRollbackBar }: FeatureTreeProps) {
   const theme = useMantineTheme();
+  const [draggingBar, setDraggingBar] = useState(false);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   if (isCompact) {
     // Compact mode: icon-only sidebar showing only top-level items
@@ -50,6 +58,33 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
     );
   }
 
+  // Reference geometry is pinned above and not part of the build order; the
+  // rollback bar sits only between the "flow" rows (standalone sketches + features).
+  const refItems = items.filter((i) => i.type === FeatureTreeItemType.REFERENCE_GEOMETRY);
+  const flowItems = items.filter((i) => i.type !== FeatureTreeItemType.REFERENCE_GEOMETRY);
+  const barEnabled = !!onMoveRollbackBar && flowItems.length > 0;
+  const barPos = rollbackBarIndex ?? flowItems.length;
+
+  // Render the bar at `pos`, or an orange insertion line while it's being dragged there.
+  const renderBarSlot = (pos: number) => {
+    if (!barEnabled) return null;
+    if (draggingBar && dragOverIndex === pos) {
+      return <Box key={`ins-${pos}`} style={{ height: 2, margin: '1px 0', backgroundColor: theme.colors.orange[5], borderRadius: 1 }} />;
+    }
+    // Hide the resting bar at its old spot while dragging (the insertion line leads instead).
+    if (barPos === pos && !(draggingBar && dragOverIndex !== null)) {
+      return (
+        <RollbackBar
+          key="rollback-bar"
+          active={pos < flowItems.length}
+          onDragStart={() => setDraggingBar(true)}
+          onDragEnd={() => { setDraggingBar(false); setDragOverIndex(null); }}
+        />
+      );
+    }
+    return null;
+  };
+
   return (
     <Stack gap={0} style={{ height: '100%' }}>
       <ScrollArea
@@ -58,7 +93,7 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
         }}
       >
         <Stack gap={2} p={8}>
-          {items.map((item) => (
+          {refItems.map((item) => (
             <TreeItem
               key={item.id}
               item={item}
@@ -70,9 +105,50 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
               onEdit={onEdit}
               onDelete={onDelete}
               isCompact={false}
-              onReorder={onReorder}
             />
           ))}
+
+          {flowItems.map((item, i) => (
+            <Fragment key={item.id}>
+              {renderBarSlot(i)}
+              <Box
+                onDragOver={barEnabled ? (e) => {
+                  if (!e.dataTransfer.types.includes(ROLLBACK_BAR_DND_TYPE)) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const before = e.clientY < rect.top + rect.height / 2;
+                  setDragOverIndex(before ? i : i + 1);
+                } : undefined}
+                onDrop={barEnabled ? (e) => {
+                  if (!e.dataTransfer.types.includes(ROLLBACK_BAR_DND_TYPE)) return;
+                  e.preventDefault();
+                  // Compute the drop index straight from the cursor rather than
+                  // trusting dragOverIndex — a drop can land without a settled
+                  // dragover (and its setState may not have flushed yet).
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const before = e.clientY < rect.top + rect.height / 2;
+                  setDraggingBar(false);
+                  setDragOverIndex(null);
+                  onMoveRollbackBar!(before ? i : i + 1);
+                } : undefined}
+              >
+                <TreeItem
+                  item={item}
+                  depth={0}
+                  selectedItem={selectedItem}
+                  onSelectItem={onSelectItem}
+                  onToggleExpand={onToggleExpand}
+                  onToggleVisibility={onToggleVisibility}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  isCompact={false}
+                  onReorder={onReorder}
+                />
+              </Box>
+            </Fragment>
+          ))}
+          {renderBarSlot(flowItems.length)}
 
           {items.length <= 1 && (
             <Box

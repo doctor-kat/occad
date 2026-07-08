@@ -15,6 +15,8 @@ export interface FeatureTreeItem {
   children?: FeatureTreeItem[];
   isExpanded?: boolean;
   visible?: boolean;
+  /** True when the item falls after the history rollback bar (greyed, not built). */
+  rolledBack?: boolean;
   error?: string;
   data?: ReferenceGeometry | Sketch | Feature;
 }

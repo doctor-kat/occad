@@ -918,7 +918,7 @@ E2E stops after the first real pick — repeated face picking is the app's exist
 | **Undo / Redo**                  | ✅      | Snapshot history in `useCADState`; buttons + Ctrl/⌘+Z·Y   |
 | Sketch entity list (sidebar)     | ✅      | `SketchEntitiesPanel` in the Entities tab while sketching — see §7 |
 | Sketch constraint list (sidebar) | 🟡     | `SketchConstraintList` exists; not yet in the left sidebar — see §7 |
-| History rollback bar (rewind/FF) | ❌      | SolidWorks-style rollback to build only up to a marker — see §8 |
+| History rollback bar (rewind/FF) | ✅      | SolidWorks-style drag-to-rewind marker in the feature tree; skips rolled-back features on rebuild, inserts new features at the bar — see §8 |
 | Multi-body / part management     | ❌      | single implicit `currentBody`                             |
 | Reference geometry (planes/axes) | 🟡     | types + reference planes render (visibility toggle fixed 2026-06-24; dashed midpoint crosshair through origin + viewport hover highlight added 2026-06-24); no custom-plane creation |
 | Measurement readout panel        | ❌      | —                                                         |
@@ -1122,13 +1122,40 @@ component exists for the in-sketch toolbar/overlay, see §1.2, but is not yet re
 
 ---
 
-## 8. History rollback bar — rewind / fast-forward — ❌ planned
+## 8. History rollback bar — rewind / fast-forward — ✅ done (2026-07-08)
 
 Goal: a **SolidWorks-style rollback bar** in the feature tree. The user drags a horizontal marker up
 and down the feature list to **rewind** history (the model rebuilds using only the features *above*
 the bar) and **fast-forward** it back. Crucially, new features can be inserted **at the bar's
 position** — they're added after the "present" line but before the rolled-back features below it — so
-you can edit earlier in the history without deleting later work. Status ❌ (not started).
+you can edit earlier in the history without deleting later work.
+
+> **Done (2026-07-08):** implemented as a **threshold in the `orderKey` (epoch-ms) build-order domain**
+> rather than a raw index, so it survives reorder/insert without index drift. `CADProject.rollbackBar`
+> (persisted with the project) marks the boundary: `isRolledBack(item, bar)` (`buildOrder.ts`) is true
+> when `orderKey(item) > bar` (strict — the item exactly *at* the bar stays present). Both layers read
+> the same field:
+> - **Rebuild** (`operations.ts handleRebuild`): the per-item loop skips rolled-back sketches/features
+>   at the top of the iteration — same skip path as `isSuppressed`, but gated by the bar so the two
+>   states stay distinct.
+> - **Tree** (`useCADState.featureTree`): each row gets a `rolledBack` flag (a consumed sketch greys out
+>   with its owning feature); `TreeItem` renders rolled-back rows at 0.35 opacity + italic.
+> - **UI** (`FeatureTree` + new `RollbackBar.tsx`): a draggable `DotsSixVertical` marker rendered between
+>   the top-level flow rows (reference geometry is pinned above and excluded). Dragging it (HTML5 DnD,
+>   `application/x-rollback-bar`) over a row computes a before/after drop index and calls
+>   `moveRollbackBar(newIndex)`, which converts the index → threshold via `rollbackThresholdForIndex`
+>   (midpoint between neighbour keys; index ≥ N clears the bar = full fast-forward) and bumps `version`
+>   to rebuild. `rollbackBarIndex` (derived, `rollbackIndexForThreshold`) positions the resting bar.
+> - **Insert-at-bar:** `addFeature`/`addSketch` assign a `sequence` from `sequenceAtBar()` (midpoint
+>   between the last active key and the bar) when the history is rolled back, so a new item lands as the
+>   last *present* item instead of past the bar (which would immediately hide it).
+> - **Suppress** was already implemented (`toggleFeatureSuppression`/`Feature.isSuppressed`); rollback
+>   reuses its rebuild skip pattern and is kept as a separate, coexisting mechanism.
+> - **Undo/redo:** moving the bar bumps `version`, so it is captured as a normal undo step (simplest
+>   choice; the bar position rides along in the snapshotted `CADProject`).
+> - Tests: `buildOrder.test.ts` (+`isRolledBack`, index↔threshold round-trips), `useCADState.test.ts`
+>   (rewind greys/skips, fast-forward clears, version bump, insert-at-bar lands present), `FeatureTree.test.tsx`
+>   (bar renders only with a handler, `data-rolled-back` marking).
 
 ### Target behavior
 

@@ -116,6 +116,8 @@ export function CADLayout() {
     toggleFeatureSuppression,
     deleteFeature,
     reorderFeatureRelative,
+    rollbackBarIndex,
+    moveRollbackBar,
     applyRefEnrichments,
     applySketchRefEnrichments,
     undo,
@@ -1296,6 +1298,8 @@ export function CADLayout() {
                         isCompact={!isSidebarOpen}
                         onToggleSidebar={toggleSidebar}
                         onReorder={reorderFeatureRelative}
+                        rollbackBarIndex={rollbackBarIndex}
+                        onMoveRollbackBar={moveRollbackBar}
                       />
                     </Tabs.Panel>
                     <Tabs.Panel value="entities">

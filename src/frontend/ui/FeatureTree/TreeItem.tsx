@@ -108,6 +108,7 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
   const isExpanded = item.isExpanded !== false;
   const isSelected = selectedItem === item.id;
   const isVisible = item.visible !== false;
+  const isRolledBack = item.rolledBack === true;
   const theme = useMantineTheme();
   const [isHovered, setIsHovered] = useState(false);
   const [dropIndicator, setDropIndicator] = useState<'before' | 'after' | null>(null);
@@ -154,6 +155,7 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
         wrap="nowrap"
         className="tree-item-row"
         data-selected={isSelected}
+        data-rolled-back={isRolledBack}
         draggable={isDraggable}
         onDragStart={isDraggable ? (e) => {
           e.dataTransfer.setData('application/x-feature-id', item.id);
@@ -191,7 +193,10 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
           borderTop: dropIndicator === 'before' ? `2px solid ${theme.colors.blue[5]}` : undefined,
           borderBottom: dropIndicator === 'after' ? `2px solid ${theme.colors.blue[5]}` : undefined,
           borderRadius: theme.radius.sm,
-          opacity: isVisible ? 1 : 0.5,
+          // Rolled-back rows (past the history bar) grey out more strongly than
+          // merely-hidden rows so the "not built" state reads at a glance.
+          opacity: isRolledBack ? 0.35 : isVisible ? 1 : 0.5,
+          fontStyle: isRolledBack ? 'italic' : undefined,
           cursor: isDraggable ? 'grab' : undefined,
           transition: 'all 150ms',
         }}
