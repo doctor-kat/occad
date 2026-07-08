@@ -107,7 +107,7 @@ self.onmessage = async (e: MessageEvent) => {
         break;
 
       case 'rebuild':
-        await handleRebuild(ctx, message.project);
+        await handleRebuild(ctx, message.project, message.tessellation);
         break;
 
       case 'getFaceGeometry':

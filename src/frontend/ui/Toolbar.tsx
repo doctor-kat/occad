@@ -10,9 +10,12 @@ import {
   FrameCorners,
   GridFour,
   Eye,
-  FilePlus
+  FilePlus,
+  GearSix,
+  Check
 } from '@phosphor-icons/react';
-import { Button, Tooltip, Divider, Group, Box, Text, useMantineTheme } from '@mantine/core';
+import { Button, Tooltip, Divider, Group, Box, Text, Menu, useMantineTheme } from '@mantine/core';
+import { TESSELLATION_PRESETS, type TessellationLevel } from '@/cad/types';
 
 interface ToolbarProps {
   projectName: string;
@@ -24,7 +27,11 @@ interface ToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  tessellationLevel: TessellationLevel;
+  onTessellationLevelChange: (level: TessellationLevel) => void;
 }
+
+const TESSELLATION_ORDER: TessellationLevel[] = ['draft', 'standard', 'fine', 'ultra'];
 
 const iconButtonStyle = {
   height: 32,
@@ -40,7 +47,7 @@ const fileButtonStyle = {
 
 const headerLabelStyle = { label: { fontSize: 12 } };
 
-export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, onRedo, canUndo, canRedo }: ToolbarProps) {
+export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, onRedo, canUndo, canRedo, tessellationLevel, onTessellationLevelChange }: ToolbarProps) {
   const theme = useMantineTheme();
 
   return (
@@ -276,6 +283,44 @@ export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, 
               <Eye size={16} weight="regular" />
             </Button>
           </Tooltip>
+
+          <Divider orientation="vertical" h={16} mx={4} />
+
+          {/* Settings */}
+          <Menu position="bottom-end" width={260} withinPortal>
+            <Menu.Target>
+              <Tooltip label="Settings" position="bottom">
+                <Button
+                  variant="subtle"
+                  size="xs"
+                  aria-label="Settings"
+                  style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+                >
+                  <GearSix size={16} weight="regular" />
+                </Button>
+              </Tooltip>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Label>Tessellation quality</Menu.Label>
+              <Text size="10px" c={theme.other.colors.mutedForeground} px="sm" pb={4}>
+                Faces used to mesh curved surfaces.
+              </Text>
+              {TESSELLATION_ORDER.map((level) => {
+                const preset = TESSELLATION_PRESETS[level];
+                const active = level === tessellationLevel;
+                return (
+                  <Menu.Item
+                    key={level}
+                    onClick={() => onTessellationLevelChange(level)}
+                    leftSection={<Check size={14} weight="bold" style={{ visibility: active ? 'visible' : 'hidden' }} />}
+                  >
+                    <Text size="sm" fw={active ? 600 : 400}>{preset.label}</Text>
+                    <Text size="10px" c={theme.other.colors.mutedForeground}>{preset.description}</Text>
+                  </Menu.Item>
+                );
+              })}
+            </Menu.Dropdown>
+          </Menu>
           </Group>
         </Group>
       </Box>

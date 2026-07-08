@@ -19,6 +19,7 @@ import type {
   MeasurementData,
   MeasureBetweenData,
   MeasureSelection,
+  TessellationQuality,
 } from "@/cad/types";
 
 export type { CADMeshData as MeshData };
@@ -246,7 +247,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
 
   // Full rebuild from project history
   const rebuild = useCallback(
-    (project: CADProject) => {
+    (project: CADProject, tessellation?: TessellationQuality) => {
       const w = workerRef.current;
       if (!w || status === "loading") return;
       setStatus("building");
@@ -254,6 +255,7 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
       const message: WorkerRequest = {
         type: "rebuild",
         project,
+        tessellation,
       };
       w.postMessage(message);
     },

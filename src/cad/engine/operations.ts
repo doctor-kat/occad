@@ -35,10 +35,11 @@ import type {
   SubShapeKind,
   StableRef,
   MeasureSelection,
+  TessellationQuality,
 } from '@/cad/types';
 import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuildOrder } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
-import { post } from './workerContext';
+import { post, bodyTessellation } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
 import { buildSketchWire, buildProfileFace } from './sketchBuilders';
 import { applyFillet, applyChamfer, applyShell, applyOffset, enrichRefs } from './modifications';
@@ -196,7 +197,8 @@ export function handleExtrudeSketch(
     prism.delete();
     const shapeId = `feature_${featureId}_${shapeIdCounter++}`;
     ctx.shapeStorage.set(shapeId, shape);
-    const meshData = tessellate(ctx, shape, 0.1, 0.5);
+    const t = bodyTessellation(ctx);
+    const meshData = tessellate(ctx, shape, t.linearDeflection, t.angularDeflection);
     post({ type: 'featureBuilt', featureId, geometry: { shapeId, shapeType: ShapeType.SOLID }, meshData }, getTransferables(meshData));
   } catch (err: unknown) {
     post({ type: 'error', message: `Failed to extrude: ${formatError(err)}`, featureId });
@@ -227,7 +229,8 @@ export function handleRevolveSketch(
     axisOrigin.delete(); axisDir.delete(); axis.delete(); revol.delete();
     const shapeId = `feature_${featureId}_${shapeIdCounter++}`;
     ctx.shapeStorage.set(shapeId, shape);
-    const meshData = tessellate(ctx, shape, 0.1, 0.5);
+    const t = bodyTessellation(ctx);
+    const meshData = tessellate(ctx, shape, t.linearDeflection, t.angularDeflection);
     post({ type: 'featureBuilt', featureId, geometry: { shapeId, shapeType: ShapeType.SOLID }, meshData }, getTransferables(meshData));
   } catch (err: unknown) {
     post({ type: 'error', message: `Failed to revolve: ${formatError(err)}`, featureId });
@@ -385,8 +388,15 @@ export function performBooleanOperation(
 /**
  * Handle full rebuild of project from feature history
  */
-export async function handleRebuild(ctx: WorkerContext, project: CADProject): Promise<void> {
+export async function handleRebuild(
+  ctx: WorkerContext,
+  project: CADProject,
+  tessellation?: TessellationQuality
+): Promise<void> {
   const { oc } = ctx;
+  // Carry the requested mesh resolution for the whole rebuild so every
+  // body-tessellating step (features + final body) uses it.
+  ctx.tessellation = tessellation ?? ctx.tessellation;
 
   try {
     post({ type: 'progress', message: 'Starting full rebuild...' });
@@ -649,7 +659,8 @@ export async function handleRebuild(ctx: WorkerContext, project: CADProject): Pr
     if (currentBody) {
       const finalShapeId = 'CURRENT_REBUILD_SHAPE';
       ctx.shapeStorage.set(finalShapeId, currentBody);
-      const meshData = tessellate(ctx, currentBody, 0.1, 0.5);
+      const t = bodyTessellation(ctx);
+      const meshData = tessellate(ctx, currentBody, t.linearDeflection, t.angularDeflection);
       // Attach face→feature attribution (indexed by the same CAD face id
       // `faceMapping` reports). A plain array — structured-cloned, not transferred.
       meshData.faceOwners = faceOwnership.owners;

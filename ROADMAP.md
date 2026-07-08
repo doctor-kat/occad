@@ -45,6 +45,14 @@ need a custom WASM build and aren't being pursued).
 > out of the replayed history — so a future feature type that's added but never wired can't quietly vanish on
 > rebuild.
 
+> **Tessellation quality setting (2026-07-08):** a Settings menu (gear icon in the Toolbar) lets the user
+> pick how finely curved surfaces are meshed — Draft / Standard / Fine / Ultra, backed by linear+angular
+> deflection presets in `src/cad/types/tessellation.ts` (Standard = the historical `0.1 / 0.5`, so default
+> output is unchanged). The level is persisted (`occad-tessellation-level`) and threaded through the rebuild
+> request → `WorkerContext.tessellation` → every body-tessellating call in `operations.ts` (`bodyTessellation`).
+> Changing the level live re-meshes the current model without a version bump. Verified in-browser: a sphere
+> body meshes to 220 / 835 / 6897 vertices at Draft / Standard / Ultra.
+
 ---
 
 ## 1. Sketch System

@@ -11,6 +11,12 @@ describe("Toolbar", () => {
     onOpen: vi.fn(),
     onSave: vi.fn(),
     onExport: vi.fn(),
+    onUndo: vi.fn(),
+    onRedo: vi.fn(),
+    canUndo: false,
+    canRedo: false,
+    tessellationLevel: "standard" as const,
+    onTessellationLevelChange: vi.fn(),
   };
 
   it('should render "OCCAD" app name', () => {
@@ -53,5 +59,18 @@ describe("Toolbar", () => {
 
     await userEvent.click(screen.getByText("Export"));
     expect(onExport).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the Settings menu and changes tessellation quality", async () => {
+    const onTessellationLevelChange = vi.fn();
+    renderWithProviders(
+      <Toolbar {...defaultProps} onTessellationLevelChange={onTessellationLevelChange} />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(await screen.findByText("Tessellation quality")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("Fine"));
+    expect(onTessellationLevelChange).toHaveBeenCalledWith("fine");
   });
 });

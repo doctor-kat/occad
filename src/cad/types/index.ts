@@ -67,3 +67,6 @@ export * from './project/createNewProject';
 
 // Mesh
 export * from './mesh/MeshData';
+
+// Tessellation
+export * from './tessellation';

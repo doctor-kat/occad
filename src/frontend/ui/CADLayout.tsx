@@ -14,8 +14,9 @@ import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { FeatureTreeIcon, EntitiesIcon, MeasureIcon } from '@/frontend/shared/icons';
 import { MeasurePanel } from './MeasurePanel';
-import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat, MeasurementData, MeasureBetweenData, MeasureSelection } from '@/cad/types';
-import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS } from '@/cad/types';
+import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat, MeasurementData, MeasureBetweenData, MeasureSelection, TessellationLevel } from '@/cad/types';
+import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS, DEFAULT_TESSELLATION_LEVEL, resolveTessellationQuality } from '@/cad/types';
+import { useLocalStorage } from '@/frontend/shared/useLocalStorage';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
 import { withMidpointPoint } from '@/frontend/canvas/contextMenu/sketchMidpoint';
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
@@ -152,6 +153,13 @@ export function CADLayout() {
   const pendingExports = useRef(new Map<string, string>());
   const cadImportInputRef = useRef<HTMLInputElement>(null);
   const pendingImportFormat = useRef<ImportFormat | null>(null);
+
+  // Tessellation resolution for solid bodies (Draft…Ultra). Persisted per-user;
+  // drives how many facets curved surfaces get. Read into every rebuild call.
+  const [tessellationLevel, setTessellationLevel] = useLocalStorage<TessellationLevel>(
+    'occad-tessellation-level',
+    DEFAULT_TESSELLATION_LEVEL
+  );
 
   // Single consolidated OpenCascade worker instance — shared by layout & viewport
   const {
@@ -319,9 +327,21 @@ export function CADLayout() {
     if (project.version !== lastRebuiltVersion.current) {
       lastRebuiltVersion.current = project.version;
       clearAllItemErrors();
-      rebuild(project);
+      rebuild(project, resolveTessellationQuality(tessellationLevel));
     }
-  }, [project.id, project.version, occStatus, rebuild, project, clearAllItemErrors]);
+  }, [project.id, project.version, occStatus, rebuild, project, clearAllItemErrors, tessellationLevel]);
+
+  // Re-mesh the current model when the tessellation quality changes. The
+  // geometry is unchanged (no version bump), only the mesh deflection differs,
+  // so this bypasses the version guard above. A ref tracks the last-applied
+  // level so this effect is a no-op on unrelated project/rebuild re-runs.
+  const lastTessellationLevel = useRef(tessellationLevel);
+  useEffect(() => {
+    if (occStatus !== 'ready') return;
+    if (lastTessellationLevel.current === tessellationLevel) return;
+    lastTessellationLevel.current = tessellationLevel;
+    rebuild(project, resolveTessellationQuality(tessellationLevel));
+  }, [tessellationLevel, occStatus, rebuild, project]);
 
   // Global undo/redo shortcuts: Ctrl/Cmd+Z, and Ctrl/Cmd+Shift+Z or Ctrl+Y for
   // redo. Suppressed while sketching (the SketchOverlay owns the keyboard) and
@@ -1091,6 +1111,8 @@ export function CADLayout() {
             onRedo={redo}
             canUndo={canUndo}
             canRedo={canRedo}
+            tessellationLevel={tessellationLevel}
+            onTessellationLevelChange={setTessellationLevel}
           />
           <OperationsBar
             activeTab={activeTab}
