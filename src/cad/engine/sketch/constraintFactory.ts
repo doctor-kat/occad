@@ -12,7 +12,6 @@
 import { ConstraintKind, type ConstraintInput } from '@/cad/types';
 export { ConstraintKind, type ConstraintInput };
 
-export type { PlanegcsConstraint } from './PlanegcsConstraint';
 import type { PlanegcsConstraint } from './PlanegcsConstraint';
 
 /**

@@ -14,6 +14,3 @@ export enum Axis {
   Z = 'Z',
 }
 
-export type { Vec3 } from './Vec3';
-export type { SubShapeDescriptor } from './SubShapeDescriptor';
-export type { SelectorNode } from './SelectorNode';

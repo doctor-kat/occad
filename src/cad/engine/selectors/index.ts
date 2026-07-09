@@ -7,11 +7,15 @@
  * the resulting indices into stable, topology-proof `StableRef`s.
  */
 
-import type { SelectorNode, SubShapeDescriptor } from './types';
+import type { SelectorNode } from './SelectorNode';
+import type { SubShapeDescriptor } from './SubShapeDescriptor';
 import { parse, SelectorSyntaxError } from './grammar';
 import { evaluate, type EvalOptions } from './evaluate';
 
 export * from './types';
+export * from './Vec3';
+export * from './SubShapeDescriptor';
+export * from './SelectorNode';
 export { parse, tokenize, SelectorSyntaxError } from './grammar';
 export { evaluate, type EvalOptions } from './evaluate';
 

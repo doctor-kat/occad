@@ -1,4 +1,4 @@
-import { GeometryRef } from '../geometry/Fingerprint';
+import { GeometryRef } from '../geometry/GeometryRef';
 
 export interface OffsetParams {
   /** Distance to offset (positive for outward, negative for inward) */

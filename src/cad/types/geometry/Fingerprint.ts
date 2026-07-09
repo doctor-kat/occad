@@ -34,8 +34,6 @@ export interface Fingerprint {
   obb: [number, number, number];
 }
 
-export type { StableRef } from './StableRef';
-export type { GeometryRef } from './GeometryRef';
 import type { StableRef } from './StableRef';
 import type { GeometryRef } from './GeometryRef';
 
@@ -61,5 +59,3 @@ export function hasFingerprint(ref: GeometryRef): boolean {
   return typeof ref !== 'string' && !!ref.fingerprint;
 }
 
-export type { FeatureRefEnrichment } from './FeatureRefEnrichment';
-export type { SketchRefEnrichment } from './SketchRefEnrichment';

@@ -1,4 +1,4 @@
-import { GeometryRef } from '../geometry/Fingerprint';
+import { GeometryRef } from '../geometry/GeometryRef';
 
 export interface ShellParams {
   /** Thickness of the shell (positive for outward, negative for inward) */

@@ -1,6 +1,6 @@
 import type { SketchElement, Point2D } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
-import type { ContextTarget } from '@/frontend/shared/viewportStore';
+import type { ContextTarget } from '@/frontend/shared/viewport/ContextTarget';
 
 export type { ContextTarget };
 

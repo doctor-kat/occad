@@ -35,9 +35,6 @@ export enum TrackStatus {
   Removed = 'removed',
 }
 
-export type { FollowResult } from './FollowResult';
-export type { TrackedRef } from './TrackedRef';
-export type { ShapeHistory } from './ShapeHistory';
 import type { FollowResult } from './FollowResult';
 import type { TrackedRef } from './TrackedRef';
 import type { ShapeHistory } from './ShapeHistory';

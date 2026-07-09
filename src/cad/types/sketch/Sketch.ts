@@ -12,9 +12,6 @@ export enum SketchPrimitiveType {
   Ellipse = 'ellipse',
 }
 
-export type { SketchPrimitive } from './SketchPrimitive';
-export type { SketchVisualMetadata } from './SketchVisualMetadata';
-
 export interface Sketch {
   id: string;
   name: string;

@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { parse } from './grammar';
 import { evaluate } from './evaluate';
 import { selectSubShapes } from './index';
-import type { SubShapeDescriptor, Vec3 } from './types';
+import type { SubShapeDescriptor } from './SubShapeDescriptor';
+import type { Vec3 } from './Vec3';
 
 const v = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 

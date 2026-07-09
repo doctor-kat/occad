@@ -5,6 +5,10 @@ export * from './geometry/Vector3D';
 export * from './geometry/Axis';
 export * from './geometry/ShapeReference';
 export * from './geometry/Fingerprint';
+export * from './geometry/StableRef';
+export * from './geometry/GeometryRef';
+export * from './geometry/FeatureRefEnrichment';
+export * from './geometry/SketchRefEnrichment';
 
 // Sketch
 export * from './sketch/SketchElementType';
@@ -22,6 +26,8 @@ export * from './sketch/Workplane';
 export * from './sketch/SketchPlane/PlaneType';
 export * from './sketch/SketchPlane/SketchPlane';
 export * from './sketch/Sketch';
+export * from './sketch/SketchPrimitive';
+export * from './sketch/SketchVisualMetadata';
 export * from './sketch/SketchEdgeData';
 export * from './sketch/ConstraintInput';
 
@@ -46,6 +52,8 @@ export * from './operations/MeasureParams';
 export * from './operations/ImportParams';
 export * from './operations/ExportFormat';
 export * from './operations/MeasurementData';
+export * from './operations/MeasureSelection';
+export * from './operations/MeasureBetweenData';
 export * from './operations/OperationParams';
 export * from './operations/OperationCategory';
 export * from './operations/FeatureOperation';

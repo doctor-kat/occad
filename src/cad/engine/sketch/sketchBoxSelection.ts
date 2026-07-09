@@ -16,8 +16,6 @@ export enum BoxMode {
   Crossing = 'crossing',
 }
 
-export type { ScreenRect } from './ScreenRect';
-export type { ScreenPoint } from './ScreenPoint';
 import type { ScreenRect } from './ScreenRect';
 import type { ScreenPoint } from './ScreenPoint';
 

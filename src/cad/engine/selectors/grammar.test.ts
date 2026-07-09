@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parse, tokenize, SelectorSyntaxError } from './grammar';
-import type { SelectorNode } from './types';
+import type { SelectorNode } from './SelectorNode';
 
 describe('selector grammar — primaries', () => {
   it('parses directional min/max', () => {

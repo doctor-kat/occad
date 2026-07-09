@@ -8,7 +8,9 @@
  * callers with real geometry may widen them.
  */
 
-import type { SelectorNode, SubShapeDescriptor, Vec3 } from './types';
+import type { SelectorNode } from './SelectorNode';
+import type { SubShapeDescriptor } from './SubShapeDescriptor';
+import type { Vec3 } from './Vec3';
 import { Axis } from './types';
 
 export interface EvalOptions {

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '@/frontend/shared/useLocalStorage.ts';
-import type { PlanegcsConstraint } from '@/cad/engine/sketch/constraintFactory';
+import type { PlanegcsConstraint } from '@/cad/engine/sketch/PlanegcsConstraint';
 import {
   CADProject,
   CADState,

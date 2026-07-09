@@ -21,7 +21,8 @@
 type TopoDS_Shape = any;
 import type { WorkerContext } from '../workerContext';
 import { computeFingerprint } from '../fingerprint';
-import type { SubShapeDescriptor, Vec3 } from './types';
+import type { SubShapeDescriptor } from './SubShapeDescriptor';
+import type { Vec3 } from './Vec3';
 import { SubShapeKind } from '@/cad/types';
 
 const toVec = (d: any): Vec3 => ({ x: d.X(), y: d.Y(), z: d.Z() });

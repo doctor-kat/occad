@@ -1,4 +1,4 @@
-import { GeometryRef } from '../geometry/Fingerprint';
+import { GeometryRef } from '../geometry/GeometryRef';
 
 export interface ChamferParams {
   /** Distance of the chamfer */

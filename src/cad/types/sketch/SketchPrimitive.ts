@@ -1,5 +1,5 @@
 import { SketchPrimitiveType } from './Sketch';
-import { StableRef } from '../geometry/Fingerprint';
+import { StableRef } from '../geometry/StableRef';
 
 export interface SketchPrimitive {
   id: string;

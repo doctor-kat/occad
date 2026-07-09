@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import type { ViewportState } from './viewport/ViewportState';
 
-export type { ContextTarget } from './viewport/ContextTarget';
-export type { ContextMenuState } from './viewport/ContextMenuState';
-export type { CameraCommand } from './viewport/CameraCommand';
-
 /** Standard camera framings offered by the empty-space context menu. */
 export enum CameraViewType {
   Fit = 'fit',

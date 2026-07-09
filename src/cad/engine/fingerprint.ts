@@ -207,7 +207,6 @@ export function fingerprintScore(a: Fingerprint, b: Fingerprint): number {
   return dCentroid + dMeasure + dObb;
 }
 
-export type { FingerprintMatch } from './FingerprintMatch';
 import type { FingerprintMatch } from './FingerprintMatch';
 
 /**

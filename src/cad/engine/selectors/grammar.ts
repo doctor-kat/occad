@@ -15,7 +15,8 @@
  * `selectors.py` (Apache-2.0, reference only) — no source is copied.
  */
 
-import type { Axis, SelectorNode } from './types';
+import type { Axis } from './types';
+import type { SelectorNode } from './SelectorNode';
 
 class SelectorSyntaxError extends Error {
   constructor(message: string) {

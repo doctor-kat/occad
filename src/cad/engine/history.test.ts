@@ -7,8 +7,8 @@ import {
   enableHistory,
   newCumulativeHistory,
   mergeInto,
-  type TrackedRef,
 } from "./history";
+import type { TrackedRef } from "./TrackedRef";
 
 /**
  * Build a fake OpenCascade context exercising the OCC *history* surface without

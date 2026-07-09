@@ -1,4 +1,4 @@
-import { GeometryRef } from '../geometry/Fingerprint';
+import { GeometryRef } from '../geometry/GeometryRef';
 
 export interface FilletParams {
   /** Radius of the fillet */
