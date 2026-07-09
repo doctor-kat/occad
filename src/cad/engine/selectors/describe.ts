@@ -22,7 +22,7 @@ type TopoDS_Shape = any;
 import type { WorkerContext } from '../workerContext';
 import { computeFingerprint } from '../fingerprint';
 import type { SubShapeDescriptor, Vec3 } from './types';
-import { SubShapeKind } from './types';
+import { SubShapeKind } from '@/cad/types';
 
 const toVec = (d: any): Vec3 => ({ x: d.X(), y: d.Y(), z: d.Z() });
 /** Adding 0 collapses -0 → 0 so negated/zeroed components don't leak `-0`. */

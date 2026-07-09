@@ -16,7 +16,7 @@
 type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
 import type { FilletParams, ChamferParams, ShellParams, OffsetParams, GeometryRef, Fingerprint, StableRef } from '@/cad/types';
-import { toStableRef, refLabel, hasFingerprint } from '@/cad/types';
+import { toStableRef, refLabel, hasFingerprint, SubShapeKind } from '@/cad/types';
 import { fingerprintAll, matchFingerprint, resolveAgainst } from './fingerprint';
 import { describeSubShapes } from './selectors/describe';
 import { selectSubShapes } from './selectors';
@@ -33,7 +33,7 @@ function withSelectorMatches(
   ctx: WorkerContext,
   shape: TopoDS_Shape,
   refs: GeometryRef[],
-  kind: 'edge' | 'face',
+  kind: SubShapeKind.Edge | SubShapeKind.Face,
   selector: string | undefined
 ): GeometryRef[] {
   if (!selector?.trim()) return refs;
@@ -89,11 +89,11 @@ export function resolveSubShapes(
   ctx: WorkerContext,
   shape: TopoDS_Shape,
   refs: GeometryRef[],
-  kind: 'edge' | 'face'
+  kind: SubShapeKind.Edge | SubShapeKind.Face
 ): ResolvedSubShapes {
   const { oc } = ctx;
   const shapeEnum =
-    kind === 'edge' ? oc.TopAbs_ShapeEnum.TopAbs_EDGE : oc.TopAbs_ShapeEnum.TopAbs_FACE;
+    kind === SubShapeKind.Edge ? oc.TopAbs_ShapeEnum.TopAbs_EDGE : oc.TopAbs_ShapeEnum.TopAbs_FACE;
   const map = new oc.TopTools_IndexedMapOfShape_1();
   oc.TopExp.MapShapes_1(shape, shapeEnum, map);
   const extent = map.Extent();
@@ -127,7 +127,7 @@ export function resolveSubShapes(
       continue;
     }
     const sub = map.FindKey(idx + 1);
-    shapes.push(kind === 'edge' ? oc.TopoDS.Edge_1(sub) : oc.TopoDS.Face_1(sub));
+    shapes.push(kind === SubShapeKind.Edge ? oc.TopoDS.Edge_1(sub) : oc.TopoDS.Face_1(sub));
   }
 
   map.delete();
@@ -152,7 +152,7 @@ export function enrichRefs(
   ctx: WorkerContext,
   body: TopoDS_Shape,
   refs: GeometryRef[],
-  kind: 'edge' | 'face'
+  kind: SubShapeKind.Edge | SubShapeKind.Face
 ): GeometryRef[] | null {
   if (!refs?.length || refs.every(hasFingerprint)) return null;
 
@@ -183,8 +183,8 @@ export function applyFillet(
   if (!params.edges?.length && !params.selector) throw new Error('Fillet requires at least one edge');
   if (!(params.radius > 0)) throw new Error('Fillet radius must be positive');
 
-  const refs = withSelectorMatches(ctx, shape, params.edges ?? [], 'edge', params.selector);
-  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, refs, 'edge');
+  const refs = withSelectorMatches(ctx, shape, params.edges ?? [], SubShapeKind.Edge, params.selector);
+  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, refs, SubShapeKind.Edge);
   if (unresolved.length > 0) {
     throw new Error(
       `Fillet: could not resolve edge selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these edges were selected.`
@@ -222,8 +222,8 @@ export function applyChamfer(
   if (!params.edges?.length && !params.selector) throw new Error('Chamfer requires at least one edge');
   if (!(params.distance > 0)) throw new Error('Chamfer distance must be positive');
 
-  const refs = withSelectorMatches(ctx, shape, params.edges ?? [], 'edge', params.selector);
-  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, refs, 'edge');
+  const refs = withSelectorMatches(ctx, shape, params.edges ?? [], SubShapeKind.Edge, params.selector);
+  const { shapes: edges, unresolved } = resolveSubShapes(ctx, shape, refs, SubShapeKind.Edge);
   if (unresolved.length > 0) {
     throw new Error(
       `Chamfer: could not resolve edge selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these edges were selected.`
@@ -261,8 +261,8 @@ export function applyShell(
   if (!params.faces?.length && !params.selector) throw new Error('Shell requires at least one face to remove');
   if (!params.thickness) throw new Error('Shell thickness must be non-zero');
 
-  const refs = withSelectorMatches(ctx, shape, params.faces ?? [], 'face', params.selector);
-  const { shapes: faces, unresolved } = resolveSubShapes(ctx, shape, refs, 'face');
+  const refs = withSelectorMatches(ctx, shape, params.faces ?? [], SubShapeKind.Face, params.selector);
+  const { shapes: faces, unresolved } = resolveSubShapes(ctx, shape, refs, SubShapeKind.Face);
   if (unresolved.length > 0) {
     throw new Error(
       `Shell: could not resolve face selection(s) [${unresolved.join(', ')}] — the model topology may have changed since these faces were selected.`

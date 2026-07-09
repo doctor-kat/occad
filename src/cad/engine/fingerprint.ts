@@ -19,8 +19,7 @@
 
 type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
-import type { Fingerprint, StableRef } from '@/cad/types';
-import { SubShapeKind } from '@/cad/types';
+import { SubShapeKind, type Fingerprint, type StableRef } from '@/cad/types';
 
 // Re-export the shared serializable types so existing importers of
 // `./fingerprint` keep working; the canonical definitions live in
