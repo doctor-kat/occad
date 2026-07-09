@@ -49,6 +49,16 @@ export function toStableRef(ref: GeometryRef): StableRef | null {
   return typeof ref === 'string' ? parseRefString(ref) : ref;
 }
 
+/**
+ * Parse the trailing integer from a geometry reference such as `edge-3` or
+ * `face-0`. Returns NaN when the ref has no numeric suffix.
+ */
+export function parseGeometryIndex(ref: string): number {
+  const suffix = ref.slice(ref.lastIndexOf('-') + 1);
+  if (suffix === '' || !/^\d+$/.test(suffix)) return NaN;
+  return Number(suffix);
+}
+
 /** Human-readable label for a ref (for error messages / UI display). */
 export function refLabel(ref: GeometryRef): string {
   return typeof ref === 'string' ? ref : `${ref.kind}-${ref.index}`;

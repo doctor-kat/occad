@@ -20,5 +20,6 @@ export { applyFillet } from './fillet';
 export { applyChamfer } from './chamfer';
 export { applyShell } from './shell';
 export { applyOffset } from './offset';
-export { withSelectorMatches, parseGeometryIndex, resolveSubShapes, enrichRefs, OFFSET_TOL } from './shared';
+export { withSelectorMatches, resolveSubShapes, enrichRefs, OFFSET_TOL } from './shared';
 export type { ResolvedSubShapes } from './shared';
+export { parseGeometryIndex } from '@/cad/types';
