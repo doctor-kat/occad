@@ -82,6 +82,9 @@ Everything below is optional. None is started unless noted.
 - ✅ **One operation per file (engine)** — `advancedModeling.ts` and `analysis.ts` split into
   `advancedModeling/{sweep,loft}.ts` and `analysis/{measureShape,measureBetween,helpers}.ts`, each with an
   `index.ts` barrel so existing relative imports resolve unchanged; build/test/lint clean.
+- ✅ **operations.ts split** — the ~879-line `operations.ts` broken into `operations/{shared,sketch/*,primitives/*,
+  boolean/*,rebuild/handleRebuild,faceGeometry,edgeLoop,resolveSelector,exportShape,measure*Handler}.ts` with an
+  `index.ts` barrel preserving the `@/cad/engine/operations` import path; build/test/lint clean.
 
 ---
 
