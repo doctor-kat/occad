@@ -11,7 +11,10 @@ import { SketchElementType } from '@/cad/types';
  * real camera projection.
  */
 
-export type BoxMode = 'window' | 'crossing';
+export enum BoxMode {
+  Window = 'window',
+  Crossing = 'crossing',
+}
 
 /** A screen-space rectangle in CSS px (min/max already normalised). */
 export interface ScreenRect {
@@ -33,7 +36,7 @@ export interface ScreenPoint {
  * to the left is a **crossing** select — anything the box touches.
  */
 export function boxMode(startX: number, endX: number): BoxMode {
-  return endX >= startX ? 'window' : 'crossing';
+  return endX >= startX ? BoxMode.Window : BoxMode.Crossing;
 }
 
 /** Build a normalised rectangle from two opposite corners. */
@@ -199,7 +202,7 @@ export function selectElementsInBox(
     if (points.length === 0) continue;
     const screenPoints = points.map(project);
 
-    if (mode === 'window') {
+    if (mode === BoxMode.Window) {
       if (screenPoints.every((p) => pointInRect(p, rect))) result.push(element.id);
       continue;
     }

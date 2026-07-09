@@ -4,7 +4,13 @@ import { Point2D } from '../geometry/Point2D';
 import { SketchElement } from './SketchElement';
 import { StableRef } from '../geometry/Fingerprint';
 
-export type SketchPrimitiveType = 'point' | 'line' | 'circle' | 'arc' | 'ellipse';
+export enum SketchPrimitiveType {
+  Point = 'point',
+  Line = 'line',
+  Circle = 'circle',
+  Arc = 'arc',
+  Ellipse = 'ellipse',
+}
 
 export interface SketchPrimitive {
   id: string;

@@ -3,18 +3,23 @@ import {
   TESSELLATION_PRESETS,
   DEFAULT_TESSELLATION_LEVEL,
   resolveTessellationQuality,
-  type TessellationLevel,
+  TessellationLevel,
 } from './tessellation';
 
 describe('tessellation presets', () => {
   it('Standard matches the historical hardcoded 0.1 / 0.5 defaults', () => {
-    expect(TESSELLATION_PRESETS.standard.linearDeflection).toBe(0.1);
-    expect(TESSELLATION_PRESETS.standard.angularDeflection).toBe(0.5);
-    expect(DEFAULT_TESSELLATION_LEVEL).toBe('standard');
+    expect(TESSELLATION_PRESETS[TessellationLevel.Standard].linearDeflection).toBe(0.1);
+    expect(TESSELLATION_PRESETS[TessellationLevel.Standard].angularDeflection).toBe(0.5);
+    expect(DEFAULT_TESSELLATION_LEVEL).toBe(TessellationLevel.Standard);
   });
 
   it('deflection decreases monotonically from draft → ultra (more faces)', () => {
-    const order: TessellationLevel[] = ['draft', 'standard', 'fine', 'ultra'];
+    const order: TessellationLevel[] = [
+      TessellationLevel.Draft,
+      TessellationLevel.Standard,
+      TessellationLevel.Fine,
+      TessellationLevel.Ultra,
+    ];
     for (let i = 1; i < order.length; i++) {
       expect(TESSELLATION_PRESETS[order[i]].linearDeflection).toBeLessThan(
         TESSELLATION_PRESETS[order[i - 1]].linearDeflection
@@ -26,9 +31,9 @@ describe('tessellation presets', () => {
   });
 
   it('resolveTessellationQuality returns the preset deflection for a level', () => {
-    expect(resolveTessellationQuality('fine')).toEqual({
-      linearDeflection: TESSELLATION_PRESETS.fine.linearDeflection,
-      angularDeflection: TESSELLATION_PRESETS.fine.angularDeflection,
+    expect(resolveTessellationQuality(TessellationLevel.Fine)).toEqual({
+      linearDeflection: TESSELLATION_PRESETS[TessellationLevel.Fine].linearDeflection,
+      angularDeflection: TESSELLATION_PRESETS[TessellationLevel.Fine].angularDeflection,
     });
   });
 

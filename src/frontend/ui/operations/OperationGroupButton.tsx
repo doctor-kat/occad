@@ -6,7 +6,11 @@ import { OperationButton } from './OperationButton';
 import { CompactOperationButton } from './CompactOperationButton';
 import { IconOperationButton } from './IconOperationButton';
 
-export type OperationButtonVariant = 'full' | 'compact' | 'icon';
+export enum OperationButtonVariant {
+  Full = 'full',
+  Compact = 'compact',
+  Icon = 'icon',
+}
 
 export interface OperationGroupOption {
   id: Operation;
@@ -35,7 +39,7 @@ export interface OperationGroupButtonProps {
  */
 export function OperationGroupButton({
   options,
-  variant = 'compact',
+  variant = OperationButtonVariant.Compact,
   activeOperation,
   onOperationSelect,
   defaultOptionId,
@@ -55,12 +59,12 @@ export function OperationGroupButton({
   };
 
   const isActive = activeOperation === current.id;
-  const isFull = variant === 'full';
+  const isFull = variant === OperationButtonVariant.Full;
 
   // radius 0 so the main button sits flush against the divider; the outlined,
   // overflow-hidden container clips the outer corners back to rounded.
   const mainButton =
-    variant === 'full' ? (
+    variant === OperationButtonVariant.Full ? (
       <OperationButton
         icon={current.icon}
         label={current.label}
@@ -70,7 +74,7 @@ export function OperationGroupButton({
         disabled={current.disabled}
         radius={0}
       />
-    ) : variant === 'icon' ? (
+    ) : variant === OperationButtonVariant.Icon ? (
       <IconOperationButton
         icon={current.icon}
         label={current.label}

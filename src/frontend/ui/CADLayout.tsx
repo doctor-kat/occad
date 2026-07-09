@@ -14,8 +14,8 @@ import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { FeatureTreeIcon, EntitiesIcon, MeasureIcon } from '@/frontend/shared/icons';
 import { MeasurePanel } from './MeasurePanel';
-import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, SubShapeKind, Operation, ImportFormat, ImportParams, ExportFormat, MeasurementData, MeasureBetweenData, MeasureSelection, TessellationLevel } from '@/cad/types';
-import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS, DEFAULT_TESSELLATION_LEVEL, resolveTessellationQuality } from '@/cad/types';
+import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, Operation, ImportParams, MeasurementData, MeasureBetweenData, MeasureSelection, TessellationLevel } from '@/cad/types';
+import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS, DEFAULT_TESSELLATION_LEVEL, resolveTessellationQuality, SubShapeKind, ImportFormat, ExportFormat } from '@/cad/types';
 import { useLocalStorage } from '@/frontend/shared/useLocalStorage';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
 import { withMidpointPoint } from '@/frontend/canvas/contextMenu/sketchMidpoint';
@@ -47,8 +47,8 @@ const SKETCH_TOOL_OPERATIONS: SketchOperation[] = [
 // so the direction and format are derived from the id itself rather than a parallel
 // lookup table. Guard against the known format unions so non-I/O ops that also
 // contain a dash ('extrude-boss', 'revolved-cut') and disabled formats fall through.
-const IMPORT_FORMATS: ImportFormat[] = ['step', 'iges', 'obj'];
-const EXPORT_FORMATS: ExportFormat[] = ['step', 'iges', 'stl'];
+const IMPORT_FORMATS: ImportFormat[] = [ImportFormat.Step, ImportFormat.Iges, ImportFormat.Obj];
+const EXPORT_FORMATS: ExportFormat[] = [ExportFormat.Step, ExportFormat.Iges, ExportFormat.Stl];
 
 type ParsedIoOperation =
   | { direction: 'import'; format: ImportFormat }
@@ -718,7 +718,7 @@ export function CADLayout() {
     // In Measure mode, accumulate the pick for distance/angle instead of
     // jumping to the entities tab.
     if (activeSidebarTab === 'measure') {
-      recordMeasurePick({ kind: 'face', index: faceId });
+      recordMeasurePick({ kind: SubShapeKind.Face, index: faceId });
       return;
     }
     // Switch to entities tab if not already there
@@ -759,7 +759,7 @@ export function CADLayout() {
     setSelectedEdgeIndex(edgeIndex);
     setSelectedVertexIndex(null);
     if (activeSidebarTab === 'measure') {
-      recordMeasurePick({ kind: 'edge', index: edgeIndex });
+      recordMeasurePick({ kind: SubShapeKind.Edge, index: edgeIndex });
       return;
     }
     // Switch to entities tab if not already there
@@ -800,7 +800,7 @@ export function CADLayout() {
     setSelectedEdgeIndex(null);
     setSelectedVertexIndex(vertexIndex);
     if (activeSidebarTab === 'measure') {
-      recordMeasurePick({ kind: 'vertex', index: vertexIndex });
+      recordMeasurePick({ kind: SubShapeKind.Vertex, index: vertexIndex });
     }
   };
 

@@ -71,6 +71,11 @@ Everything below is optional. None is started unless noted.
 - **Custom (trimmed) WASM build** — we load the monolithic `opencascade.full.wasm`. A custom build binding
   only the classes we use → smaller WASM + faster cold start, and would unblock OBJ import (below).
   Files: `opencascadeWorker.ts`, `vite.config.ts`.
+- ✅ **String-literal unions → enums** — `TessellationLevel`, `TrackStatus`, `ExportFormat`, `ImportFormat`,
+  `SubShapeKind` (merged the `selectors/types.ts` duplicate into `cad/types/geometry/Fingerprint.ts`'s),
+  `SketchPrimitiveType`, `OperationButtonVariant`, `CameraViewType`, `Axis` (selectors), `BoxMode`,
+  `ConstraintKind` are now proper TS enums (values unchanged, so persisted projects are unaffected). All
+  call sites, `Record<>` keys, and tests updated; `tsc --noEmit`/tests clean.
 
 ---
 

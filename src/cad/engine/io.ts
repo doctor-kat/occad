@@ -10,7 +10,7 @@
 
 type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
-import type { ExportFormat, ImportFormat } from '@/cad/types';
+import { ExportFormat, ImportFormat } from '@/cad/types';
 
 /** Scratch directory inside the Emscripten FS used for all transfers. */
 const SCRATCH_DIR = '/io';
@@ -65,11 +65,11 @@ export function exportShapeToString(
   ensureScratchDir(ctx);
 
   switch (format) {
-    case 'step':
+    case ExportFormat.Step:
       return writeStep(ctx, shape);
-    case 'iges':
+    case ExportFormat.Iges:
       return writeIges(ctx, shape);
-    case 'stl':
+    case ExportFormat.Stl:
       return writeStl(ctx, shape);
     default:
       throw new Error(`Unsupported export format: ${format}`);
@@ -157,11 +157,11 @@ export function importShapeFromString(
 ): TopoDS_Shape {
   ensureScratchDir(ctx);
   switch (format) {
-    case 'step':
+    case ImportFormat.Step:
       return readViaXSControl(ctx, 'step', content, () => new ctx.oc.STEPControl_Reader_1());
-    case 'iges':
+    case ImportFormat.Iges:
       return readViaXSControl(ctx, 'iges', content, () => new ctx.oc.IGESControl_Reader_1());
-    case 'obj':
+    case ImportFormat.Obj:
       return readObj(ctx, content);
     default:
       throw new Error(`Unsupported import format: ${format}`);

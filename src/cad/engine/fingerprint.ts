@@ -19,12 +19,14 @@
 
 type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
-import type { Fingerprint, StableRef, SubShapeKind } from '@/cad/types';
+import type { Fingerprint, StableRef } from '@/cad/types';
+import { SubShapeKind } from '@/cad/types';
 
 // Re-export the shared serializable types so existing importers of
 // `./fingerprint` keep working; the canonical definitions live in
 // `src/cad/types/geometry/Fingerprint.ts`.
-export type { Fingerprint, StableRef, SubShapeKind } from '@/cad/types';
+export type { Fingerprint, StableRef } from '@/cad/types';
+export { SubShapeKind } from '@/cad/types';
 
 /** Combined-score acceptance threshold (dimensionless; ~fraction of size). */
 export const ACCEPT_THRESHOLD = 0.08;
@@ -36,15 +38,15 @@ export const AMBIGUITY_MARGIN = 0.02;
 /** The OCC `TopAbs_ShapeEnum` for a sub-shape kind. */
 function shapeEnumFor(ctx: WorkerContext, kind: SubShapeKind): any {
   const e = ctx.oc.TopAbs_ShapeEnum;
-  return kind === 'edge' ? e.TopAbs_EDGE : kind === 'face' ? e.TopAbs_FACE : e.TopAbs_VERTEX;
+  return kind === SubShapeKind.Edge ? e.TopAbs_EDGE : kind === SubShapeKind.Face ? e.TopAbs_FACE : e.TopAbs_VERTEX;
 }
 
 /** Cast a raw sub-shape to its concrete OCC type for the given kind. */
 function castSubShape(ctx: WorkerContext, sub: TopoDS_Shape, kind: SubShapeKind): TopoDS_Shape {
   const { oc } = ctx;
-  return kind === 'edge'
+  return kind === SubShapeKind.Edge
     ? oc.TopoDS.Edge_1(sub)
-    : kind === 'face'
+    : kind === SubShapeKind.Face
       ? oc.TopoDS.Face_1(sub)
       : oc.TopoDS.Vertex_1(sub);
 }
@@ -108,7 +110,7 @@ function massAndCentroid(
 ): { measure: number; centroid: { x: number; y: number; z: number } } {
   const { oc } = ctx;
   const props = new oc.GProp_GProps_1();
-  if (kind === 'face') oc.BRepGProp.SurfaceProperties_1(sub, props, false, false);
+  if (kind === SubShapeKind.Face) oc.BRepGProp.SurfaceProperties_1(sub, props, false, false);
   else oc.BRepGProp.LinearProperties(sub, props, false, false);
   const measure = props.Mass();
   const com = props.CentreOfMass();
@@ -150,10 +152,10 @@ export function computeFingerprint(
   kind: SubShapeKind,
   index: number
 ): Fingerprint {
-  if (kind === 'vertex') {
+  if (kind === SubShapeKind.Vertex) {
     return { kind, index, geomType: 'point', measure: 0, centroid: vertexPoint(ctx, sub), obb: [0, 0, 0] };
   }
-  const geomType = kind === 'face' ? faceGeomType(ctx, sub) : edgeGeomType(ctx, sub);
+  const geomType = kind === SubShapeKind.Face ? faceGeomType(ctx, sub) : edgeGeomType(ctx, sub);
   const { measure, centroid } = massAndCentroid(ctx, sub, kind);
   const obb = obbHalfSizes(ctx, sub);
   return { kind, index, geomType, measure, centroid, obb };

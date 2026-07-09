@@ -3,7 +3,7 @@ import { Tabs, Box, Group, useMantineTheme } from '@mantine/core';
 import { OperationCategory, Operation, SketchOperation } from '@/cad/types';
 import { OperationButton } from './OperationButton';
 import { CompactOperationButton } from './CompactOperationButton';
-import { OperationGroupButton } from './OperationGroupButton';
+import { OperationGroupButton, OperationButtonVariant } from './OperationGroupButton';
 import { OperationDivider } from './OperationDivider';
 import { CADTab } from './CADTab';
 import {
@@ -86,7 +86,7 @@ export function OperationsBar({ activeTab, activeOperation, selectedTreeItem, ac
             key={operation.id}
             options={group.options}
             defaultOptionId={group.defaultOptionId}
-            variant="compact"
+            variant={OperationButtonVariant.Compact}
             activeOperation={activeOperation}
             onOperationSelect={onOperationSelect}
           />

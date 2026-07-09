@@ -15,7 +15,7 @@ import {
   Check
 } from '@phosphor-icons/react';
 import { Button, Tooltip, Divider, Group, Box, Text, Menu, useMantineTheme } from '@mantine/core';
-import { TESSELLATION_PRESETS, type TessellationLevel } from '@/cad/types';
+import { TESSELLATION_PRESETS, TessellationLevel } from '@/cad/types';
 
 interface ToolbarProps {
   projectName: string;
@@ -31,7 +31,12 @@ interface ToolbarProps {
   onTessellationLevelChange: (level: TessellationLevel) => void;
 }
 
-const TESSELLATION_ORDER: TessellationLevel[] = ['draft', 'standard', 'fine', 'ultra'];
+const TESSELLATION_ORDER: TessellationLevel[] = [
+  TessellationLevel.Draft,
+  TessellationLevel.Standard,
+  TessellationLevel.Fine,
+  TessellationLevel.Ultra,
+];
 
 const iconButtonStyle = {
   height: 32,

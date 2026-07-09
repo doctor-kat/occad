@@ -28,7 +28,12 @@ type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
 
 /** Outcome of following one sub-shape forward through an operation. */
-export type TrackStatus = 'unchanged' | 'modified' | 'generated' | 'removed';
+export enum TrackStatus {
+  Unchanged = 'unchanged',
+  Modified = 'modified',
+  Generated = 'generated',
+  Removed = 'removed',
+}
 
 export interface FollowResult {
   status: TrackStatus;
@@ -108,12 +113,12 @@ export function followShape(
   history: ShapeHistory,
   sub: TopoDS_Shape
 ): FollowResult {
-  if (history.isRemoved(sub)) return { status: 'removed', shapes: [] };
+  if (history.isRemoved(sub)) return { status: TrackStatus.Removed, shapes: [] };
   const modified = listToArray(ctx, history.modified(sub));
-  if (modified.length > 0) return { status: 'modified', shapes: modified };
+  if (modified.length > 0) return { status: TrackStatus.Modified, shapes: modified };
   const generated = listToArray(ctx, history.generated(sub));
-  if (generated.length > 0) return { status: 'generated', shapes: generated };
-  return { status: 'unchanged', shapes: [sub] };
+  if (generated.length > 0) return { status: TrackStatus.Generated, shapes: generated };
+  return { status: TrackStatus.Unchanged, shapes: [sub] };
 }
 
 /**
@@ -131,7 +136,7 @@ export function carryThroughHistory(
   const out: TrackedRef[] = [];
   for (const t of tracked) {
     const { status, shapes } = followShape(ctx, history, t.shape);
-    if (status === 'removed') continue;
+    if (status === TrackStatus.Removed) continue;
     for (const shape of shapes) out.push({ id: t.id, shape });
   }
   return out;

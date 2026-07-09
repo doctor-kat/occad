@@ -17,7 +17,12 @@ export interface TessellationQuality {
 }
 
 /** Named tessellation presets, coarsest → finest. */
-export type TessellationLevel = 'draft' | 'standard' | 'fine' | 'ultra';
+export enum TessellationLevel {
+  Draft = 'draft',
+  Standard = 'standard',
+  Fine = 'fine',
+  Ultra = 'ultra',
+}
 
 export interface TessellationPreset extends TessellationQuality {
   label: string;
@@ -30,25 +35,25 @@ export interface TessellationPreset extends TessellationQuality {
  * `0.1 / 0.5` values so existing projects render identically by default.
  */
 export const TESSELLATION_PRESETS: Record<TessellationLevel, TessellationPreset> = {
-  draft: {
+  [TessellationLevel.Draft]: {
     label: 'Draft',
     description: 'Fewest faces — fastest rebuild, visibly faceted curves.',
     linearDeflection: 0.5,
     angularDeflection: 1.0,
   },
-  standard: {
+  [TessellationLevel.Standard]: {
     label: 'Standard',
     description: 'Balanced default.',
     linearDeflection: 0.1,
     angularDeflection: 0.5,
   },
-  fine: {
+  [TessellationLevel.Fine]: {
     label: 'Fine',
     description: 'More faces — smoother curves, slower rebuild.',
     linearDeflection: 0.03,
     angularDeflection: 0.2,
   },
-  ultra: {
+  [TessellationLevel.Ultra]: {
     label: 'Ultra',
     description: 'Most faces — smoothest curves, slowest rebuild.',
     linearDeflection: 0.01,
@@ -56,7 +61,7 @@ export const TESSELLATION_PRESETS: Record<TessellationLevel, TessellationPreset>
   },
 };
 
-export const DEFAULT_TESSELLATION_LEVEL: TessellationLevel = 'standard';
+export const DEFAULT_TESSELLATION_LEVEL: TessellationLevel = TessellationLevel.Standard;
 
 /** Resolve a level (or an already-resolved quality) to concrete deflection values. */
 export function resolveTessellationQuality(

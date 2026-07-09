@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { BoxMode } from '@/cad/engine/sketch/sketchBoxSelection';
 
 /**
  * What a viewport right-click resolved to. Drives which context menu is shown
@@ -16,7 +17,16 @@ export type ContextTarget =
   | { kind: 'camera' };
 
 /** Standard camera framings offered by the empty-space context menu. */
-export type CameraViewType = 'fit' | 'front' | 'back' | 'top' | 'bottom' | 'right' | 'left' | 'iso';
+export enum CameraViewType {
+  Fit = 'fit',
+  Front = 'front',
+  Back = 'back',
+  Top = 'top',
+  Bottom = 'bottom',
+  Right = 'right',
+  Left = 'left',
+  Iso = 'iso',
+}
 
 /** An open viewport right-click menu: cursor position (client px) + what was hit. */
 export interface ContextMenuState {
@@ -68,7 +78,7 @@ interface ViewportState {
    * touching). Null when no drag is in progress. Drawn as a DOM overlay over the
    * canvas by OpenCascadeViewport.
    */
-  sketchSelectionBox: { x: number; y: number; w: number; h: number; mode: 'window' | 'crossing' } | null;
+  sketchSelectionBox: { x: number; y: number; w: number; h: number; mode: BoxMode } | null;
 
   /** Open viewport right-click context menu, or null when closed. */
   contextMenu: ContextMenuState | null;

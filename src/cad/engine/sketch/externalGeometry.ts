@@ -8,7 +8,7 @@ import { fingerprintAll, resolveAgainst } from '../fingerprint';
 /** The OCC `TopAbs_ShapeEnum` for an external-geometry sub-shape kind. */
 function shapeEnumFor(ctx: WorkerContext, kind: SubShapeKind): any {
   const e = ctx.oc.TopAbs_ShapeEnum;
-  return kind === 'face' ? e.TopAbs_FACE : kind === 'edge' ? e.TopAbs_EDGE : e.TopAbs_VERTEX;
+  return kind === SubShapeKind.Face ? e.TopAbs_FACE : kind === SubShapeKind.Edge ? e.TopAbs_EDGE : e.TopAbs_VERTEX;
 }
 
 /**

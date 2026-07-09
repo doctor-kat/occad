@@ -8,7 +8,8 @@
  * callers with real geometry may widen them.
  */
 
-import type { Axis, SelectorNode, SubShapeDescriptor, Vec3 } from './types';
+import type { SelectorNode, SubShapeDescriptor, Vec3 } from './types';
+import { Axis } from './types';
 
 export interface EvalOptions {
   /** Max |sin(angle)| treated as "aligned" for parallel/perpendicular/directed. */
@@ -22,9 +23,9 @@ export interface EvalOptions {
 const DEFAULTS: Required<EvalOptions> = { angleTol: 1e-3, coordTol: 1e-6, radiusTol: 1e-4 };
 
 const axisUnit = (axis: Axis): Vec3 =>
-  axis === 'X' ? { x: 1, y: 0, z: 0 } : axis === 'Y' ? { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 };
+  axis === Axis.X ? { x: 1, y: 0, z: 0 } : axis === Axis.Y ? { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 };
 
-const comp = (v: Vec3, axis: Axis): number => (axis === 'X' ? v.x : axis === 'Y' ? v.y : v.z);
+const comp = (v: Vec3, axis: Axis): number => (axis === Axis.X ? v.x : axis === Axis.Y ? v.y : v.z);
 
 const dist = (a: Vec3, b: Vec3): number => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 

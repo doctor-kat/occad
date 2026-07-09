@@ -5,9 +5,9 @@
  * live camera + OrbitControls.
  */
 
-import type { CameraViewType } from '@/frontend/shared/viewportStore';
+import { CameraViewType } from '@/frontend/shared/viewportStore';
 
-export type { CameraViewType };
+export { CameraViewType };
 
 export interface Vec3 {
   x: number;
@@ -49,14 +49,14 @@ export function boundsFromVertices(vertices: ArrayLike<number>): Bounds | null {
 }
 
 /** Unit view directions (camera→target) for each standard orientation. */
-const VIEW_DIRECTIONS: Record<Exclude<CameraViewType, 'fit'>, Vec3> = {
-  front: { x: 0, y: 0, z: 1 },
-  back: { x: 0, y: 0, z: -1 },
-  top: { x: 0, y: 1, z: 0 },
-  bottom: { x: 0, y: -1, z: 0 },
-  right: { x: 1, y: 0, z: 0 },
-  left: { x: -1, y: 0, z: 0 },
-  iso: { x: 1, y: 0.8, z: 1 },
+const VIEW_DIRECTIONS: Record<Exclude<CameraViewType, CameraViewType.Fit>, Vec3> = {
+  [CameraViewType.Front]: { x: 0, y: 0, z: 1 },
+  [CameraViewType.Back]: { x: 0, y: 0, z: -1 },
+  [CameraViewType.Top]: { x: 0, y: 1, z: 0 },
+  [CameraViewType.Bottom]: { x: 0, y: -1, z: 0 },
+  [CameraViewType.Right]: { x: 1, y: 0, z: 0 },
+  [CameraViewType.Left]: { x: -1, y: 0, z: 0 },
+  [CameraViewType.Iso]: { x: 1, y: 0.8, z: 1 },
 };
 
 const norm = (v: Vec3): Vec3 => {
@@ -78,7 +78,7 @@ export function computeCameraView(
   fovDegrees = 45,
   margin = 1.25,
 ): { position: Vec3; target: Vec3 } {
-  const dir = view === 'fit' ? norm(currentDir) : norm(VIEW_DIRECTIONS[view]);
+  const dir = view === CameraViewType.Fit ? norm(currentDir) : norm(VIEW_DIRECTIONS[view]);
   const halfFov = (fovDegrees * Math.PI) / 180 / 2;
   const distance = (bounds.radius / Math.sin(halfFov)) * margin;
   const position: Vec3 = {

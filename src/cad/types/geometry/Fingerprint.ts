@@ -11,7 +11,11 @@
  * "Deterministic topology & stable selections" section in `ROADMAP.md`.
  */
 
-export type SubShapeKind = 'edge' | 'face' | 'vertex';
+export enum SubShapeKind {
+  Edge = 'edge',
+  Face = 'face',
+  Vertex = 'vertex',
+}
 
 export interface Fingerprint {
   kind: SubShapeKind;

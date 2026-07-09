@@ -1,5 +1,9 @@
 /** Solid-interchange formats that can be read back into a B-rep body. */
-export type ImportFormat = 'step' | 'iges' | 'obj';
+export enum ImportFormat {
+  Step = 'step',
+  Iges = 'iges',
+  Obj = 'obj',
+}
 
 /**
  * Parameters for an Import feature. The raw file text is stored inline so a

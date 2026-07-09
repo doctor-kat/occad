@@ -1,7 +1,7 @@
 import { Menu, Box } from '@mantine/core';
 import type { CADProject, SketchElement } from '@/cad/types';
 import { compareBuildOrder } from '@/cad/types';
-import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { useViewportStore, CameraViewType } from '@/frontend/shared/viewportStore';
 import { computeSketchChain } from './contextTarget';
 import { midpointOf } from './sketchMidpoint';
 
@@ -205,16 +205,16 @@ export function ViewportContextMenu({
       case 'camera':
         return (
           <>
-            <Menu.Item onClick={() => { requestCameraView('fit'); close(); }}>Zoom to Fit</Menu.Item>
+            <Menu.Item onClick={() => { requestCameraView(CameraViewType.Fit); close(); }}>Zoom to Fit</Menu.Item>
             <Menu.Divider />
             <Menu.Label>Standard Views</Menu.Label>
-            <Menu.Item onClick={() => { requestCameraView('front'); close(); }}>Front</Menu.Item>
-            <Menu.Item onClick={() => { requestCameraView('back'); close(); }}>Back</Menu.Item>
-            <Menu.Item onClick={() => { requestCameraView('top'); close(); }}>Top</Menu.Item>
-            <Menu.Item onClick={() => { requestCameraView('bottom'); close(); }}>Bottom</Menu.Item>
-            <Menu.Item onClick={() => { requestCameraView('left'); close(); }}>Left</Menu.Item>
-            <Menu.Item onClick={() => { requestCameraView('right'); close(); }}>Right</Menu.Item>
-            <Menu.Item onClick={() => { requestCameraView('iso'); close(); }}>Isometric</Menu.Item>
+            <Menu.Item onClick={() => { requestCameraView(CameraViewType.Front); close(); }}>Front</Menu.Item>
+            <Menu.Item onClick={() => { requestCameraView(CameraViewType.Back); close(); }}>Back</Menu.Item>
+            <Menu.Item onClick={() => { requestCameraView(CameraViewType.Top); close(); }}>Top</Menu.Item>
+            <Menu.Item onClick={() => { requestCameraView(CameraViewType.Bottom); close(); }}>Bottom</Menu.Item>
+            <Menu.Item onClick={() => { requestCameraView(CameraViewType.Left); close(); }}>Left</Menu.Item>
+            <Menu.Item onClick={() => { requestCameraView(CameraViewType.Right); close(); }}>Right</Menu.Item>
+            <Menu.Item onClick={() => { requestCameraView(CameraViewType.Iso); close(); }}>Isometric</Menu.Item>
           </>
         );
     }

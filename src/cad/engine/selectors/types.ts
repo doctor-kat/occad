@@ -8,8 +8,14 @@
  * in `grammar.ts`, and matching in `evaluate.ts` — all pure and unit-testable.
  */
 
-export type Axis = 'X' | 'Y' | 'Z';
-export type SubShapeKind = 'edge' | 'face' | 'vertex';
+import { SubShapeKind } from '@/cad/types';
+
+export enum Axis {
+  X = 'X',
+  Y = 'Y',
+  Z = 'Z',
+}
+export { SubShapeKind };
 export interface Vec3 { x: number; y: number; z: number }
 
 /**

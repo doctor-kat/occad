@@ -32,12 +32,11 @@ import type {
   Vector3D,
   FeatureRefEnrichment,
   SketchRefEnrichment,
-  SubShapeKind,
   StableRef,
   MeasureSelection,
   TessellationQuality,
 } from '@/cad/types';
-import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuildOrder, isRolledBack } from '@/cad/types';
+import { ShapeType, FeatureOperation, TransformOperation, PlaneType, compareBuildOrder, isRolledBack, SubShapeKind } from '@/cad/types';
 import type { WorkerContext } from './workerContext';
 import { post, bodyTessellation } from './workerContext';
 import { getTransferables, findSketchShape, ensureFace } from './helpers';
@@ -548,28 +547,28 @@ export async function handleRebuild(
               switch (feature.type) {
                 case FeatureOperation.FILLET: {
                   const p = feature.parameters as FilletParams;
-                  const enriched = enrichRefs(ctx, body, p.edges, 'edge');
+                  const enriched = enrichRefs(ctx, body, p.edges, SubShapeKind.Edge);
                   currentBody = applyFillet(ctx, body, p);
                   if (enriched) refEnrichments.push({ featureId: feature.id, key: 'edges', refs: enriched });
                   break;
                 }
                 case FeatureOperation.CHAMFER: {
                   const p = feature.parameters as ChamferParams;
-                  const enriched = enrichRefs(ctx, body, p.edges, 'edge');
+                  const enriched = enrichRefs(ctx, body, p.edges, SubShapeKind.Edge);
                   currentBody = applyChamfer(ctx, body, p);
                   if (enriched) refEnrichments.push({ featureId: feature.id, key: 'edges', refs: enriched });
                   break;
                 }
                 case FeatureOperation.SHELL: {
                   const p = feature.parameters as ShellParams;
-                  const enriched = enrichRefs(ctx, body, p.faces, 'face');
+                  const enriched = enrichRefs(ctx, body, p.faces, SubShapeKind.Face);
                   currentBody = applyShell(ctx, body, p);
                   if (enriched) refEnrichments.push({ featureId: feature.id, key: 'faces', refs: enriched });
                   break;
                 }
                 case FeatureOperation.OFFSET: {
                   const p = feature.parameters as OffsetParams;
-                  const enriched = enrichRefs(ctx, body, p.faces, 'face');
+                  const enriched = enrichRefs(ctx, body, p.faces, SubShapeKind.Face);
                   currentBody = applyOffset(ctx, body, p);
                   if (enriched) refEnrichments.push({ featureId: feature.id, key: 'faces', refs: enriched });
                   break;
@@ -644,7 +643,7 @@ export async function handleRebuild(
           if (currentBody) {
             faceOwnership = attributeFaceOwners(
               faceOwnership,
-              fingerprintAll(ctx, currentBody, 'face'),
+              fingerprintAll(ctx, currentBody, SubShapeKind.Face),
               feature.id,
             );
           }

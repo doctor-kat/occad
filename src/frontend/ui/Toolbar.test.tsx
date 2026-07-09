@@ -3,6 +3,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/helpers";
 import { Toolbar } from "./Toolbar";
+import { TessellationLevel } from "@/cad/types";
 
 describe("Toolbar", () => {
   const defaultProps = {
@@ -15,7 +16,7 @@ describe("Toolbar", () => {
     onRedo: vi.fn(),
     canUndo: false,
     canRedo: false,
-    tessellationLevel: "standard" as const,
+    tessellationLevel: TessellationLevel.Standard,
     onTessellationLevelChange: vi.fn(),
   };
 
@@ -71,6 +72,6 @@ describe("Toolbar", () => {
     expect(await screen.findByText("Tessellation quality")).toBeInTheDocument();
 
     await userEvent.click(screen.getByText("Fine"));
-    expect(onTessellationLevelChange).toHaveBeenCalledWith("fine");
+    expect(onTessellationLevelChange).toHaveBeenCalledWith(TessellationLevel.Fine);
   });
 });

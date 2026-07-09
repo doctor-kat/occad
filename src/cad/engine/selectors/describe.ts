@@ -21,7 +21,8 @@
 type TopoDS_Shape = any;
 import type { WorkerContext } from '../workerContext';
 import { computeFingerprint } from '../fingerprint';
-import type { SubShapeDescriptor, SubShapeKind, Vec3 } from './types';
+import type { SubShapeDescriptor, Vec3 } from './types';
+import { SubShapeKind } from './types';
 
 const toVec = (d: any): Vec3 => ({ x: d.X(), y: d.Y(), z: d.Z() });
 /** Adding 0 collapses -0 → 0 so negated/zeroed components don't leak `-0`. */
@@ -34,12 +35,12 @@ function normalize(v: Vec3): Vec3 {
 
 function shapeEnumFor(ctx: WorkerContext, kind: SubShapeKind): any {
   const e = ctx.oc.TopAbs_ShapeEnum;
-  return kind === 'edge' ? e.TopAbs_EDGE : kind === 'face' ? e.TopAbs_FACE : e.TopAbs_VERTEX;
+  return kind === SubShapeKind.Edge ? e.TopAbs_EDGE : kind === SubShapeKind.Face ? e.TopAbs_FACE : e.TopAbs_VERTEX;
 }
 
 function castSubShape(ctx: WorkerContext, sub: TopoDS_Shape, kind: SubShapeKind): TopoDS_Shape {
   const { oc } = ctx;
-  return kind === 'edge' ? oc.TopoDS.Edge_1(sub) : kind === 'face' ? oc.TopoDS.Face_1(sub) : oc.TopoDS.Vertex_1(sub);
+  return kind === SubShapeKind.Edge ? oc.TopoDS.Edge_1(sub) : kind === SubShapeKind.Face ? oc.TopoDS.Face_1(sub) : oc.TopoDS.Vertex_1(sub);
 }
 
 /** Flatten the 1-based OCC sub-shape map to a 0-based array of cast sub-shapes. */
@@ -126,10 +127,10 @@ export function describeSubShapes(
       centroid: fp.centroid,
       obb: fp.obb,
     };
-    if (kind === 'vertex') return base;
+    if (kind === SubShapeKind.Vertex) return base;
 
-    const direction = kind === 'face' ? faceNormal(ctx, sub) : edgeTangent(ctx, sub);
-    const radius = kind === 'face' ? faceRadius(ctx, sub) : edgeRadius(ctx, sub);
+    const direction = kind === SubShapeKind.Face ? faceNormal(ctx, sub) : edgeTangent(ctx, sub);
+    const radius = kind === SubShapeKind.Face ? faceRadius(ctx, sub) : edgeRadius(ctx, sub);
     if (direction) base.direction = direction;
     if (radius !== undefined) base.radius = radius;
     return base;

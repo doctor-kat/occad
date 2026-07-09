@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/helpers";
-import { OperationGroupButton, OperationGroupOption } from "./OperationGroupButton";
+import { OperationGroupButton, OperationGroupOption, OperationButtonVariant } from "./OperationGroupButton";
 import { SketchOperation } from "@/cad/types";
 import { lineGroup, rectangleGroup, circleGroup, arcGroup } from "./OperationData";
 
@@ -106,7 +106,7 @@ describe("OperationGroupButton", () => {
     renderWithProviders(
       <OperationGroupButton
         options={circleGroup.options}
-        variant="full"
+        variant={OperationButtonVariant.Full}
         activeOperation={null}
         onOperationSelect={onOperationSelect}
       />,
@@ -129,7 +129,7 @@ describe("OperationGroupButton", () => {
       <OperationGroupButton
         options={arcGroup.options}
         defaultOptionId={arcGroup.defaultOptionId}
-        variant="full"
+        variant={OperationButtonVariant.Full}
         activeOperation={null}
         onOperationSelect={onOperationSelect}
       />,
@@ -149,7 +149,7 @@ describe("OperationGroupButton", () => {
       <OperationGroupButton
         options={arcGroup.options}
         defaultOptionId={arcGroup.defaultOptionId}
-        variant="full"
+        variant={OperationButtonVariant.Full}
         activeOperation={null}
         onOperationSelect={onOperationSelect}
       />,

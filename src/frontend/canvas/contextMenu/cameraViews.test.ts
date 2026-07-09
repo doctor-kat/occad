@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { boundsFromVertices, computeCameraView } from './cameraViews';
+import { CameraViewType } from '@/frontend/shared/viewportStore';
 
 describe('boundsFromVertices', () => {
   it('returns null for an empty buffer', () => {
@@ -27,7 +28,7 @@ describe('computeCameraView', () => {
   const bounds = { min: { x: -1, y: -1, z: -1 }, max: { x: 1, y: 1, z: 1 }, center: { x: 0, y: 0, z: 0 }, radius: 1 };
 
   it('places a front view on +Z looking at the center', () => {
-    const { position, target } = computeCameraView('front', bounds, { x: 5, y: 5, z: 5 });
+    const { position, target } = computeCameraView(CameraViewType.Front, bounds, { x: 5, y: 5, z: 5 });
     expect(target).toEqual({ x: 0, y: 0, z: 0 });
     expect(position.x).toBeCloseTo(0);
     expect(position.y).toBeCloseTo(0);
@@ -35,7 +36,7 @@ describe('computeCameraView', () => {
   });
 
   it('places a top view on +Y', () => {
-    const { position } = computeCameraView('top', bounds, { x: 1, y: 0, z: 0 });
+    const { position } = computeCameraView(CameraViewType.Top, bounds, { x: 1, y: 0, z: 0 });
     expect(position.x).toBeCloseTo(0);
     expect(position.z).toBeCloseTo(0);
     expect(position.y).toBeGreaterThan(0);
@@ -43,23 +44,23 @@ describe('computeCameraView', () => {
 
   it('fit preserves the current view direction', () => {
     // Current direction along +X → fitted camera stays on the +X axis.
-    const { position } = computeCameraView('fit', bounds, { x: 10, y: 0, z: 0 });
+    const { position } = computeCameraView(CameraViewType.Fit, bounds, { x: 10, y: 0, z: 0 });
     expect(position.y).toBeCloseTo(0);
     expect(position.z).toBeCloseTo(0);
     expect(position.x).toBeGreaterThan(0);
   });
 
   it('a larger bound pushes the camera farther away', () => {
-    const near = computeCameraView('front', bounds, { x: 0, y: 0, z: 1 }).position.z;
+    const near = computeCameraView(CameraViewType.Front, bounds, { x: 0, y: 0, z: 1 }).position.z;
     const bigBounds = { ...bounds, radius: 10 };
-    const far = computeCameraView('front', bigBounds, { x: 0, y: 0, z: 1 }).position.z;
+    const far = computeCameraView(CameraViewType.Front, bigBounds, { x: 0, y: 0, z: 1 }).position.z;
     expect(far).toBeGreaterThan(near);
   });
 
   it('frames the sphere within the vertical FOV (distance ≈ r/sin(fov/2)·margin)', () => {
     const fov = 45;
     const margin = 1.25;
-    const { position } = computeCameraView('front', bounds, { x: 0, y: 0, z: 1 }, fov, margin);
+    const { position } = computeCameraView(CameraViewType.Front, bounds, { x: 0, y: 0, z: 1 }, fov, margin);
     const expected = (bounds.radius / Math.sin((fov * Math.PI) / 180 / 2)) * margin;
     expect(position.z).toBeCloseTo(expected);
   });

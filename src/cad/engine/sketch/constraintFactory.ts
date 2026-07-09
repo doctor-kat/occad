@@ -9,8 +9,10 @@
 
 // ConstraintKind/ConstraintInput are UI-facing DTOs, so they live in src/cad/types
 // (the only layer other layers may import from) rather than here in the engine.
-export type { ConstraintKind, ConstraintInput } from '@/cad/types';
-import type { ConstraintKind, ConstraintInput } from '@/cad/types';
+export type { ConstraintInput } from '@/cad/types';
+export { ConstraintKind } from '@/cad/types';
+import type { ConstraintInput } from '@/cad/types';
+import { ConstraintKind } from '@/cad/types';
 
 /** A planegcs constraint object (loose — planegcs uses a structural union). */
 export type PlanegcsConstraint = Record<string, any> & { id: string; type: string };
@@ -91,18 +93,18 @@ export function createConstraint(id: string, input: ConstraintInput): PlanegcsCo
 
 /** Number of entities a constraint kind expects (for UI selection validation). */
 export const CONSTRAINT_ARITY: Record<ConstraintKind, number> = {
-  horizontal: 1,
-  vertical: 1,
-  coincident: 2,
-  parallel: 2,
-  perpendicular: 2,
-  distance: 2,
-  'horizontal-distance': 2,
-  'vertical-distance': 2,
-  'point-line-distance': 2,
-  radius: 1,
-  equal: 2,
-  tangent: 2,
-  angle: 2,
-  midpoint: 3,
+  [ConstraintKind.Horizontal]: 1,
+  [ConstraintKind.Vertical]: 1,
+  [ConstraintKind.Coincident]: 2,
+  [ConstraintKind.Parallel]: 2,
+  [ConstraintKind.Perpendicular]: 2,
+  [ConstraintKind.Distance]: 2,
+  [ConstraintKind.HorizontalDistance]: 2,
+  [ConstraintKind.VerticalDistance]: 2,
+  [ConstraintKind.PointLineDistance]: 2,
+  [ConstraintKind.Radius]: 1,
+  [ConstraintKind.Equal]: 2,
+  [ConstraintKind.Tangent]: 2,
+  [ConstraintKind.Angle]: 2,
+  [ConstraintKind.Midpoint]: 3,
 };

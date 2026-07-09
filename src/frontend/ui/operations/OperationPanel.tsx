@@ -26,9 +26,8 @@ import type {
   Point3D,
   CADProject,
   StableRef,
-  SubShapeKind,
 } from '@/cad/types';
-import { PlaneType, FeatureOperation, TransformOperation, SketchOperation, refLabel } from '@/cad/types';
+import { PlaneType, FeatureOperation, TransformOperation, SketchOperation, refLabel, SubShapeKind } from '@/cad/types';
 
 /** Common presets for the selector-rule input — discoverable without learning the DSL. */
 const EDGE_SELECTOR_PRESETS = [
@@ -407,7 +406,7 @@ export function OperationPanel({
       }
       const labels = refs.map(refLabel);
       const merge = (prev: string[]) => Array.from(new Set([...prev, ...labels]));
-      if (kind === 'edge') setSelectedEdges(merge);
+      if (kind === SubShapeKind.Edge) setSelectedEdges(merge);
       else setSelectedFaces(merge);
       setSelectorStatus('matched');
       if (keepSelectorLive) setLiveSelector(selector);
@@ -425,7 +424,7 @@ export function OperationPanel({
       <Stack gap={4}>
         <TextInput
           label="Select by rule"
-          placeholder={kind === 'edge' ? 'e.g. |Z (all vertical edges)' : 'e.g. >Z (top face)'}
+          placeholder={kind === SubShapeKind.Edge ? 'e.g. |Z (all vertical edges)' : 'e.g. >Z (top face)'}
           value={selectorText}
           onChange={(e) => { setSelectorText(e.currentTarget.value); setSelectorStatus('idle'); }}
           onKeyDown={(e) => { if (e.key === 'Enter') applySelector(kind, selectorText); }}
@@ -626,7 +625,7 @@ export function OperationPanel({
         return (
           <>
             <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
-            {renderSelectorInput('edge', EDGE_SELECTOR_PRESETS)}
+            {renderSelectorInput(SubShapeKind.Edge, EDGE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Edges"
               placeholder="Select edges"
@@ -644,7 +643,7 @@ export function OperationPanel({
         return (
           <>
             <NumberInput label="Distance" value={distance} onChange={(val) => setDistance(Number(val))} min={0.1} size="sm" />
-            {renderSelectorInput('edge', EDGE_SELECTOR_PRESETS)}
+            {renderSelectorInput(SubShapeKind.Edge, EDGE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Edges"
               placeholder="Select edges"
@@ -662,7 +661,7 @@ export function OperationPanel({
         return (
           <>
             <NumberInput label="Thickness" value={thickness} onChange={(val) => setThickness(Number(val))} min={0.1} size="sm" />
-            {renderSelectorInput('face', FACE_SELECTOR_PRESETS)}
+            {renderSelectorInput(SubShapeKind.Face, FACE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Faces to Remove"
               placeholder="Select faces"

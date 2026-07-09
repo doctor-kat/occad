@@ -11,6 +11,7 @@ import { SelectionDisplay } from "./SelectionDisplay";
 import { LoadingOverlay } from "./LoadingOverlay";
 import { ErrorOverlay } from "./ErrorOverlay";
 import type { ConstraintInput } from "@/cad/engine/sketch/constraintFactory";
+import { BoxMode } from "@/cad/engine/sketch/sketchBoxSelection";
 
 export interface OpenCascadeViewportProps {
   /** CAD project to render (if provided, enables parametric mode) */
@@ -194,10 +195,10 @@ export function OpenCascadeViewport({
             height: sketchSelectionBox.h,
             zIndex: 20,
             pointerEvents: 'none',
-            border: sketchSelectionBox.mode === 'window'
+            border: sketchSelectionBox.mode === BoxMode.Window
               ? `1px solid ${theme.colors.cyan[4]}`
               : `1px dashed ${theme.colors.green[4]}`,
-            backgroundColor: sketchSelectionBox.mode === 'window'
+            backgroundColor: sketchSelectionBox.mode === BoxMode.Window
               ? `${theme.colors.cyan[4]}1a`
               : `${theme.colors.green[4]}1a`,
           }}

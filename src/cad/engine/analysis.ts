@@ -12,6 +12,7 @@
 type TopoDS_Shape = any;
 import type { WorkerContext } from './workerContext';
 import type { MeasurementData, MeasureBetweenData, MeasureSelection } from '@/cad/types';
+import { SubShapeKind } from '@/cad/types';
 import { mapSubShapes } from './fingerprint';
 
 /**
@@ -133,7 +134,7 @@ function computeDistance(
  */
 function directionOf(ctx: WorkerContext, sub: TopoDS_Shape, kind: MeasureSelection['kind']): Vec3 | undefined {
   const { oc } = ctx;
-  if (kind === 'face') {
+  if (kind === SubShapeKind.Face) {
     const adaptor = new oc.BRepAdaptor_Surface_2(sub, true);
     let dir: Vec3 | undefined;
     if (adaptor.GetType() === oc.GeomAbs_SurfaceType.GeomAbs_Plane) {
@@ -142,7 +143,7 @@ function directionOf(ctx: WorkerContext, sub: TopoDS_Shape, kind: MeasureSelecti
     adaptor.delete?.();
     return dir;
   }
-  if (kind === 'edge') {
+  if (kind === SubShapeKind.Edge) {
     const adaptor = new oc.BRepAdaptor_Curve_2(sub);
     let dir: Vec3 | undefined;
     if (adaptor.GetType() === oc.GeomAbs_CurveType.GeomAbs_Line) {
