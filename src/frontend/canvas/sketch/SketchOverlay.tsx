@@ -1620,11 +1620,11 @@ export function SketchOverlay({
       ))}
 
       {/* Highlight edges when edge constraint is active */}
-      {activeConstraint === 'edge' && sketch.elements.map((element, index) => {
+      {activeConstraint === 'edge' && sketch.elements.map((element) => {
         if (element.type === SketchElementType.LINE) {
           return (
             <SketchElementRenderer3D
-              key={`edge-highlight-${index}`}
+              key={`edge-highlight-${element.id}`}
               element={element}
               color="#f97316"
               opacity={0.5}
@@ -1634,7 +1634,7 @@ export function SketchOverlay({
         } else if (element.type === SketchElementType.RECTANGLE) {
           return (
             <SketchElementRenderer3D
-              key={`edge-highlight-${index}`}
+              key={`edge-highlight-${element.id}`}
               element={element}
               color="#f97316"
               opacity={0.5}

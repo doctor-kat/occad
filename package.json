@@ -29,8 +29,6 @@
     "opencascade.js": "^2.0.0-beta.b5ff984",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-reconciler": "^0.29.2",
-    "scheduler": "^0.23.2",
     "three": "^0.182.0",
     "zustand": "^5.0.11"
   },

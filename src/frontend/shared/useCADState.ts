@@ -127,7 +127,7 @@ function migrateProject(raw: CADProject): CADProject {
   if (!needsMigration) return raw;
 
   const sketchIdsUsedByFeatures = new Set(
-    raw.features.map((f) => f.sketchId).filter(Boolean)
+    raw.features.flatMap((f) => (f.sketchId ? [f.sketchId] : []))
   );
 
   return {
@@ -251,7 +251,7 @@ export function useCADState() {
 
     // Collect standalone sketches and features into one array, sorted by createdAt
     const sketchIdsUsedByFeatures = new Set(
-      project.features.map((f) => f.sketchId).filter(Boolean)
+      project.features.flatMap((f) => (f.sketchId ? [f.sketchId] : []))
     );
 
     const chronologicalItems: { createdAt: number; item: FeatureTreeItem }[] = [];
@@ -324,7 +324,7 @@ export function useCADState() {
   // part of the build order). Used to convert the bar's index ↔ its threshold.
   const orderedTopLevelKeys = useMemo(() => {
     const sketchIdsUsedByFeatures = new Set(
-      project.features.map((f) => f.sketchId).filter(Boolean)
+      project.features.flatMap((f) => (f.sketchId ? [f.sketchId] : []))
     );
     return [
       ...project.sketches.filter((s) => !sketchIdsUsedByFeatures.has(s.id)),
@@ -347,7 +347,7 @@ export function useCADState() {
   const moveRollbackBar = useCallback((newIndex: number) => {
     setProject((prev) => {
       const sketchIdsUsedByFeatures = new Set(
-        prev.features.map((f) => f.sketchId).filter(Boolean)
+        prev.features.flatMap((f) => (f.sketchId ? [f.sketchId] : []))
       );
       const keys = [
         ...prev.sketches.filter((s) => !sketchIdsUsedByFeatures.has(s.id)),

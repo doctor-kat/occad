@@ -9,7 +9,7 @@ import { SketchEntitiesPanel } from './SketchEntitiesPanel';
 import { useCADState } from '@/frontend/shared/useCADState';
 import { useOpenCascade } from '@/worker/bridge/useOpenCascade';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
-import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Group } from '@mantine/core';
+import { AppShell, Box, useMantineTheme, Tabs, Center, Tooltip, ActionIcon, Group, Stack } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { FeatureTreeIcon, EntitiesIcon, MeasureIcon } from '@/frontend/shared/icons';
