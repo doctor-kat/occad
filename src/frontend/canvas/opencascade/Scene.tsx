@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Environment, OrbitControls, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import { CAMERA_MOUSE_BUTTONS, middleButtonAction } from "./cameraMouseButtons";
-import type { MeshData, CADProject, Sketch, SketchEdgeData, SketchOperation } from "@/cad/types";
+import type { MeshData, CADProject, Sketch, SketchEdgeData, SketchOperation, ConstraintInput } from "@/cad/types";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import { OCCModel } from "./OCCModel";
 import { ReferencePlanes, buildReferenceVisibilityMap } from "./ReferencePlanes";
@@ -11,7 +11,6 @@ import { ExtrudeArrows } from "./ExtrudeArrows";
 import { SketchOverlay } from "../sketch/SketchOverlay";
 import { SketchCameraOrient } from "../sketch/SketchCameraOrient";
 import { CameraController } from "../contextMenu/CameraController";
-import type { ConstraintInput } from "@/cad/engine/sketch/constraintFactory";
 
 export interface SceneProps {
   mesh: MeshData | null;

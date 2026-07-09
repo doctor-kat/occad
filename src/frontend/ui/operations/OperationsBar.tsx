@@ -3,7 +3,8 @@ import { Tabs, Box, Group, useMantineTheme } from '@mantine/core';
 import { OperationCategory, Operation, SketchOperation } from '@/cad/types';
 import { OperationButton } from './OperationButton';
 import { CompactOperationButton } from './CompactOperationButton';
-import { OperationGroupButton, OperationButtonVariant } from './OperationGroupButton';
+import { OperationGroupButton } from './OperationGroupButton';
+import { OperationButtonVariant } from './OperationButtonVariant';
 import { OperationDivider } from './OperationDivider';
 import { CADTab } from './CADTab';
 import {
@@ -24,8 +25,7 @@ import {
   disabledOperations
 } from './OperationData';
 import type { OperationGroup } from './OperationData';
-
-type OperationItem = { id: Operation; icon: React.ReactNode; label: string };
+import type { OperationItem } from './OperationItem';
 
 // In the sketch tab every tool (except the Sketch button itself) is rendered small
 // (compact). Tools that have variants are compact split-button groups; the rest are

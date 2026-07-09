@@ -1,4 +1,4 @@
-import { SubShapeKind } from './Fingerprint';
+import { SubShapeKind } from './SubShapeKind';
 import type { Fingerprint } from './Fingerprint';
 
 /** A selection reference that resolves by fingerprint, falling back to index. */

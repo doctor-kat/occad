@@ -6,12 +6,7 @@ import { OperationButton } from './OperationButton';
 import { CompactOperationButton } from './CompactOperationButton';
 import { IconOperationButton } from './IconOperationButton';
 import type { OperationGroupOption } from './OperationGroupOption';
-
-export enum OperationButtonVariant {
-  Full = 'full',
-  Compact = 'compact',
-  Icon = 'icon',
-}
+import { OperationButtonVariant } from './OperationButtonVariant';
 
 export interface OperationGroupButtonProps {
   options: OperationGroupOption[];

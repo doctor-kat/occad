@@ -12,9 +12,8 @@ import {
   TangentIcon,
 } from '@/frontend/shared/icons';
 import { useMantineTheme } from '@mantine/core';
-import type { Sketch, SketchElement } from '@/cad/types';
+import type { Sketch, SketchElement, ConstraintInput } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
-import type { ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 
 interface SketchConstraintToolbarProps {

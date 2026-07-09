@@ -1,10 +1,4 @@
-export enum ShapeType {
-  SOLID = 'solid',
-  FACE = 'face',
-  WIRE = 'wire',
-  EDGE = 'edge',
-  VERTEX = 'vertex'
-}
+import type { ShapeType } from './ShapeType';
 
 /** Reference to OpenCascade shape in worker */
 export interface ShapeReference {

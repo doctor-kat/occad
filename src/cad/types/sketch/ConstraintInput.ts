@@ -1,19 +1,4 @@
-export enum ConstraintKind {
-  Horizontal = 'horizontal',
-  Vertical = 'vertical',
-  Coincident = 'coincident',
-  Parallel = 'parallel',
-  Perpendicular = 'perpendicular',
-  Distance = 'distance',
-  HorizontalDistance = 'horizontal-distance',
-  VerticalDistance = 'vertical-distance',
-  PointLineDistance = 'point-line-distance',
-  Radius = 'radius',
-  Equal = 'equal',
-  Tangent = 'tangent',
-  Angle = 'angle',
-  Midpoint = 'midpoint',
-}
+import type { ConstraintKind } from './ConstraintKind';
 
 /** Discriminated input describing which entities a constraint applies to. */
 export type ConstraintInput =

@@ -79,6 +79,14 @@ Everything below is optional. None is started unless noted.
 - ✅ **One type per file** — files that declared more than one `interface`/`type` (e.g. `viewportStore.ts`,
   `history.ts`, `Fingerprint.ts`, `Sketch.ts`, `MeasurementData.ts`, `constraintAnchors.ts`) split into
   one-type-per-file, matching the existing `cad/types/operations/*.ts` convention; all importers updated.
+  Follow-up pass split the remaining offenders too: `SubShapeKind`, `ShapeType`, `ImportFormat`,
+  `MeasureType`, `SketchGroupType`, `SketchPrimitiveType`, `FeatureTreeItemType`, `ConstraintKind`
+  (`cad/types`), and `OperationButtonVariant`, `OperationItem`, `PolyPoint`, `Vec3`/`Bounds` (frontend) each
+  now live in their own file, with data-model `Props`/options interfaces intentionally left co-located with
+  their component per existing convention. Also fixed a cross-layer leak: `PlanegcsConstraint` (a DTO used
+  by both engine and UI) had been living in `cad/engine/sketch/`; moved to `cad/types/sketch/`, and several
+  UI files importing `ConstraintInput` via the engine's `constraintFactory.ts` re-export were switched to
+  import it directly from `@/cad/types`.
 - ✅ **One operation per file (engine)** — `advancedModeling.ts`, `analysis.ts`, `modifications.ts`, and
   `transforms.ts` split into `advancedModeling/{sweep,loft}.ts`, `analysis/{measureShape,measureBetween}.ts`,
   `modifications/{fillet,chamfer,shell,offset,shared}.ts`, and `transforms/{move,rotate,mirror,scale,

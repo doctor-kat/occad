@@ -14,7 +14,7 @@ import { notifications } from '@mantine/notifications';
 import { modals } from '@mantine/modals';
 import { FeatureTreeIcon, EntitiesIcon, MeasureIcon } from '@/frontend/shared/icons';
 import { MeasurePanel } from './MeasurePanel';
-import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, Operation, ImportParams, MeasurementData, MeasureBetweenData, MeasureSelection, TessellationLevel } from '@/cad/types';
+import type { Sketch, SketchElement, SketchPlane, ExtrudeParams, StableRef, Operation, ImportParams, MeasurementData, MeasureBetweenData, MeasureSelection, TessellationLevel, ConstraintInput } from '@/cad/types';
 import { SketchOperation, PlaneType, FeatureOperation, TransformOperation, OperationCategory, ReferenceGeometryType, EXPORT_EXTENSIONS, DEFAULT_TESSELLATION_LEVEL, resolveTessellationQuality, SubShapeKind, ImportFormat, ExportFormat } from '@/cad/types';
 import { useLocalStorage } from '@/frontend/shared/useLocalStorage';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
@@ -22,7 +22,7 @@ import { withMidpointPoint } from '@/frontend/canvas/contextMenu/sketchMidpoint'
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
 import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/engine/sketch/originPoint';
 import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
-import { createConstraint, type ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
+import { createConstraint } from '@/cad/engine/sketch/constraintFactory';
 import { removeUnit } from '@/cad/engine/sketch/sketchGroups';
 import { SketchConstraintToolbar } from './operations/SketchConstraintToolbar';
 import { SketchConstraintList } from './operations/SketchConstraintList';

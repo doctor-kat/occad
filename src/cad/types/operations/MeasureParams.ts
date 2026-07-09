@@ -1,9 +1,4 @@
-export enum MeasureType {
-  DISTANCE = 'distance',
-  ANGLE = 'angle',
-  AREA = 'area',
-  VOLUME = 'volume',
-}
+import type { MeasureType } from './MeasureType';
 
 export interface MeasureParams {
   type: MeasureType;

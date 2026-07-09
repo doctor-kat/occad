@@ -16,7 +16,7 @@ import {
   type CadIconProps,
 } from '@/frontend/shared/icons';
 import * as THREE from 'three';
-import type { Sketch, SketchElement, Point2D } from '@/cad/types';
+import type { Sketch, SketchElement, Point2D, ConstraintInput } from '@/cad/types';
 import { SketchOperation, SketchElementType } from '@/cad/types';
 import { getWorkplaneTransform } from './getPlaneTransform';
 import {
@@ -46,7 +46,6 @@ import {
 import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors';
 import { hitsDimensionHandle } from '@/cad/engine/sketch/dimensionHandleHitTest';
 import { ORIGIN_POINT_ID } from '@/cad/engine/sketch/originPoint';
-import type { ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 
 /**
  * No-op raycast: makes a mesh/line render but never be an intersection target.

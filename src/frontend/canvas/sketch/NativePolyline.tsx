@@ -1,10 +1,9 @@
 import { useMemo, useEffect } from 'react';
 import * as THREE from 'three';
+import type { PolyPoint } from './PolyPoint';
 
 /** No-op raycast: visible but never an intersection target (see SketchOverlay). */
 const NO_RAYCAST = () => null;
-
-export type PolyPoint = THREE.Vector3 | [number, number, number];
 
 export interface NativePolylineProps {
   /** Ordered vertices of the polyline (close it yourself by repeating the first point). */

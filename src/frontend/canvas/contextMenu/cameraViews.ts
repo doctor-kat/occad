@@ -6,22 +6,10 @@
  */
 
 import { CameraViewType } from '@/frontend/shared/viewportStore';
+import type { Vec3 } from './Vec3';
+import type { Bounds } from './Bounds';
 
 export { CameraViewType };
-
-export interface Vec3 {
-  x: number;
-  y: number;
-  z: number;
-}
-
-export interface Bounds {
-  min: Vec3;
-  max: Vec3;
-  center: Vec3;
-  /** Radius of the bounding sphere around `center`. */
-  radius: number;
-}
 
 /**
  * Bounding box + sphere of a flat [x,y,z, x,y,z, …] vertex buffer. Returns null

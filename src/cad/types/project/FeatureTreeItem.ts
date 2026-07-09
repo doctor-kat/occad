@@ -1,12 +1,7 @@
 import { Feature } from './Feature';
 import { ReferenceGeometry } from './ReferenceGeometry/ReferenceGeometry';
 import { Sketch } from '../sketch/Sketch';
-
-export enum FeatureTreeItemType {
-  REFERENCE_GEOMETRY = 'reference-geometry',
-  SKETCH = 'sketch',
-  FEATURE = 'feature'
-}
+import type { FeatureTreeItemType } from './FeatureTreeItemType';
 
 export interface FeatureTreeItem {
   id: string;

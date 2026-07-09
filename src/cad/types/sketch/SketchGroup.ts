@@ -7,12 +7,7 @@
  * with a parallel array — the group's members are always exactly the elements that
  * reference its id. See ROADMAP.md §1.1.2.
  */
-export type SketchGroupType = 'center-rectangle';
-
-/** Human-readable prefix for each group type (indexed → "Center Rectangle 1"). */
-export const GROUP_LABELS: Record<SketchGroupType, string> = {
-  'center-rectangle': 'Center Rectangle',
-};
+import type { SketchGroupType } from './SketchGroupType';
 
 export interface SketchGroupMembership {
   /** If set, this element belongs to a composite group and is selected / deleted /

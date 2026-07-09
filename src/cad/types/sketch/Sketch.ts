@@ -4,14 +4,6 @@ import { SketchElement } from './SketchElement';
 import type { SketchPrimitive } from './SketchPrimitive';
 import type { SketchVisualMetadata } from './SketchVisualMetadata';
 
-export enum SketchPrimitiveType {
-  Point = 'point',
-  Line = 'line',
-  Circle = 'circle',
-  Arc = 'arc',
-  Ellipse = 'ellipse',
-}
-
 export interface Sketch {
   id: string;
   name: string;

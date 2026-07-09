@@ -1,6 +1,5 @@
-import type { SketchElement } from '@/cad/types';
+import type { SketchElement, PlanegcsConstraint } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
-import type { PlanegcsConstraint } from './PlanegcsConstraint';
 
 /**
  * Auto-constraints implied by a drawn entity — the SolidWorks "sketch relations"

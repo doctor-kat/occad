@@ -1,7 +1,6 @@
 import { OpenCascadeViewport } from './opencascade/OpenCascadeViewport';
-import type { CADProject, SketchEdgeData, SketchOperation, MeshData } from '@/cad/types';
+import type { CADProject, SketchEdgeData, SketchOperation, MeshData, ConstraintInput } from '@/cad/types';
 import type { OCCStatus } from '@/worker/bridge/useOpenCascade';
-import type { ConstraintInput } from '@/cad/engine/sketch/constraintFactory';
 
 export interface CADViewportProps {
   project: CADProject;

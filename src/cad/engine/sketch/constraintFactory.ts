@@ -9,10 +9,8 @@
 
 // ConstraintKind/ConstraintInput are UI-facing DTOs, so they live in src/cad/types
 // (the only layer other layers may import from) rather than here in the engine.
-import { ConstraintKind, type ConstraintInput } from '@/cad/types';
+import { ConstraintKind, type ConstraintInput, type PlanegcsConstraint } from '@/cad/types';
 export { ConstraintKind, type ConstraintInput };
-
-import type { PlanegcsConstraint } from './PlanegcsConstraint';
 
 /**
  * Build a planegcs constraint object from a semantic request.

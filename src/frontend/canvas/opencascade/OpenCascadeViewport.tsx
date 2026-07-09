@@ -2,7 +2,7 @@ import { Suspense, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Box, Stack, Button, Text, Group, useMantineTheme, Center } from "@mantine/core";
 import { X, Check, Dot, Minus, NavigationArrow, Circle } from "@phosphor-icons/react";
-import type { CADProject, MeshData, SketchEdgeData, Sketch, SketchOperation } from "@/cad/types";
+import type { CADProject, MeshData, SketchEdgeData, Sketch, SketchOperation, ConstraintInput } from "@/cad/types";
 import type { OCCStatus } from "@/worker/bridge/useOpenCascade";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import { resolveContextTarget } from "../contextMenu/contextTarget";
@@ -10,7 +10,6 @@ import { Scene } from "./Scene";
 import { SelectionDisplay } from "./SelectionDisplay";
 import { LoadingOverlay } from "./LoadingOverlay";
 import { ErrorOverlay } from "./ErrorOverlay";
-import type { ConstraintInput } from "@/cad/engine/sketch/constraintFactory";
 import { BoxMode } from "@/cad/engine/sketch/sketchBoxSelection";
 
 export interface OpenCascadeViewportProps {
