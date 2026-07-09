@@ -1455,14 +1455,14 @@ export function SketchOverlay({
       {/* Endpoint/center handles for point-level selection (coincident/distance).
           Only in selection mode (no active drawing operation). */}
       {(!activeOperation || activeOperation === SketchOperation.DIMENSION) && sketch.primitives
-        ?.filter((p) => p.type === 'point' && !p.isExternal && p.data && typeof p.data.x === 'number')
-        .map((p) => {
+        ?.flatMap((p) => {
+          if (!(p.type === 'point' && !p.isExternal && p.data && typeof p.data.x === 'number')) return [];
           const isSelected = selectedElementIds.has(p.id);
           const isHoverTarget = (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === p.id)
             || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === p.id);
           const isSel = isSelected || isHoverTarget;
           const color = isSelected ? '#3b82f6' : isHoverTarget ? '#f97316' : '#94a3b8';
-          return (
+          return [
             <mesh
               key={`handle-${p.id}`}
               position={[p.data.x, p.data.y, 0.2]}
@@ -1478,8 +1478,8 @@ export function SketchOverlay({
             >
               <circleGeometry args={[isSel ? 1.6 : 1.1, 20]} />
               <meshBasicMaterial color={color} transparent opacity={isSel ? 0.95 : 0.6} depthTest={false} />
-            </mesh>
-          );
+            </mesh>,
+          ];
         })}
 
       {/* Constraint badges: a small labelled square just above each constrained

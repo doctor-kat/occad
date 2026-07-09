@@ -98,5 +98,5 @@ export function computeSketchChain(elements: SketchElement[], startId: string): 
     }
   }
 
-  return elements.filter((e) => inChain.has(e.id)).map((e) => e.id);
+  return elements.flatMap((e) => (inChain.has(e.id) ? [e.id] : []));
 }

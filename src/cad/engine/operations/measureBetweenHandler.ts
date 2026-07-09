@@ -5,7 +5,7 @@
 import type { MeasureSelection } from '@/cad/types';
 import type { WorkerContext } from '../workerContext';
 import { post } from '../workerContext';
-import { measureBetween } from '../analysis';
+import { measureBetween } from '../analysis/measureBetween';
 import { formatError } from './shared';
 
 /**

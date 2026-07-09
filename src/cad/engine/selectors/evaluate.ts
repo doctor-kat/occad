@@ -104,23 +104,23 @@ export function evaluate(
 
   switch (node.kind) {
     case 'type':
-      return items.filter((i) => i.geomType === node.geomType).map((i) => i.index);
+      return items.flatMap((i) => (i.geomType === node.geomType ? [i.index] : []));
 
     case 'parallel':
-      return items
-        .filter((i) => i.direction && Math.abs(alignment(i.direction, node.axis)) >= 1 - opts.angleTol)
-        .map((i) => i.index);
+      return items.flatMap((i) =>
+        i.direction && Math.abs(alignment(i.direction, node.axis)) >= 1 - opts.angleTol ? [i.index] : []
+      );
 
     case 'perpendicular':
-      return items
-        .filter((i) => i.direction && Math.abs(alignment(i.direction, node.axis)) <= opts.angleTol)
-        .map((i) => i.index);
+      return items.flatMap((i) =>
+        i.direction && Math.abs(alignment(i.direction, node.axis)) <= opts.angleTol ? [i.index] : []
+      );
 
     case 'directed': {
       const want = node.positive ? 1 : -1;
-      return items
-        .filter((i) => i.direction && alignment(i.direction, node.axis) * want >= 1 - opts.angleTol)
-        .map((i) => i.index);
+      return items.flatMap((i) =>
+        i.direction && alignment(i.direction, node.axis) * want >= 1 - opts.angleTol ? [i.index] : []
+      );
     }
 
     case 'dirMinMax':

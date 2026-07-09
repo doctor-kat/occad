@@ -164,3 +164,26 @@ not a mechanical edit):
   can race against the same worker-side `shapeStorage`.
 - **`OCCModel.tsx` per-edge hover cylinders / highlight geometry** are unmemoized and recompute on every
   hover/selection change.
+
+## React Doctor cleanup (2026-07-09)
+
+Fixed the top 3 issue groups from a full-codebase `react-doctor` scan (score 62/100, 30 remaining
+performance warnings — see below for what's left):
+
+- **Barrel imports** (4 sites) — `measureBetweenHandler.ts`, `measureShapeHandler.ts`,
+  `handleRebuild.ts`, `sketch/externalGeometry.ts` now import directly from source modules instead of
+  `analysis/`, `modifications/`, and `types/` barrels.
+- **Repeated deep property access in loops** — hoisted `item.data.id` in `handleRebuild.ts` and
+  `workplane.normal.{x,y,z}` in `sketchBuilders.ts` (circle/ellipse/arc cases) into local consts.
+- **Chained `.filter().map()` / `.map().filter()` / `.filter().forEach()`** (11 sites) — collapsed into
+  single-pass `flatMap`/`for...of` in `evaluate.ts`, `sketchGroups.ts`, `contextTarget.ts`,
+  `SketchWireframes.tsx`, `SketchOverlay.tsx`, `useCADState.ts`, `OperationPanel.tsx`.
+
+Verified via `npx react-doctor@latest --verbose --category performance`: none of the three rules
+(`no-barrel-import`, `js-cache-property-access`, `js-combine-iterations`) appear in the remaining findings.
+Full test suite (589 tests) and build pass unchanged.
+
+**Follow-up (not done this pass):** 30 other performance findings remain — lazy `useRef` init in
+`OperationPanel.tsx`, `transition: all` (×9), large animated blur (×6), and others. Full diagnostics were
+written to a temp dir by the scan; re-run `npx react-doctor@latest --verbose` for a fresh report before
+picking these up.

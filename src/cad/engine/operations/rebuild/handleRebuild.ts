@@ -27,7 +27,11 @@ import type { WorkerContext } from '../../workerContext';
 import { post, bodyTessellation } from '../../workerContext';
 import { getTransferables, findSketchShape, ensureFace } from '../../helpers';
 import { buildSketchWire, buildProfileFace } from '../../sketchBuilders';
-import { applyFillet, applyChamfer, applyShell, applyOffset, enrichRefs } from '../../modifications';
+import { applyFillet } from '../../modifications/fillet';
+import { applyChamfer } from '../../modifications/chamfer';
+import { applyShell } from '../../modifications/shell';
+import { applyOffset } from '../../modifications/offset';
+import { enrichRefs } from '../../modifications/shared';
 import { applySweep, applyLoft } from '../../advancedModeling';
 import { applyTransform } from '../../transforms';
 import { tessellate, extractEdgeVertices } from '../../tessellation';
@@ -91,8 +95,9 @@ export async function handleRebuild(
     let processedItems = 0;
 
     for (const item of items) {
+      const itemId = item.data.id;
       try {
-        post({ type: 'rebuildProgress', progress: processedItems / totalItems, currentFeatureId: item.data.id });
+        post({ type: 'rebuildProgress', progress: processedItems / totalItems, currentFeatureId: itemId });
 
         // History rollback bar: items past the bar are skipped (like suppression,
         // but via the bar so the distinction is preserved). See ROADMAP.md §8.
@@ -310,8 +315,8 @@ export async function handleRebuild(
         // it. A featured error keeps the rebuild going (the body so far is still
         // shown) but flags the item so a stale selection can't silently no-op.
         const message = formatError(err);
-        console.error(`Failed to rebuild item ${item.data.id}:`, err);
-        post({ type: 'error', message: `${item.data.name ?? item.data.id}: ${message}`, featureId: item.data.id });
+        console.error(`Failed to rebuild item ${itemId}:`, err);
+        post({ type: 'error', message: `${item.data.name ?? itemId}: ${message}`, featureId: itemId });
       }
     }
 

@@ -64,7 +64,8 @@ export function translatePrimitivesToOCC(
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
           const center = new oc.gp_Pnt_3(center_3d.x, center_3d.y, center_3d.z);
-          const normal = new oc.gp_Dir_4(workplane.normal.x, workplane.normal.y, workplane.normal.z);
+          const { x: nx, y: ny, z: nz } = workplane.normal;
+          const normal = new oc.gp_Dir_4(nx, ny, nz);
           
           const axis = new oc.gp_Ax2_3(center, normal);
           const circ = new oc.gp_Circ_2(axis, primitive.data.radius);
@@ -88,7 +89,8 @@ export function translatePrimitivesToOCC(
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
           const center = new oc.gp_Pnt_3(center_3d.x, center_3d.y, center_3d.z);
-          const normal = new oc.gp_Dir_4(workplane.normal.x, workplane.normal.y, workplane.normal.z);
+          const { x: nx, y: ny, z: nz } = workplane.normal;
+          const normal = new oc.gp_Dir_4(nx, ny, nz);
           // The arc's start/end angles are measured CCW from the workplane X axis, so
           // pin the circle frame's reference X to it (the 2-arg gp_Ax2 lets OCC pick an
           // arbitrary X, which would rotate the arc). Full circles don't care, but arcs do.
@@ -118,7 +120,8 @@ export function translatePrimitivesToOCC(
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
           const center = new oc.gp_Pnt_3(center_3d.x, center_3d.y, center_3d.z);
-          const normal = new oc.gp_Dir_4(workplane.normal.x, workplane.normal.y, workplane.normal.z);
+          const { x: nx, y: ny, z: nz } = workplane.normal;
+          const normal = new oc.gp_Dir_4(nx, ny, nz);
           
           // planegcs ellipse data usually has majorDir or similar
           // Re-constructing gp_Elips as per user instructions

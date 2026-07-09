@@ -82,17 +82,19 @@ export interface SketchWireframesProps {
 export function SketchWireframes({ project, sketchEdges, selectedSketchId, onSketchClick }: SketchWireframesProps) {
   return (
     <>
-      {project.sketches
-        .filter((s) => s.isVisible && sketchEdges[s.id])
-        .map((s) => (
-          <SketchWireframe
-            key={s.id}
-            sketchId={s.id}
-            edgeVertices={sketchEdges[s.id].edgeVertices}
-            isSelected={selectedSketchId === s.id}
-            onSelect={onSketchClick}
-          />
-        ))}
+      {project.sketches.flatMap((s) =>
+        s.isVisible && sketchEdges[s.id]
+          ? [
+              <SketchWireframe
+                key={s.id}
+                sketchId={s.id}
+                edgeVertices={sketchEdges[s.id].edgeVertices}
+                isSelected={selectedSketchId === s.id}
+                onSelect={onSketchClick}
+              />,
+            ]
+          : []
+      )}
     </>
   );
 }

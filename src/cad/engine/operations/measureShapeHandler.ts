@@ -4,7 +4,7 @@
 
 import type { WorkerContext } from '../workerContext';
 import { post } from '../workerContext';
-import { measureShape } from '../analysis';
+import { measureShape } from '../analysis/measureShape';
 import { formatError } from './shared';
 
 /**

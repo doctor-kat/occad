@@ -41,8 +41,10 @@ function sequenceAtBar(prev: CADProject): number | undefined {
   if (prev.rollbackBar == null) return undefined;
   const bar = prev.rollbackBar;
   const activeKeys = [...prev.sketches, ...prev.features]
-    .map(orderKey)
-    .filter((k) => k <= bar)
+    .flatMap((item) => {
+      const k = orderKey(item);
+      return k <= bar ? [k] : [];
+    })
     .sort((a, b) => a - b);
   const lastActive = activeKeys.length ? activeKeys[activeKeys.length - 1] : bar - 1;
   return (lastActive + bar) / 2;
@@ -257,22 +259,21 @@ export function useCADState() {
     const chronologicalItems: { createdAt: number; item: FeatureTreeItem }[] = [];
 
     // Add standalone sketches (not attached to any feature)
-    project.sketches
-      .filter((sketch) => !sketchIdsUsedByFeatures.has(sketch.id))
-      .forEach((sketch) => {
-        chronologicalItems.push({
-          createdAt: sketch.createdAt,
-          item: {
-            id: sketch.id,
-            name: sketch.name,
-            type: FeatureTreeItemType.SKETCH,
-            visible: sketch.isVisible !== false,
-            rolledBack: isRolledBack(sketch, project.rollbackBar),
-            error: itemErrors[sketch.id],
-            data: sketch,
-          },
-        });
+    for (const sketch of project.sketches) {
+      if (sketchIdsUsedByFeatures.has(sketch.id)) continue;
+      chronologicalItems.push({
+        createdAt: sketch.createdAt,
+        item: {
+          id: sketch.id,
+          name: sketch.name,
+          type: FeatureTreeItemType.SKETCH,
+          visible: sketch.isVisible !== false,
+          rolledBack: isRolledBack(sketch, project.rollbackBar),
+          error: itemErrors[sketch.id],
+          data: sketch,
+        },
       });
+    }
 
     // Add features (with their sketches as children)
     project.features.forEach((feature) => {

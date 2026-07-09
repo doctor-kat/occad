@@ -49,7 +49,7 @@ const isConstruction = (el: SketchElement): boolean =>
 
 /** All element ids belonging to a group, in element order. */
 export function groupChildIds(elements: SketchElement[], groupId: string): string[] {
-  return elements.filter((el) => el.groupId === groupId).map((el) => el.id);
+  return elements.flatMap((el) => (el.groupId === groupId ? [el.id] : []));
 }
 
 /**

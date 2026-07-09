@@ -705,9 +705,9 @@ export function OperationPanel({
                   placeholder="Select a path sketch"
                   value={pathSketchId}
                   onChange={(value) => setPathSketchId(value || '')}
-                  data={project.sketches
-                    .filter((s) => s.id !== profileSketchId)
-                    .map((s) => ({ value: s.id, label: s.name }))}
+                  data={project.sketches.flatMap((s) =>
+                    s.id !== profileSketchId ? [{ value: s.id, label: s.name }] : []
+                  )}
                   size="sm"
                 />
                 <Text size="xs" c="dimmed">Sweeps the profile along the path.</Text>
