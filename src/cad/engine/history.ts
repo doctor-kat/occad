@@ -35,31 +35,12 @@ export enum TrackStatus {
   Removed = 'removed',
 }
 
-export interface FollowResult {
-  status: TrackStatus;
-  /** Descendant sub-shape(s) in the operation's output. Empty when removed. */
-  shapes: TopoDS_Shape[];
-}
-
-/** An id-tagged live sub-shape carried through a chain of operations. */
-export interface TrackedRef {
-  /** Stable id (e.g. the originating `edge-N` / `face-N` or a persistent id). */
-  id: string;
-  /** The current live OCC sub-shape this id resolves to. */
-  shape: TopoDS_Shape;
-}
-
-/**
- * Uniform view over OCC's two history sources. Booleans expose history via a
- * `History()` `BRepTools_History` (which reports removal as `IsRemoved`); the
- * `MakeShape` family answers `Modified`/`Generated`/`IsDeleted` directly. Both
- * are adapted to this single shape so the propagation logic is source-agnostic.
- */
-export interface ShapeHistory {
-  modified(sub: TopoDS_Shape): TopoDS_Shape[];
-  generated(sub: TopoDS_Shape): TopoDS_Shape[];
-  isRemoved(sub: TopoDS_Shape): boolean;
-}
+export type { FollowResult } from './FollowResult';
+export type { TrackedRef } from './TrackedRef';
+export type { ShapeHistory } from './ShapeHistory';
+import type { FollowResult } from './FollowResult';
+import type { TrackedRef } from './TrackedRef';
+import type { ShapeHistory } from './ShapeHistory';
 
 /** Walk an OCC `TopTools_ListOfShape` into a JS array via its list iterator. */
 function listToArray(ctx: WorkerContext, list: any): TopoDS_Shape[] {

@@ -1,6 +1,8 @@
 import type { Point2D, SketchElement } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
 import { sub, mid } from './vec2';
+import type { ResolvedEdge } from './ResolvedEdge';
+import type { ConstraintIconPlacement } from './ConstraintIconPlacement';
 
 /**
  * Screen anchors for constraint badges. Each sketch constraint (a planegcs object
@@ -109,16 +111,6 @@ export function resolveEntityPoint(id: string, elements: SketchElement[]): Point
   const owner = ownerElement(id, elements);
   if (!owner) return null;
   return resolveSuffix(owner, id.slice(owner.id.length + 1));
-}
-
-interface ResolvedEdge {
-  dir: Point2D;
-  mid: Point2D;
-  /** Center of the multi-edge shape this edge belongs to, for picking the
-   *  outward-facing perpendicular (rectangles/polygons have edges running in
-   *  all directions, so "rotate 90°" alone can point inward). Undefined for a
-   *  standalone line, where either side is equally valid. */
-  shapeCenter?: Point2D;
 }
 
 /** The straight edge a primitive sub-id refers to (whole line or one
@@ -240,13 +232,6 @@ export function constraintAnchor(
     x: points.reduce((s, p) => s + p.x, 0) / points.length,
     y: points.reduce((s, p) => s + p.y, 0) / points.length,
   };
-}
-
-export interface ConstraintIconPlacement {
-  id: string;
-  type: string;
-  x: number;
-  y: number;
 }
 
 /**

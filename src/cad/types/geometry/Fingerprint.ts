@@ -34,21 +34,10 @@ export interface Fingerprint {
   obb: [number, number, number];
 }
 
-/** A selection reference that resolves by fingerprint, falling back to index. */
-export interface StableRef {
-  kind: SubShapeKind;
-  /** Ordinal index captured at selection time (fallback). */
-  index: number;
-  /** Geometric fingerprint captured at selection time (primary). */
-  fingerprint?: Fingerprint;
-}
-
-/**
- * A geometry selection reference as stored in feature params: either a legacy
- * `edge-N` / `face-N` string, or a richer {@link StableRef}. The worker resolver
- * accepts both, so persisted projects keep working without migration.
- */
-export type GeometryRef = string | StableRef;
+export type { StableRef } from './StableRef';
+export type { GeometryRef } from './GeometryRef';
+import type { StableRef } from './StableRef';
+import type { GeometryRef } from './GeometryRef';
 
 /** Parse a legacy `edge-N` / `face-N` / `vertex-N` string into a (fingerprint-less) StableRef. */
 export function parseRefString(ref: string): StableRef | null {
@@ -72,32 +61,5 @@ export function hasFingerprint(ref: GeometryRef): boolean {
   return typeof ref !== 'string' && !!ref.fingerprint;
 }
 
-/**
- * A worker→main enrichment: the upgraded (fingerprinted) refs for one selection
- * field of one feature, captured lazily during rebuild. The main thread persists
- * `refs` into `feature.parameters[key]` *without bumping version* (it is derived
- * data, not a user edit). See `ROADMAP.md` (Deterministic topology).
- */
-export interface FeatureRefEnrichment {
-  featureId: string;
-  /** Which selection field this replaces: fillet/chamfer use 'edges', shell/offset 'faces'. */
-  key: 'edges' | 'faces';
-  refs: GeometryRef[];
-}
-
-/**
- * A worker→main enrichment for a sketch's *external geometry* reference, captured
- * lazily during rebuild. External sketch primitives are anchored to a solid's
- * sub-shape by `sourceId` (a bare positional `edge-N` / `vertex-N` / `face-N`
- * tag), which silently rebinds after an upstream edit renumbers the index map.
- * The worker re-resolves the tag against the body where it is still valid,
- * captures the matching {@link StableRef} (with fingerprint), and the main thread
- * persists it into `primitive.sourceRef` *without bumping version* — the
- * geometry-anchored ref then survives later renumbers. See `ROADMAP.md`
- * (Deterministic topology).
- */
-export interface SketchRefEnrichment {
-  sketchId: string;
-  primitiveId: string;
-  ref: StableRef;
-}
+export type { FeatureRefEnrichment } from './FeatureRefEnrichment';
+export type { SketchRefEnrichment } from './SketchRefEnrichment';

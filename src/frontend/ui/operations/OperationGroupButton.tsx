@@ -5,18 +5,12 @@ import { Operation } from '@/cad/types';
 import { OperationButton } from './OperationButton';
 import { CompactOperationButton } from './CompactOperationButton';
 import { IconOperationButton } from './IconOperationButton';
+import type { OperationGroupOption } from './OperationGroupOption';
 
 export enum OperationButtonVariant {
   Full = 'full',
   Compact = 'compact',
   Icon = 'icon',
-}
-
-export interface OperationGroupOption {
-  id: Operation;
-  icon: React.ReactNode;
-  label: string;
-  disabled?: boolean;
 }
 
 export interface OperationGroupButtonProps {

@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/helpers";
-import { OperationGroupButton, OperationGroupOption, OperationButtonVariant } from "./OperationGroupButton";
+import { OperationGroupButton, OperationButtonVariant } from "./OperationGroupButton";
+import type { OperationGroupOption } from "./OperationGroupOption";
 import { SketchOperation } from "@/cad/types";
 import { lineGroup, rectangleGroup, circleGroup, arcGroup } from "./OperationData";
 

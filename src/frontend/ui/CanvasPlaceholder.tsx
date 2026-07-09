@@ -1,17 +1,9 @@
-import { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo } from "react";
 import { OpenCascadeViewport } from "@/frontend/canvas/opencascade/OpenCascadeViewport";
 import { Stack, Box, Title, Text, Code } from "@mantine/core";
-import type { CADProject } from "@/cad/types";
-
-interface ErrorBoundaryProps {
-  children: ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-  errorInfo: ErrorInfo | null;
-}
+import type { ErrorBoundaryProps } from "./ErrorBoundaryProps";
+import type { ErrorBoundaryState } from "./ErrorBoundaryState";
+import type { CanvasPlaceholderProps } from "./CanvasPlaceholderProps";
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -104,11 +96,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
     return this.props.children;
   }
-}
-
-interface CanvasPlaceholderProps {
-  project?: CADProject;
-  showDemo?: boolean;
 }
 
 export function CanvasPlaceholder({ project, showDemo }: CanvasPlaceholderProps) {

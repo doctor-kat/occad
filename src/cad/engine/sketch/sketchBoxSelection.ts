@@ -16,19 +16,10 @@ export enum BoxMode {
   Crossing = 'crossing',
 }
 
-/** A screen-space rectangle in CSS px (min/max already normalised). */
-export interface ScreenRect {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
-
-/** Screen-space 2D point in CSS px. */
-export interface ScreenPoint {
-  x: number;
-  y: number;
-}
+export type { ScreenRect } from './ScreenRect';
+export type { ScreenPoint } from './ScreenPoint';
+import type { ScreenRect } from './ScreenRect';
+import type { ScreenPoint } from './ScreenPoint';
 
 /**
  * Drag direction decides the mode (SolidWorks): dragging to the right

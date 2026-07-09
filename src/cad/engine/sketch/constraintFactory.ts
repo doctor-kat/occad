@@ -12,8 +12,8 @@
 import { ConstraintKind, type ConstraintInput } from '@/cad/types';
 export { ConstraintKind, type ConstraintInput };
 
-/** A planegcs constraint object (loose — planegcs uses a structural union). */
-export type PlanegcsConstraint = Record<string, any> & { id: string; type: string };
+export type { PlanegcsConstraint } from './PlanegcsConstraint';
+import type { PlanegcsConstraint } from './PlanegcsConstraint';
 
 /**
  * Build a planegcs constraint object from a semantic request.
