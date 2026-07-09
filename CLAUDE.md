@@ -279,31 +279,43 @@ When removing a hook/import from a file, **scan the entire file for other usages
 
 Triggered by incrementing `project.version` and calling `rebuild(project)` on the worker.
 
-## Available OCC Features Not Yet Used
+## OCC Features In Use
 
-The following are available in opencascade.js but not yet implemented in this project:
+OCCT classes currently wired into the app (see `ROADMAP.md` for feature-level status):
 
-**Primitives:** `BRepPrimAPI_MakeBox`, `BRepPrimAPI_MakeSphere`, `BRepPrimAPI_MakeCone`, `BRepPrimAPI_MakeTorus`, `BRepPrimAPI_MakeWedge`
+**Primitives** (`operations.ts` `buildPrimitiveShape`): `BRepPrimAPI_MakeBox`, `MakeCylinder`, `MakeSphere_1`, `MakeCone_1`, `MakeTorus_1`, `MakeWedge_1`
 
-**Advanced Modeling:** `BRepFilletAPI_MakeChamfer` (chamfer), `BRepOffsetAPI_DraftAngle` (draft), `BRepOffsetAPI_MakeOffsetShape` (offset), `BRepOffsetAPI_MakePipe` / `MakePipeShell` (sweep), `BRepOffsetAPI_ThruSections` (loft)
+**Sketch-based** (`operations.ts`): `BRepPrimAPI_MakePrism_1` (extrude), `BRepPrimAPI_MakeRevol_1` (revolve)
 
-**Import/Export:** `STEPControl_Reader` / `Writer`, `IGESControl_Reader` / `Writer`, `StlAPI_Reader` / `Writer`, `RWGltf_CafWriter` (glTF/GLB), `RWObj_CafReader` (OBJ)
+**Booleans** (`operations.ts` `performBooleanOperation`): `BRepAlgoAPI_Fuse_3`, `Cut_3`, `Common_3`
 
-**Shape Healing:** `ShapeFix_Shape` / `Wire` / `Face`, `BRepCheck_Analyzer`
+**Modifications** (`modifications.ts`): `BRepFilletAPI_MakeFillet` (fillet), `BRepFilletAPI_MakeChamfer` (chamfer), `BRepOffsetAPI_MakeThickSolid` (shell), `BRepOffsetAPI_MakeOffsetShape` (offset)
 
-**Assembly & Metadata (XCAF):** `XCAFDoc_ColorTool`, `XCAFDoc_ShapeTool`, `XCAFDoc_MaterialTool`, `XCAFDoc_LayerTool`
+**Transforms** (`transforms.ts`): `gp_Trsf.SetTranslation` / `SetRotation_1` / `SetMirror_3` / `SetScale`, applied via `BRepBuilderAPI_Transform_2`
 
-**Analysis:** `BRepGProp` / `GProp_GProps` (volume, area, center of mass), `Bnd_Box` / `BRepBndLib` (bounding boxes)
+**Advanced modeling** (`advancedModeling.ts`): `BRepOffsetAPI_MakePipe_1` (sweep), `BRepOffsetAPI_ThruSections` (loft)
 
-**Transforms:** `gp_Trsf.SetMirror()`, `gp_Trsf.SetScale()`, `gp_Trsf.SetRotation()`
+**Import/Export** (`io.ts`, via `oc.FS`): `STEPControl_Reader`/`Writer`, `IGESControl_Reader`/`Writer`, `StlAPI_Writer` (STL export meshes first with `BRepMesh_IncrementalMesh`)
 
-**Advanced Curves/Surfaces:** `Geom_BezierCurve`, `GeomFill_Pipe`, `GeomFill_BSplineCurves`, `GeomAPI_ProjectPointOnCurve`, `GeomAPI_IntCS` / `IntSS`
+**Analysis** (`analysis.ts`): `BRepGProp`/`GProp_GProps` (volume), `Bnd_Box`/`BRepBndLib` (bounding box), `BRepExtrema_DistShapeShape` (measure-between distance), `BRepAdaptor_Surface`/`Curve` (measure-between angle)
+
+**Topology** (`fingerprint.ts`, `faceAttribution.ts`, `edgeLoop.ts`): `TopExp_Explorer`, `TopTools_IndexedMapOfShape`, `BRep_Tool.Pnt`, GProp measures + OBB for geometric fingerprints
+
+**Constraints:** planegcs (`@salusoft89/planegcs`), not an OCC solver — runs in the worker via `SketchSolver.ts`.
+
+## OCC Features Available But Not Used
+
+Available in `opencascade.full.wasm` but not wired in:
+
+- **Advanced modeling:** `BRepOffsetAPI_DraftAngle` (draft), `BRepOffsetAPI_MakePipeShell` (swept with guide)
+- **Import/Export:** `RWGltf_CafWriter` (glTF/GLB export) and `RWObj_CafReader` (OBJ import) — both need a custom WASM build (see below); `StlAPI_Reader` (STL import)
+- **Shape Healing:** `ShapeFix_Shape`/`Wire`/`Face`, `BRepCheck_Analyzer` — intentionally not planned (see `ROADMAP.md`)
+- **Assembly & Metadata (XCAF):** `XCAFDoc_ColorTool`, `ShapeTool`, `MaterialTool`, `LayerTool`
+- **Advanced curves/surfaces:** `Geom_BezierCurve`, `GeomFill_Pipe`, `GeomFill_BSplineCurves`, `GeomAPI_ProjectPointOnCurve`, `GeomAPI_IntCS`/`IntSS`
 
 ## Known Limitations
 
-- Bezier curves defined in types but not implemented in worker
-- Custom sketch planes: XY, XZ, YZ fully work; face-based planes partially implemented
-- No constraint solver (pure explicit geometry)
+- Bezier curves defined in types but not implemented in worker (won't implement — see `ROADMAP.md`)
+- Custom sketch planes: XY, XZ, YZ fully work; no custom-plane / axis creation
+- **OBJ import & glTF export are blocked on the prebuilt WASM:** `RWObj_CafReader` traps with a `null function` (unbound symbol) in `opencascade.full.wasm`; enabling either needs a custom (trimmed) opencascade.js build that binds the missing `RWObj`/`RWMesh`/`RWGltf` symbols
 - TypeScript strict mode disabled — many type safety features off for rapid prototyping
-
-Implemented since this list was first written: fillet/chamfer/shell/offset (engine + rebuild + e2e); Move/Rotate/Mirror/Scale transforms; Sweep (`BRepOffsetAPI_MakePipe`) + Loft (`BRepOffsetAPI_ThruSections`) advanced modeling (engine + rebuild + UI); snapshot undo/redo; selection stability across rebuilds (geometric fingerprints) — see the "Deterministic topology & stable selections" section in `ROADMAP.md`; STEP/IGES import + STEP/IGES/STL export (`src/cad/engine/io.ts` via `oc.FS`; import is an `IMPORT` feature carrying the file text, re-parsed each rebuild). OBJ import is coded but disabled — `RWObj_CafReader` traps with a `null function` (unbound symbol) in the prebuilt `opencascade.full.wasm`; needs a custom WASM build.
