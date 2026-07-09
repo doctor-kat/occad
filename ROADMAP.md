@@ -79,12 +79,17 @@ Everything below is optional. None is started unless noted.
 - ✅ **One type per file** — files that declared more than one `interface`/`type` (e.g. `viewportStore.ts`,
   `history.ts`, `Fingerprint.ts`, `Sketch.ts`, `MeasurementData.ts`, `constraintAnchors.ts`) split into
   one-type-per-file, matching the existing `cad/types/operations/*.ts` convention; all importers updated.
-- ✅ **One operation per file (engine)** — `advancedModeling.ts` and `analysis.ts` split into
-  `advancedModeling/{sweep,loft}.ts` and `analysis/{measureShape,measureBetween,helpers}.ts`, each with an
-  `index.ts` barrel so existing relative imports resolve unchanged; build/test/lint clean.
+- ✅ **One operation per file (engine)** — `advancedModeling.ts`, `analysis.ts`, `modifications.ts`, and
+  `transforms.ts` split into `advancedModeling/{sweep,loft}.ts`, `analysis/{measureShape,measureBetween}.ts`,
+  `modifications/{fillet,chamfer,shell,offset,shared}.ts`, and `transforms/{move,rotate,mirror,scale,
+  applyTransform}.ts`, each with an `index.ts` barrel so existing relative imports resolve unchanged.
+  Single-consumer "shared" files (e.g. `analysis/helpers.ts`) were inlined into their one caller rather than
+  kept as misleadingly-named shared modules. Build/test/lint clean.
 - ✅ **operations.ts split** — the ~879-line `operations.ts` broken into `operations/{shared,sketch/*,primitives/*,
   boolean/*,rebuild/handleRebuild,faceGeometry,edgeLoop,resolveSelector,exportShape,measure*Handler}.ts` with an
-  `index.ts` barrel preserving the `@/cad/engine/operations` import path; build/test/lint clean.
+  `index.ts` barrel preserving the `@/cad/engine/operations` import path; build/test/lint clean, and the
+  extracted primitive/boolean builders and `handleRebuild`'s dispatch logic were independently line-by-line
+  parity-checked against the original before commit.
 
 ---
 
