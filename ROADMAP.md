@@ -79,6 +79,9 @@ Everything below is optional. None is started unless noted.
 - ✅ **One type per file** — files that declared more than one `interface`/`type` (e.g. `viewportStore.ts`,
   `history.ts`, `Fingerprint.ts`, `Sketch.ts`, `MeasurementData.ts`, `constraintAnchors.ts`) split into
   one-type-per-file, matching the existing `cad/types/operations/*.ts` convention; all importers updated.
+- ✅ **One operation per file (engine)** — `advancedModeling.ts` and `analysis.ts` split into
+  `advancedModeling/{sweep,loft}.ts` and `analysis/{measureShape,measureBetween,helpers}.ts`, each with an
+  `index.ts` barrel so existing relative imports resolve unchanged; build/test/lint clean.
 
 ---
 
