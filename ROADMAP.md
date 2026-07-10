@@ -237,9 +237,9 @@ enum cleanup is a separate, larger type-system task if it's ever worth doing.
   uses inline Mantine `style` props everywhere; a one-off partial migration for 8 sites is inconsistent
   without a design-system decision.
 - **`no-giant-component`** (`OperationPanel.tsx`) — ✅ done via the Strategy/registry split below
-  (810 → ~120 lines). The other 5 (`SketchOverlay.tsx` 1429 lines, `CADLayout.tsx` 1341 lines,
-  `OpenCascadeViewport.tsx`, `OCCModel.tsx`, `SketchRenderer.tsx`) are still real, multi-hour
-  restructuring jobs, not lint fixes.
+  (810 → ~120 lines). `SketchOverlay.tsx` — ✅ done, see the dedicated entry below (1654 → 456 lines).
+  The other 4 (`CADLayout.tsx` 1341 lines, `OpenCascadeViewport.tsx`, `OCCModel.tsx`,
+  `SketchRenderer.tsx`) are still real, multi-hour restructuring jobs, not lint fixes.
 - **`OperationPanel.tsx` per-operation Strategy + registry-factory split** — ✅ done, all ~21
   `FeatureOperation`/`TransformOperation` variants that ever reach the panel are migrated (only
   `FeatureOperation.IMPORT`, which has no parametric params UI, and any stray `SketchOperation` fall
@@ -296,3 +296,35 @@ Verified via `npx react-doctor@latest --verbose` (132 → 78 findings) plus a ma
 (`bun run dev` + Playwright): selected Front Plane, entered sketch mode, drew a rectangle (auto-added 4
 constraints), finished the sketch — confirming the `SketchOverlay.tsx` dependency-array changes didn't
 break tool-switching or pointer handling. Full test suite (589 tests) and build pass throughout.
+
+### `SketchOverlay.tsx` breakup (1654 → 456 lines)
+
+Split into four independent, separately-committed phases (each verified with `bun run build`,
+`bun run lint`, and the full test suite before moving on):
+
+1. **Pure geometry/constants extracted** — `getDistanceToElement`/`projectPointOntoLineSegment` →
+   `cad/engine/sketch/elementHitTest.ts`; `arcElementFrom`/`lastEndTangent` →
+   `cad/engine/sketch/arcElementFactory.ts`; `NO_RAYCAST`/`CONSTRAINT_ICONS` →
+   `canvas/sketch/sketchOverlayConstants.ts`. Added unit tests for the two geometry modules (they were
+   previously untested, hoisted-but-inline functions).
+2. **Stateful hooks extracted** to `canvas/sketch/hooks/`: `useSketchSnapping` (grid/constraint
+   snapping + the snap-candidate point sets), `useDimensionTool` (Dimension tool's 2-pick state),
+   `useSketchBoxSelection` (the rubber-band box-select canvas-listener effect), and
+   `useSketchKeyboardActions` (global keyboard shortcuts). Preserved the existing
+   ref-mirrored-state pattern (see `[[r3f-stable-event-handlers]]` memory) throughout — each hook still
+   exposes/reads refs where the original did, since that's what keeps the plane mesh's pointer handlers
+   referentially stable across clicks.
+3. **Draw-tool switches replaced with a Strategy/registry**, mirroring the `OperationPanel` split
+   above: every geometry-placing `SketchOperation` (point/line/rectangle/circle/polygon/arc families)
+   got its own `DrawToolHandler { onClick, onPreview }` under `cad/engine/sketch/drawTools/`, assembled
+   into `drawToolRegistry`. `handlePlaneClick`/`handlePlaneMove` shrank from two ~250-line switches to a
+   registry lookup + delegate. Added `registry.test.ts` covering each tool family.
+4. **JSX split into subcomponents** under `canvas/sketch/components/`: `SketchPlaneAndGrid`,
+   `SketchOriginGizmo`, `SketchElementsLayer`, `SketchConstraintBadges`, `SketchDrawingFeedback`,
+   `SketchConstraintSnapHighlights`. `SketchOverlay.tsx` now only owns state/handlers and composes
+   these pieces.
+
+Left deliberately untouched: the tool-switching reset effect and the `no-derived-state`/
+`no-event-handler`/effect-chain findings noted above — same reasoning as before (poor reducer fit,
+risk of silently breaking pointer/tool-switching interactions). Full suite (615 tests, up from 603 —
+new tests for the extracted geometry/registry modules) and build pass after each phase.
