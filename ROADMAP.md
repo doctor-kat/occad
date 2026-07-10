@@ -353,6 +353,37 @@ import block, and dropped now-unused Mantine/icon imports. Verified with `bun ru
 (615/615 passing), and `bun run lint` (no new findings — the 3 `any` errors on the props interface are
 pre-existing and carried over verbatim).
 
+### `OCCModel.tsx` breakup (424 → ~55 lines)
+
+The scene-graph component mixed four independent render concerns plus duplicated geometry logic.
+Split under `src/frontend/canvas/opencascade/` into a thin orchestrator + focused pieces:
+
+- `occGeometry.ts` — pure geometry builders (`buildFaceGeometry`, `buildFaceHighlightGeometry`,
+  `groupEdgeSegmentsByEdge`). Collapsed the two near-identical face-highlight `useMemo`s (hovered +
+  selected) into one `buildFaceHighlightGeometry` helper. Added `occGeometry.test.ts`.
+- `FaceMesh.tsx` / `EdgeWireframe.tsx` / `EdgeHoverCylinders.tsx` / `VertexPoints.tsx` — each owns its
+  own local hover state and refs.
+- `useDisableRaycastInSketchMode.ts` — shared hook so each child self-contains its raycast toggle
+  instead of the parent plumbing refs to all of them.
+- Dropped the now-redundant internal edge-hover state (the `viewportStore` field is set alongside it and
+  is what both edge components read).
+
+Verified with `bun run build` and `bun run test` (622/622 passing).
+
+### `SketchRenderer.tsx` breakup (445 → ~30 lines)
+
+Split under `src/frontend/canvas/sketch/` following the existing `components/` + `hooks/` convention:
+
+- `dimensionGeometryUtils.ts` — pure `perpUnit` / `centerPointId` / `DEFAULT_LABEL_DISTANCE`.
+- `components/DimensionAnnotation.tsx` — the dimension-drawing subcomponent (was an inline component).
+- `hooks/useDimensionDrag.ts` — all label drag/select state, the screen-to-plane raycast, and the
+  per-constraint highlight/offset/arrow-flip helpers.
+- `components/SketchPrimitives.tsx` — the line/point/circle/arc render switch.
+- `components/SketchAnnotations.tsx` — the dimension + geometric-constraint render switch; owns
+  `sketchCentroid`/`outwardPerpUnit` and calls `useDimensionDrag` (its sole consumer).
+
+Verified with `bun run build` and `bun run test` (622/622 passing).
+
 ### `CADLayout.tsx` breakup (1409 → ~330 lines)
 
 Same `hooks/` + `components/` pattern as the `SketchOverlay.tsx` breakup above, under a new
