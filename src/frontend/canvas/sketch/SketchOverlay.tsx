@@ -360,7 +360,7 @@ export function SketchOverlay({
       setSnapPoint2D(null);
       setOriginSnap(false);
     }
-  }, [activeOperation, clearSketchSelection, setPendingDimTarget]);
+  }, [activeOperation, clearSketchSelection, setPendingDimTarget, setHoveredElementId]);
 
   /** Complete a Dimension-tool pick: arm the first entity, or (on the second
    *  pick) create the appropriate distance constraint between it and this one.
@@ -1344,7 +1344,7 @@ export function SketchOverlay({
           break;
       }
     },
-    [activeOperation, snapPoint, planeTransform, hoverThreshold, snapDistance, sketch.elements, sketch.primitives]
+    [activeOperation, snapPoint, planeTransform, hoverThreshold, snapDistance, sketch.elements, sketch.primitives, setHoveredElementId]
   );
 
   const originSelected = selectedElementIds.has(ORIGIN_POINT_ID);
@@ -1499,22 +1499,15 @@ export function SketchOverlay({
             zIndexRange={[30, 10]}
             style={{ pointerEvents: 'auto' }}
           >
-            <div
+            <button
+              type="button"
               data-testid={`constraint-badge-${icon.id}`}
               data-hovered={isHovered}
               title={icon.type}
-              role="button"
-              tabIndex={0}
+              aria-label={icon.type}
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedConstraintId(isSel ? null : icon.id);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setSelectedConstraintId(isSel ? null : icon.id);
-                }
               }}
               onMouseEnter={() => setHoveredConstraintId(icon.id)}
               onMouseLeave={() => setHoveredConstraintId(null)}
@@ -1530,10 +1523,11 @@ export function SketchOverlay({
                 boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
                 cursor: 'pointer',
                 userSelect: 'none',
+                padding: 0,
               }}
             >
               <Icon size={12} color="#0a0a0f" />
-            </div>
+            </button>
           </Html>
         );
       })}

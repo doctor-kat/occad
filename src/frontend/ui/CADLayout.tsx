@@ -380,21 +380,18 @@ export function CADLayout() {
   const [measurePicks, setMeasurePicks] = useState<MeasureSelection[]>([]);
   const [betweenMeasurement, setBetweenMeasurement] = useState<MeasureBetweenData | null>(null);
 
-  // (Re)measure whenever the Measure tab is open and the current body changes.
-  // Clearing first shows the "Measuring…" state until the worker replies.
+  // (Re)measure whenever the Measure tab is open and the current body changes,
+  // and reset the two-slot pick set (sub-shape indices are only valid against
+  // the current body) — one effect instead of two chained off the same
+  // dependencies. Clearing first shows the "Measuring…" state until the worker
+  // replies.
   useEffect(() => {
-    if (activeSidebarTab !== 'measure') return;
     setMeasurement(null);
-    if (!currentFeatureShapeId) return;
-    measureShape(crypto.randomUUID(), currentFeatureShapeId);
-  }, [activeSidebarTab, currentFeatureShapeId, measureShape]);
-
-  // Reset the two-slot pick set when leaving the Measure tab or when the body
-  // changes (sub-shape indices are only valid against the current body).
-  useEffect(() => {
     setMeasurePicks([]);
     setBetweenMeasurement(null);
-  }, [activeSidebarTab, currentFeatureShapeId]);
+    if (activeSidebarTab !== 'measure' || !currentFeatureShapeId) return;
+    measureShape(crypto.randomUUID(), currentFeatureShapeId);
+  }, [activeSidebarTab, currentFeatureShapeId, measureShape]);
 
   // Fire the distance/angle measurement once two sub-shapes are picked.
   useEffect(() => {
@@ -1135,7 +1132,7 @@ export function CADLayout() {
               style={{
                 borderRight: `1px solid ${theme.other.colors.border}`,
                 backgroundColor: theme.other.colors.sidebarBackground,
-                transition: 'width 300ms ease-in-out, background-color 300ms ease-in-out, border-color 300ms ease-in-out',
+                transition: 'background-color 300ms ease-in-out, border-color 300ms ease-in-out',
                 overflow: 'hidden',
               }}
             >

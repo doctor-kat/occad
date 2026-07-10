@@ -183,7 +183,76 @@ Verified via `npx react-doctor@latest --verbose --category performance`: none of
 (`no-barrel-import`, `js-cache-property-access`, `js-combine-iterations`) appear in the remaining findings.
 Full test suite (589 tests) and build pass unchanged.
 
-**Follow-up (not done this pass):** 30 other performance findings remain — lazy `useRef` init in
-`OperationPanel.tsx`, `transition: all` (×9), large animated blur (×6), and others. Full diagnostics were
-written to a temp dir by the scan; re-run `npx react-doctor@latest --verbose` for a fresh report before
-picking these up.
+## React Doctor cleanup, continued (2026-07-10)
+
+Worked through the rest of the full-codebase scan (132 findings → 78; score 62 → higher, all remaining
+are `warning` severity). Fixed, by rule:
+
+- **`no-transition-all`** (9 sites) — `CADLayout.tsx`, `EntitiesPanel.tsx`, `TreeItem.tsx`,
+  `SketchEntitiesPanel.tsx`, and the operation button components now list explicit properties
+  (`background-color`, `border-color`, `opacity`, `color`) instead of `all`. Did **not** include `width`
+  on the sidebar collapse transition — animating `width` re-triggers layout every frame
+  (`no-layout-transition-inline`), and there's no cheap CSS-only fix for a real reflow-causing size
+  change, so the sidebar width now snaps instantly while background/border still animate.
+- **`no-large-animated-blur`** (6 sites) — `backdropFilter: blur(12px)` → `blur(8px)` in
+  `OpenCascadeViewport.tsx`, `SketchConstraintToolbar.tsx`, `SketchConstraintList.tsx`.
+- **`no-tiny-text`** (2), **`prefer-module-scope-static-value`** (1, `SketchHotkeys.tsx`'s `kbdStyle`
+  hoisted to module scope), **`rerender-lazy-ref-init`** (1, `SketchOverlay.tsx`'s `Matrix4` ref).
+- **`no-array-index-as-key`** (7) — replaced with content-derived keys (coordinates, `kind-index`
+  composites, named ids) in `SketchWireframes.tsx`, `SketchRenderer.tsx`, `MeasurePanel.tsx`,
+  `SketchOverlay.tsx` (×4).
+- **`js-set-map-lookups`** (3 of 7 real; 4 were false positives — `dataTransfer.types.includes()` and a
+  2-item static `disabledOperations` array, both below the rule's own "~10 items" FP threshold) —
+  `Set`-ified in `OCCModel.tsx` and `SketchEntitiesPanel.tsx`.
+- **`js-index-maps`** (5, all in `sketchBuilders.ts`) — one `Map` built before the primitive-translation
+  loop instead of 5 `.find()` calls inside it.
+- **`unused-file`** (8, user-confirmed dead: `CanvasPlaceholder{,Props}.ts(x)`, `ErrorBoundary{Props,State}.ts`,
+  `hooks/use-mobile.tsx`, 3 worker request/response type files) and **`unused-export`** (3: a duplicate
+  `SelectorError` alias, an actually-dead `SketchPrimitiveType` enum — see gotcha below — and an
+  internal-only `SketchWireframe`/`getItemIcon` export) — deleted.
+- **`only-export-components`** (4, `ReferencePlanes.tsx` + `TreeItem.tsx`) — non-component exports moved
+  to a new sibling `referencePlaneGeometry.ts`; `getItemIcon` un-exported (only used locally).
+- **a11y** (`click-events-have-key-events`, `no-static-element-interactions`) — the sketch constraint
+  badge now has `onKeyDown` (Enter/Space) — later converted to a real `<button>` (see below).
+- **`no-effect-chain`/`no-chain-state-updates`/`no-derived-state-effect`** in `CADLayout.tsx`'s Measure
+  feature — merged two effects that fired off the same `[activeSidebarTab, currentFeatureShapeId]`
+  dependencies into one.
+- **`exhaustive-deps`** (2, `SketchOverlay.tsx`) — added a missing `setHoveredElementId` dependency to
+  an effect and a `useCallback`.
+
+**Gotcha found along the way:** `src/cad/types/sketch/SketchPrimitive.ts` imports `SketchPrimitiveType`
+from `'./Sketch'`, which doesn't export it — a pre-existing `TS2305` error `bun run build` never catches
+(Vite doesn't type-check; `npx tsc -p tsconfig.app.json` does). Fixing the import surfaces ~20 real
+`"point"`/`"line"` string-literal-vs-enum mismatches across `sketchBuilders.ts`, `SketchSolver.ts`, and
+their tests — the codebase's real convention is plain string literals for `SketchPrimitive.type`, not the
+enum. Left the broken import as-is and deleted the now-confirmed-dead enum instead; the string-literal-vs-
+enum cleanup is a separate, larger type-system task if it's ever worth doing.
+
+**Deferred as false positives** (per each rule's own validation criteria, not fixed):
+`no-unknown-property` (3, react-three-fiber `<line>` elements false-flagged as HTML/SVG),
+`js-set-map-lookups` (4: `dataTransfer.types`, a 2-item static array).
+
+**Deferred as out of scope for a mechanical pass** (architecture-level, need dedicated review/tests):
+- **`no-inline-exhaustive-style`** (8) — would require introducing CSS Modules into a codebase that
+  uses inline Mantine `style` props everywhere; a one-off partial migration for 8 sites is inconsistent
+  without a design-system decision.
+- **`no-giant-component`** (6: `OperationPanel.tsx` 810 lines, `SketchOverlay.tsx` 1429 lines,
+  `CADLayout.tsx` 1341 lines, `OpenCascadeViewport.tsx`, `OCCModel.tsx`, `SketchRenderer.tsx`) —
+  splitting these is a real, multi-hour restructuring job, not a lint fix.
+- **`no-derived-state`/`no-event-handler`/`no-adjust-state-on-prop-change`/`no-cascading-set-state`/
+  `no-chain-state-updates`/`no-effect-chain`/`prefer-useReducer`** in `OperationPanel.tsx` (~35 findings)
+  and a handful in `SketchOverlay.tsx` — all one systemic root cause: local state initialized from
+  props via `useEffect` instead of lazy `useState` initializers. `OperationPanel` is the parameter UI
+  for every CAD operation (extrude/revolve/6 primitives/fillet/chamfer/shell/offset/sweep/loft/boolean/
+  transform) and has only 82 lines of tests for that whole surface. The panel does actually
+  unmount/remount between operations (`CADLayout.tsx`'s conditional render, no explicit `key`), so a
+  lazy-initializer rewrite is plausible — but it needs new tests per operation type and browser
+  verification before landing, not a blind mechanical edit. Also touches `SketchOverlay.tsx`'s
+  tool-switching reset effect (line ~348), which is deliberately *not* touched here: past incidents
+  (see `[[r3f-stable-event-handlers]]` memory) show refactoring this exact pointer/event-handler wiring
+  can silently break sketch interactions.
+
+Verified via `npx react-doctor@latest --verbose` (132 → 78 findings) plus a manual browser pass
+(`bun run dev` + Playwright): selected Front Plane, entered sketch mode, drew a rectangle (auto-added 4
+constraints), finished the sketch — confirming the `SketchOverlay.tsx` dependency-array changes didn't
+break tool-switching or pointer handling. Full test suite (589 tests) and build pass throughout.
