@@ -23,6 +23,7 @@ export const useViewportStore = create<ViewportState>((set) => ({
   hoveredTreeItem: null,
   hoveredFaceId: null,
   hoveredEdgeIndex: null,
+  selectedTreeItem: null,
   selectedFaceId: null,
   selectedEdgeIndex: null,
   selectedVertexIndex: null,
@@ -41,6 +42,8 @@ export const useViewportStore = create<ViewportState>((set) => ({
   setHoveredTreeItem: (id) => set({ hoveredTreeItem: id }),
   setHoveredFaceId: (id) => set({ hoveredFaceId: id }),
   setHoveredEdgeIndex: (id) => set({ hoveredEdgeIndex: id }),
+  setSelectedTreeItem: (id) => set({ selectedTreeItem: id }),
+  toggleSelectedTreeItem: (id) => set((state) => ({ selectedTreeItem: state.selectedTreeItem === id ? null : id })),
   setSelectedFaceId: (id) => set({ selectedFaceId: id }),
   // A fresh single-edge pick drops any prior loop highlight.
   setSelectedEdgeIndex: (id) => set({ selectedEdgeIndex: id, selectedEdgeIndices: [] }),

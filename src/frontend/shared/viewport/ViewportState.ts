@@ -10,6 +10,8 @@ export interface ViewportState {
   hoveredEdgeIndex: number | null;
 
   // Selection state
+  /** Currently selected feature-tree row (sketch, feature, or reference geometry id). */
+  selectedTreeItem: string | null;
   selectedFaceId: number | null;
   selectedEdgeIndex: number | null;
   selectedVertexIndex: number | null;
@@ -61,6 +63,9 @@ export interface ViewportState {
   setHoveredTreeItem: (id: string | null) => void;
   setHoveredFaceId: (id: number | null) => void;
   setHoveredEdgeIndex: (id: number | null) => void;
+  setSelectedTreeItem: (id: string | null) => void;
+  /** Selects `id`, or clears the selection if it's already selected. */
+  toggleSelectedTreeItem: (id: string | null) => void;
   setSelectedFaceId: (id: number | null) => void;
   setSelectedEdgeIndex: (id: number | null) => void;
   setSelectedEdgeIndices: (ids: number[]) => void;

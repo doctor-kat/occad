@@ -7,23 +7,15 @@ import { RollbackBar, ROLLBACK_BAR_DND_TYPE } from './RollbackBar';
 
 export interface FeatureTreeProps {
   items: TreeItemType[];
-  selectedItem: string | null;
-  onSelectItem: (id: string | null) => void;
-  onToggleExpand: (id: string) => void;
-  onToggleVisibility?: (id: string) => void;
-  onEdit?: (id: string) => void;
-  onDelete?: (id: string) => void;
   isCompact?: boolean;
   onToggleSidebar?: () => void;
-  /** Reorder a feature relative to another (drag-and-drop). */
-  onReorder?: (draggedId: string, targetId: string, place: 'before' | 'after') => void;
   /** Current history rollback-bar position (index among top-level flow rows). */
   rollbackBarIndex?: number;
   /** Move the rollback bar to sit before flow-row `newIndex`. */
   onMoveRollbackBar?: (newIndex: number) => void;
 }
 
-export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onReorder, rollbackBarIndex, onMoveRollbackBar }: FeatureTreeProps) {
+export function FeatureTree({ items, isCompact, rollbackBarIndex, onMoveRollbackBar }: FeatureTreeProps) {
   const theme = useMantineTheme();
   const [draggingBar, setDraggingBar] = useState(false);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -43,12 +35,6 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
                 key={item.id}
                 item={item}
                 depth={0}
-                selectedItem={selectedItem}
-                onSelectItem={onSelectItem}
-                onToggleExpand={onToggleExpand}
-                onToggleVisibility={onToggleVisibility}
-                onEdit={onEdit}
-                onDelete={onDelete}
                 isCompact={true}
               />
             ))}
@@ -98,12 +84,6 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
               key={item.id}
               item={item}
               depth={0}
-              selectedItem={selectedItem}
-              onSelectItem={onSelectItem}
-              onToggleExpand={onToggleExpand}
-              onToggleVisibility={onToggleVisibility}
-              onEdit={onEdit}
-              onDelete={onDelete}
               isCompact={false}
             />
           ))}
@@ -136,14 +116,7 @@ export function FeatureTree({ items, selectedItem, onSelectItem, onToggleExpand,
                 <TreeItem
                   item={item}
                   depth={0}
-                  selectedItem={selectedItem}
-                  onSelectItem={onSelectItem}
-                  onToggleExpand={onToggleExpand}
-                  onToggleVisibility={onToggleVisibility}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
                   isCompact={false}
-                  onReorder={onReorder}
                 />
               </Box>
             </Fragment>

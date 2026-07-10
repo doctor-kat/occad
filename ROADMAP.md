@@ -410,3 +410,53 @@ project with existing bodies (confirms `useOpenCascadeBridge`'s rebuild-on-mount
 switched to the Measure tab and confirmed live volume/bounding-box data renders (exercises the
 Zustand-migrated `useMeasurement` path end-to-end), and clicked a viewport face to confirm the pick
 flow still fires with zero new console errors.
+
+#### Follow-up: `featureTreeUiStore.ts` — kill `TreeItem`'s recursive prop drilling
+
+A repo-wide audit found the one remaining prop-drilling hotspot after the above: `FeatureTree`/
+`TreeItem` (`src/frontend/ui/FeatureTree/`) recursively re-threaded a 7-value prop set
+(`selectedItem`, `onSelectItem`, `onToggleExpand`, `onToggleVisibility`, `onEdit`, `onDelete`,
+`onReorder`) through every nesting level of `TreeItem`, even though only `item`/`depth`/`isCompact`
+actually vary per recursive call.
+
+`selectedTreeItem` itself turned out to be consumed by ~20 files outside the feature tree
+(`OperationPanel`, `CADViewport`, `OperationsBar`, several operation-strategy panels,
+`ViewportContextMenu`, `OpenCascadeViewport`, `SelectionDisplay`, `useViewportSelection`,
+`useSketchPlaneSelection`, `CADHeader`, the `CADState` type, tests, etc.). Two dead ends before
+landing on the right shape, worth recording:
+
+1. First pass mirrored `useCADState`'s value into a new `featureTreeUiStore` (Zustand) via a
+   `CADSidebar` `useEffect`. That meant two copies of the same state — one commit of lag between a
+   selection and the mirror updating — for no real gain.
+2. Second pass fixed the state duplication by moving `selectedTreeItem` into `viewportStore.ts`
+   itself (right alongside `hoveredTreeItem`, which was already there), with `useCADState.ts` reading/
+   writing it via `useViewportStore` selectors instead of local `useState` — this part was a genuine
+   improvement and stayed. But it still routed the tree's CRUD/reorder callbacks
+   (`onToggleExpand`/`onEdit`/`onDelete`/`onReorder`) through `featureTreeUiStore`, registered by
+   `CADSidebar` via another `useEffect`. On reflection this store was never justified: `FeatureTree`
+   nests only one level deep (a feature's single associated sketch — see `useCADState.ts`'s
+   `featureTree` builder), mounted from exactly one place (`CADSidebar`), so there was no real
+   multi-level drilling or independent-branches problem to solve — the classic case for reaching past
+   Context to a global store. The store also added a real cost: `featureTreeUiStore` is a
+   module-level singleton, and it produced a genuine test-pollution failure this session, requiring a
+   `beforeEach` reset — a footgun paid for a benefit that was mostly cosmetic (shorter prop lists, no
+   render-frequency win, since every `TreeItem` still subscribes to the same primitive value either
+   way).
+
+Landed instead on: `selectedTreeItem` stays in `viewportStore.ts` (right call, kept from pass 2); the
+CRUD/reorder callbacks are provided via a plain `FeatureTreeActionsContext`
+(`src/frontend/ui/FeatureTree/FeatureTreeActionsContext.tsx`) — `CADSidebar` builds one `useMemo`'d
+actions object and wraps `<FeatureTree>` in `<FeatureTreeActionsProvider>`; `TreeItem` reads it via
+`useFeatureTreeActions()`. No effect, no registration step, no singleton to reset between tests —
+Context is provider-scoped, so `FeatureTree.test.tsx` just wraps each render in the provider like any
+other. Mirrors the existing `CADLayoutContext` idiom this codebase already uses for exactly this
+kind of "one provider, one consumer subtree" relationship, rather than mixing in a second
+state-management primitive for it.
+
+Verified with `bun run build`, `bun run test` (615/615 — `FeatureTree.test.tsx` renders through
+`FeatureTreeActionsProvider`; `useCADState.test.ts`/`CADLayout.test.tsx` keep their `viewportStore`
+`beforeEach` reset for `selectedTreeItem`, matching the existing `cadLayoutUiStore` reset pattern
+since that part of the state remains a module-level singleton), and `bun run lint` (455 problems vs.
+456 on `main` — one new fast-refresh warning on `FeatureTreeActionsContext.tsx`, identical in kind to
+the pre-existing one on `CADLayoutContext.tsx`; also fixed two pre-existing missing-dependency
+warnings while touching `useCADState.ts`'s `useCallback`s along the way).

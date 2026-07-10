@@ -3,6 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders, createMockUseOpenCascade } from "@/test/helpers";
 import { useCadLayoutUiStore } from "./layout/cadLayoutUiStore";
+import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import { OperationCategory } from "@/cad/types";
 
 // Capture the opts callbacks passed to useOpenCascade
@@ -69,6 +70,9 @@ describe("CADLayout", () => {
       measurePicks: [],
       betweenMeasurement: null,
     });
+    // selectedTreeItem now also lives in viewportStore (see useCADState.ts) —
+    // same module-level-singleton leak risk as cadLayoutUiStore above.
+    useViewportStore.setState({ selectedTreeItem: null });
   });
 
   it("should render initial project elements", () => {

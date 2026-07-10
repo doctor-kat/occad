@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useLocalStorage } from '@/frontend/shared/useLocalStorage.ts';
+import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
 import {
   PlanegcsConstraint,
   CADProject,
@@ -171,7 +172,12 @@ export function useCADState() {
   const project = useMemo(() => migrateProject(rawProject), [rawProject]);
   const [activeTab, setActiveTab] = useState<OperationCategory>(OperationCategory.PRIMITIVES);
   const [activeOperation, setActiveOperation] = useState<Operation>(null);
-  const [selectedTreeItem, setSelectedTreeItem] = useState<string | null>(null);
+  // Backed by viewportStore (not local useState) so FeatureTree/TreeItem can read
+  // it directly without threading it through props at every recursion depth —
+  // see featureTreeUiStore.ts. This hook remains the only place that mutates it
+  // via the toggle-aware `selectTreeItem` below.
+  const selectedTreeItem = useViewportStore((s) => s.selectedTreeItem);
+  const setSelectedTreeItem = useViewportStore((s) => s.setSelectedTreeItem);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeSketchId, setActiveSketchId] = useState<string | null>(null);
   const [rebuildState, setRebuildState] = useState<RebuildState>({
@@ -379,9 +385,10 @@ export function useCADState() {
   }, []);
 
   // Tree item selection
+  const toggleSelectedTreeItem = useViewportStore((s) => s.toggleSelectedTreeItem);
   const selectTreeItem = useCallback((id: string | null) => {
-    setSelectedTreeItem((current) => (current === id ? null : id));
-  }, []);
+    toggleSelectedTreeItem(id);
+  }, [toggleSelectedTreeItem]);
 
   // Toggle tree item expansion
   const toggleTreeItemExpansion = useCallback((id: string) => {
@@ -780,7 +787,7 @@ export function useCADState() {
     setProject(createNewProject());
     setSelectedTreeItem(null);
     setActiveOperation(null);
-  }, [setProject]);
+  }, [setProject, setSelectedTreeItem]);
 
   // Export project as JSON
   const exportProject = useCallback(() => {
@@ -858,14 +865,14 @@ export function useCADState() {
         updatedAt: Date.now(),
       };
     });
-  }, []);
+  }, [setProject]);
 
   const editTreeItem = useCallback((id: string) => {
     // For now, just select the item - you can add more edit logic later
     setSelectedTreeItem(id);
     // TODO: Add edit modal or inline editing
     console.log('Edit item:', id);
-  }, []);
+  }, [setSelectedTreeItem]);
 
   const deleteTreeItem = useCallback((id: string) => {
     setProject((prev) => {
@@ -896,8 +903,8 @@ export function useCADState() {
     });
 
     // Clear selection if deleted item was selected
-    setSelectedTreeItem((current) => (current === id ? null : current));
-  }, []);
+    if (useViewportStore.getState().selectedTreeItem === id) setSelectedTreeItem(null);
+  }, [setProject, setSelectedTreeItem]);
 
   return {
     // State

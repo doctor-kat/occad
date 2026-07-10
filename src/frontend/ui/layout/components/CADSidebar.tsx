@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import {
   AppShell, Box, Tabs, Center, Tooltip, ActionIcon, Group, Stack,
 } from '@mantine/core';
 import { FeatureTree } from '../../FeatureTree/FeatureTree';
+import { FeatureTreeActionsProvider } from '../../FeatureTree/FeatureTreeActionsContext';
 import { OperationPanel } from '../../operations/OperationPanel';
 import { EntitiesPanel } from '../../EntitiesPanel';
 import { SketchEntitiesPanel } from '../../SketchEntitiesPanel';
@@ -36,6 +38,19 @@ export function CADSidebar() {
   const betweenMeasurement = useCadLayoutUiStore((s) => s.betweenMeasurement);
   const setMeasurePicks = useCadLayoutUiStore((s) => s.setMeasurePicks);
   const setBetweenMeasurement = useCadLayoutUiStore((s) => s.setBetweenMeasurement);
+
+  // Provide the tree's action callbacks via Context so TreeItem doesn't need
+  // them threaded as props at every recursion depth. Selection itself needs no
+  // such bridge — TreeItem reads `selectedTreeItem` straight from
+  // viewportStore, the same store useCADState is backed by.
+  const featureTreeActions = useMemo(() => ({
+    onSelectItem: onSelectTreeItem,
+    onToggleExpand: toggleTreeItemExpansion,
+    onToggleVisibility: toggleTreeItemVisibility,
+    onEdit: operationPanel.handleEditTreeItem,
+    onDelete: deleteTreeItem,
+    onReorder: reorderFeatureRelative,
+  }), [onSelectTreeItem, toggleTreeItemExpansion, toggleTreeItemVisibility, operationPanel.handleEditTreeItem, deleteTreeItem, reorderFeatureRelative]);
 
   return (
     <AppShell.Navbar
@@ -188,20 +203,15 @@ export function CADSidebar() {
             </Tabs.List>
 
             <Tabs.Panel value={OperationCategory.FEATURES}>
-              <FeatureTree
-                items={featureTree}
-                selectedItem={selectedTreeItem}
-                onSelectItem={onSelectTreeItem}
-                onToggleExpand={toggleTreeItemExpansion}
-                onToggleVisibility={toggleTreeItemVisibility}
-                onEdit={operationPanel.handleEditTreeItem}
-                onDelete={deleteTreeItem}
-                isCompact={!isSidebarOpen}
-                onToggleSidebar={toggleSidebar}
-                onReorder={reorderFeatureRelative}
-                rollbackBarIndex={rollbackBarIndex}
-                onMoveRollbackBar={moveRollbackBar}
-              />
+              <FeatureTreeActionsProvider value={featureTreeActions}>
+                <FeatureTree
+                  items={featureTree}
+                  isCompact={!isSidebarOpen}
+                  onToggleSidebar={toggleSidebar}
+                  rollbackBarIndex={rollbackBarIndex}
+                  onMoveRollbackBar={moveRollbackBar}
+                />
+              </FeatureTreeActionsProvider>
             </Tabs.Panel>
             <Tabs.Panel value="entities">
               {!isSidebarOpen ? (

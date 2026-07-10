@@ -1,8 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "@/test/helpers";
 import { FeatureTree } from "./FeatureTree";
+import { FeatureTreeActionsProvider } from "./FeatureTreeActionsContext";
+import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import type { FeatureTreeItem } from "@/cad/types";
 
 const refGeometryItems: FeatureTreeItem[] = [
@@ -55,16 +57,33 @@ const featureWithChild: FeatureTreeItem = {
 describe("FeatureTree", () => {
   const defaultProps = {
     items: [...refGeometryItems, featureWithChild],
-    selectedItem: null as string | null,
-    onSelectItem: vi.fn(),
-    onToggleExpand: vi.fn(),
-    onToggleVisibility: vi.fn(),
-    onEdit: vi.fn(),
-    onDelete: vi.fn(),
   };
 
+  const onSelectItem = vi.fn();
+  const onToggleExpand = vi.fn();
+  const onToggleVisibility = vi.fn();
+  const onEdit = vi.fn();
+  const onDelete = vi.fn();
+
+  beforeEach(() => {
+    onSelectItem.mockClear();
+    onToggleExpand.mockClear();
+    onToggleVisibility.mockClear();
+    onEdit.mockClear();
+    onDelete.mockClear();
+    useViewportStore.setState({ selectedTreeItem: null });
+  });
+
+  function renderTree(props: React.ComponentProps<typeof FeatureTree>) {
+    return renderWithProviders(
+      <FeatureTreeActionsProvider value={{ onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete }}>
+        <FeatureTree {...props} />
+      </FeatureTreeActionsProvider>,
+    );
+  }
+
   it("should render all reference geometry names", () => {
-    renderWithProviders(<FeatureTree {...defaultProps} />);
+    renderTree(defaultProps);
     expect(screen.getByText("Front Plane")).toBeInTheDocument();
     expect(screen.getByText("Top Plane")).toBeInTheDocument();
     expect(screen.getByText("Right Plane")).toBeInTheDocument();
@@ -72,23 +91,20 @@ describe("FeatureTree", () => {
   });
 
   it("should render feature with child sketch when expanded", () => {
-    renderWithProviders(<FeatureTree {...defaultProps} />);
+    renderTree(defaultProps);
     expect(screen.getByText("Boss-Extrude1")).toBeInTheDocument();
     expect(screen.getByText("Sketch1")).toBeInTheDocument();
   });
 
   it("should call onSelectItem when clicking an item name", async () => {
-    const onSelectItem = vi.fn();
-    renderWithProviders(
-      <FeatureTree {...defaultProps} onSelectItem={onSelectItem} />,
-    );
+    renderTree(defaultProps);
 
     await userEvent.click(screen.getByText("Front Plane"));
     expect(onSelectItem).toHaveBeenCalledWith("front-plane");
   });
 
   it("should hide text names in compact mode", () => {
-    renderWithProviders(<FeatureTree {...defaultProps} isCompact />);
+    renderTree({ ...defaultProps, isCompact: true });
     expect(screen.queryByText("Feature Tree")).not.toBeInTheDocument();
     expect(screen.queryByText("Front Plane")).not.toBeInTheDocument();
   });
@@ -104,17 +120,17 @@ describe("FeatureTree", () => {
     };
 
     it("renders the rollback bar when a move handler is provided", () => {
-      renderWithProviders(<FeatureTree {...rollbackProps} />);
+      renderTree(rollbackProps);
       expect(screen.getByTestId("rollback-bar")).toBeInTheDocument();
     });
 
     it("does not render the bar without a move handler", () => {
-      renderWithProviders(<FeatureTree {...defaultProps} />);
+      renderTree(defaultProps);
       expect(screen.queryByTestId("rollback-bar")).not.toBeInTheDocument();
     });
 
     it("marks a rolled-back row via data-rolled-back", () => {
-      renderWithProviders(<FeatureTree {...rollbackProps} />);
+      renderTree(rollbackProps);
       const rowB = screen.getByText("B").closest(".tree-item-row");
       const rowA = screen.getByText("A").closest(".tree-item-row");
       expect(rowB).toHaveAttribute("data-rolled-back", "true");

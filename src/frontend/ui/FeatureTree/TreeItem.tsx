@@ -33,6 +33,7 @@ import {
 import { FeatureTreeItem as TreeItemType, FeatureTreeItemType, ReferenceGeometryType, FeatureOperation } from '@/cad/types';
 import { Box, Text, useMantineTheme, ActionIcon, Group, Tooltip } from '@mantine/core';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
+import { useFeatureTreeActions } from './FeatureTreeActionsContext';
 
 /** Icon per feature operation, keyed by the same FeatureOperation used to build/rebuild the feature. */
 const FEATURE_OPERATION_ICONS: Record<FeatureOperation, ComponentType<CadIconProps>> = {
@@ -91,19 +92,13 @@ function getItemIcon(item: TreeItemType, theme: any) {
 export interface TreeItemProps {
   item: TreeItemType;
   depth: number;
-  selectedItem: string | null;
-  onSelectItem: (id: string | null) => void;
-  onToggleExpand: (id: string) => void;
-  onToggleVisibility?: (id: string) => void;
-  onEdit?: (id: string) => void;
-  onDelete?: (id: string) => void;
   isCompact?: boolean;
-  /** Called when a feature is dropped relative to another feature (drag-reorder). */
-  onReorder?: (draggedId: string, targetId: string, place: 'before' | 'after') => void;
 }
 
-export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, isCompact, onReorder }: TreeItemProps) {
+export function TreeItem({ item, depth, isCompact }: TreeItemProps) {
   const setHoveredTreeItem = useViewportStore((state) => state.setHoveredTreeItem);
+  const selectedItem = useViewportStore((state) => state.selectedTreeItem);
+  const { onSelectItem, onToggleExpand, onToggleVisibility, onEdit, onDelete, onReorder } = useFeatureTreeActions();
   const hasChildren = item.children && item.children.length > 0;
   const isExpanded = item.isExpanded !== false;
   const isSelected = selectedItem === item.id;
@@ -346,14 +341,7 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
               key={child.id}
               item={child}
               depth={depth + 1}
-              selectedItem={selectedItem}
-              onSelectItem={onSelectItem}
-              onToggleExpand={onToggleExpand}
-              onToggleVisibility={onToggleVisibility}
-              onEdit={onEdit}
-              onDelete={onDelete}
               isCompact={isCompact}
-              onReorder={onReorder}
             />
           ))}
         </Box>

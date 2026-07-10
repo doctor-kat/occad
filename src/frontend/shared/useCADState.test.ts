@@ -6,8 +6,17 @@ import { SketchElementType } from "@/cad/types/sketch/SketchElementType";
 import type { SketchElement } from "@/cad/types/sketch/SketchElement";
 import type { Sketch } from "@/cad/types/sketch/Sketch";
 import { compareBuildOrder } from "@/cad/types";
+import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 
 describe("useCADState", () => {
+  // selectedTreeItem is backed by viewportStore (a module-level singleton), so
+  // it must be reset between tests the same way cadLayoutUiStore is reset in
+  // CADLayout.test.tsx — otherwise a selection made in one test leaks into the
+  // next test's initial render.
+  beforeEach(() => {
+    useViewportStore.setState({ selectedTreeItem: null });
+  });
+
   describe("initial state", () => {
     it("should have project name 'Untitled Project'", () => {
       const { result } = renderHook(() => useCADState());
