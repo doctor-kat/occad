@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders, createMockUseOpenCascade } from "@/test/helpers";
+import { useCadLayoutUiStore } from "./layout/cadLayoutUiStore";
+import { OperationCategory } from "@/cad/types";
 
 // Capture the opts callbacks passed to useOpenCascade
 let capturedOpts: any = {};
@@ -56,6 +58,17 @@ describe("CADLayout", () => {
     vi.clearAllMocks();
     // Reset mock values
     mockOCC.currentFeatureShapeId = null;
+    // cadLayoutUiStore is a module-level singleton (like viewportStore) — reset
+    // it between tests so a tab/measurement change in one test doesn't leak
+    // into the next test's initial render.
+    useCadLayoutUiStore.setState({
+      activeSidebarTab: OperationCategory.FEATURES,
+      operationPanelOpen: false,
+      editingFeatureId: null,
+      measurement: null,
+      measurePicks: [],
+      betweenMeasurement: null,
+    });
   });
 
   it("should render initial project elements", () => {

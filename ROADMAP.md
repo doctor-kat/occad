@@ -362,3 +362,51 @@ is pre-existing flakiness unrelated to this change), `bun run lint` (455 problem
 no new findings), and a manual `bun run dev` + Playwright pass: selected Front Plane, entered sketch
 mode, drew with the Corner Rectangle tool, Finish Sketch, Undo — all wired through with zero new
 console errors (only pre-existing `TreeItem.tsx` inline-style shorthand warnings).
+
+#### Follow-up: cut `CADHeader`/`CADSidebar`/`CADMainCanvas` prop counts (Zustand + Context hybrid)
+
+The breakup above still threaded every value through explicit props: `CADHeader` ~20, `CADSidebar`
+~33, `CADMainCanvas` ~32 — about 85 props total. Fixed with two additions, both scoped to
+`src/frontend/ui/layout/`, not app-wide:
+
+- **`cadLayoutUiStore.ts`** (Zustand, same pattern as `viewportStore.ts`) — holds the plain
+  read/write UI state that used to live in scattered `useState` calls: `activeSidebarTab`,
+  `operationPanelOpen`/`editingFeatureId` (from `useOperationPanel`), and
+  `measurement`/`measurePicks`/`betweenMeasurement` (from `useMeasurement`). `CADSidebar` — the
+  component that actually owns this UI — subscribes to it directly via selectors instead of
+  receiving it as props or context, so e.g. a measurement pick no longer re-renders
+  `CADHeader`/`CADMainCanvas`. `useMeasurement`/`useOperationPanel` kept their external function
+  signatures; only their internals swapped `useState` for store reads/writes.
+- **`CADLayoutContext.tsx`** (plain React Context, no Zustand) — distributes the singleton-hook data
+  (`cadState` from `useCADState`, `occ` from `useOpenCascadeBridge` — both must only be instantiated
+  once, per this file's `useOpenCascade`/`useCADState` singleton note) and the handler-bag hooks
+  (`sketchEditing`, `sketchPlaneSelection`, `viewportSelection`, `projectIO`, `operationPanel`) that
+  close over that singleton state. `CADLayout.tsx` still calls every hook exactly once and builds one
+  `contextValue`; `CADHeader`/`CADSidebar`/`CADMainCanvas` now take **zero props**, calling
+  `useCADLayoutContext()` (plus `useCadLayoutUiStore` selectors in `CADSidebar`'s case) instead.
+
+Deliberately not done: moving `cadState`/`occ` into Zustand (would just relocate the same
+singleton-instantiation constraint into a different API, not remove it); `React.memo`-wrapping the
+three components (the Context value object still changes identity every render since it isn't
+memoized, so memoizing consumers wouldn't reduce re-renders without also splitting the context —
+not needed since `CADLayout` already re-renders its whole subtree on any state change today, same
+as before this change); splitting `CADLayoutContext` into multiple smaller contexts for
+render-scoping (the frequently-changing fields already moved out to the Zustand store, so what's
+left in the context changes at roughly the same cadence as `CADLayout` itself).
+
+One test-infrastructure note: `cadLayoutUiStore` is a module-level singleton like `viewportStore`,
+so `CADLayout.test.tsx`'s `beforeEach` now resets it (`useCadLayoutUiStore.setState({...})`) to
+prevent a tab/measurement change in one test leaking into the next test's initial render — the same
+risk `viewportStore` already has but wasn't previously exercised by any test touching sidebar-tab
+state across test boundaries.
+
+Verified with `bun run build`, `npx tsc -p tsconfig.app.json --noEmit` (329 pre-existing errors vs.
+331 on `main`, all in unrelated OpenCascade WASM typings — no new errors, one fixed: an
+`Operation`-vs-`FeatureOperation|TransformOperation|SketchOperation` cast that had to be restored
+when `OperationPanel`'s prop moved out of a typed prop interface), `bun run test` (615/615, including
+the previously-flaky `SketchOverlay.dimension.test.tsx` passing clean this run), `bun run lint` (456
+problems, same as `main` — no new findings), and a manual `bun run dev` + Playwright pass: loaded a
+project with existing bodies (confirms `useOpenCascadeBridge`'s rebuild-on-mount still fires),
+switched to the Measure tab and confirmed live volume/bounding-box data renders (exercises the
+Zustand-migrated `useMeasurement` path end-to-end), and clicked a viewport face to confirm the pick
+flow still fires with zero new console errors.

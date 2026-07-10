@@ -3,11 +3,11 @@ import { modals } from '@mantine/modals';
 import { notifications } from '@mantine/notifications';
 import type { CADProject, Feature, MeasureSelection } from '@/cad/types';
 import { SubShapeKind } from '@/cad/types';
+import { useCadLayoutUiStore } from '../cadLayoutUiStore';
 
 interface UseViewportSelectionArgs {
   project: CADProject;
   activeSketchId: string | null;
-  activeSidebarTab: string | null;
   currentFeatureShapeId: string | null;
   getEdgeLoop: (requestId: string, shapeId: string, edgeIndex: number) => void;
   recordMeasurePick: (pick: MeasureSelection) => void;
@@ -15,7 +15,6 @@ interface UseViewportSelectionArgs {
   setSelectedFaceId: (id: number | null) => void;
   setSelectedEdgeIndex: (id: number | null) => void;
   setSelectedVertexIndex: (id: number | null) => void;
-  setActiveSidebarTab: (tab: string | null) => void;
   updateSketchState: (sketchId: string, sketch: any) => void;
   buildSketch: (sketch: any) => void;
   deleteFeature: (featureId: string) => void;
@@ -26,7 +25,6 @@ interface UseViewportSelectionArgs {
 export function useViewportSelection({
   project,
   activeSketchId,
-  activeSidebarTab,
   currentFeatureShapeId,
   getEdgeLoop,
   recordMeasurePick,
@@ -34,11 +32,12 @@ export function useViewportSelection({
   setSelectedFaceId,
   setSelectedEdgeIndex,
   setSelectedVertexIndex,
-  setActiveSidebarTab,
   updateSketchState,
   buildSketch,
   deleteFeature,
 }: UseViewportSelectionArgs) {
+  const activeSidebarTab = useCadLayoutUiStore((s) => s.activeSidebarTab);
+  const setActiveSidebarTab = useCadLayoutUiStore((s) => s.setActiveSidebarTab);
   const handleFaceClick = useCallback((faceId: number) => {
     selectTreeItem(null);
     setSelectedFaceId(faceId);

@@ -1,5 +1,5 @@
 import {
-  AppShell, Box, MantineTheme, Tabs, Center, Tooltip, ActionIcon, Group, Stack,
+  AppShell, Box, Tabs, Center, Tooltip, ActionIcon, Group, Stack,
 } from '@mantine/core';
 import { FeatureTree } from '../../FeatureTree/FeatureTree';
 import { OperationPanel } from '../../operations/OperationPanel';
@@ -8,89 +8,35 @@ import { SketchEntitiesPanel } from '../../SketchEntitiesPanel';
 import { MeasurePanel } from '../../MeasurePanel';
 import { FeatureTreeIcon, EntitiesIcon, MeasureIcon } from '@/frontend/shared/icons';
 import { OperationCategory } from '@/cad/types';
-import type {
-  CADProject, Sketch, Operation, OperationParams, StableRef, SubShapeKind,
-  MeshData, MeasurementData, MeasureBetweenData, MeasureSelection, FeatureTreeItem,
-} from '@/cad/types';
-
-interface CADSidebarProps {
-  theme: MantineTheme;
-  isSidebarOpen: boolean;
-  toggleSidebar: () => void;
-  project: CADProject;
-  // Operation panel
-  operationPanelOpen: boolean;
-  activeOperation: Operation | null;
-  editingFeatureId: string | null;
-  selectedTreeItem: string | null;
-  onResolveSelector: (kind: SubShapeKind, selector: string) => Promise<StableRef[]>;
-  onOperationConfirm: (params: OperationParams, sketchId?: string) => void;
-  onOperationCancel: () => void;
-  // Sidebar tabs
-  activeSidebarTab: string | null;
-  setActiveSidebarTab: (tab: string | null) => void;
-  // Feature tree
-  featureTree: FeatureTreeItem[];
-  onSelectTreeItem: (id: string) => void;
-  onToggleTreeItemExpansion: (id: string) => void;
-  onToggleTreeItemVisibility: (id: string) => void;
-  onEditTreeItem: (id: string) => void;
-  onDeleteTreeItem: (id: string) => void;
-  onReorderFeature: (featureId: string, targetId: string, position: 'before' | 'after') => void;
-  rollbackBarIndex: number;
-  onMoveRollbackBar: (index: number) => void;
-  // Entities
-  activeSketchId: string | null;
-  activeSketch: Sketch | undefined;
-  onRemoveSketchElement: (elementId: string) => void;
-  occMesh: MeshData | null;
-  onFaceClick: (faceId: number) => void;
-  onEdgeClick: (edgeIndex: number) => void;
-  // Measure
-  measurement: MeasurementData | null;
-  currentFeatureShapeId: string | null;
-  measurePicks: MeasureSelection[];
-  betweenMeasurement: MeasureBetweenData | null;
-  onClearMeasurePicks: () => void;
-}
+import type { FeatureOperation, TransformOperation, SketchOperation } from '@/cad/types';
+import { useCADLayoutContext } from '../CADLayoutContext';
+import { useCadLayoutUiStore } from '../cadLayoutUiStore';
 
 // Left Sidebar: OperationPanel (when a non-sketch operation is active) stacked
-// above a Feature Tree / Entities / Measure tab set.
-export function CADSidebar({
-  theme,
-  isSidebarOpen,
-  toggleSidebar,
-  project,
-  operationPanelOpen,
-  activeOperation,
-  editingFeatureId,
-  selectedTreeItem,
-  onResolveSelector,
-  onOperationConfirm,
-  onOperationCancel,
-  activeSidebarTab,
-  setActiveSidebarTab,
-  featureTree,
-  onSelectTreeItem,
-  onToggleTreeItemExpansion,
-  onToggleTreeItemVisibility,
-  onEditTreeItem,
-  onDeleteTreeItem,
-  onReorderFeature,
-  rollbackBarIndex,
-  onMoveRollbackBar,
-  activeSketchId,
-  activeSketch,
-  onRemoveSketchElement,
-  occMesh,
-  onFaceClick,
-  onEdgeClick,
-  measurement,
-  currentFeatureShapeId,
-  measurePicks,
-  betweenMeasurement,
-  onClearMeasurePicks,
-}: CADSidebarProps) {
+// above a Feature Tree / Entities / Measure tab set. Reads its own UI state
+// (active tab, operation-panel open/edit, measurement) straight from
+// cadLayoutUiStore so unrelated changes elsewhere don't re-render it, and
+// everything else (project, handlers) from CADLayoutContext.
+export function CADSidebar() {
+  const {
+    theme, cadState, activeSketch, occ, sketchEditing, viewportSelection, operationPanel, onSelectTreeItem,
+  } = useCADLayoutContext();
+  const {
+    project, isSidebarOpen, toggleSidebar, selectedTreeItem, activeSketchId, activeOperation, featureTree,
+    toggleTreeItemExpansion, toggleTreeItemVisibility, deleteTreeItem, reorderFeatureRelative,
+    rollbackBarIndex, moveRollbackBar,
+  } = cadState;
+
+  const activeSidebarTab = useCadLayoutUiStore((s) => s.activeSidebarTab);
+  const setActiveSidebarTab = useCadLayoutUiStore((s) => s.setActiveSidebarTab);
+  const operationPanelOpen = useCadLayoutUiStore((s) => s.operationPanelOpen);
+  const editingFeatureId = useCadLayoutUiStore((s) => s.editingFeatureId);
+  const measurementData = useCadLayoutUiStore((s) => s.measurement);
+  const measurePicks = useCadLayoutUiStore((s) => s.measurePicks);
+  const betweenMeasurement = useCadLayoutUiStore((s) => s.betweenMeasurement);
+  const setMeasurePicks = useCadLayoutUiStore((s) => s.setMeasurePicks);
+  const setBetweenMeasurement = useCadLayoutUiStore((s) => s.setBetweenMeasurement);
+
   return (
     <AppShell.Navbar
       style={{
@@ -112,14 +58,14 @@ export function CADSidebar({
           }}>
             <OperationPanel
               title={editingFeatureId ? `Edit ${project.features.find(f => f.id === editingFeatureId)?.name}` : activeOperation.toString().split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}
-              operation={activeOperation}
+              operation={activeOperation as FeatureOperation | TransformOperation | SketchOperation}
               project={project}
               initialParams={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.parameters) : undefined}
               initialSketchId={editingFeatureId ? (project.features.find(f => f.id === editingFeatureId)?.sketchId) : undefined}
               selectedTreeItem={selectedTreeItem}
-              onResolveSelector={onResolveSelector}
-              onConfirm={onOperationConfirm}
-              onCancel={onOperationCancel}
+              onResolveSelector={occ.resolveSelectorAsync}
+              onConfirm={operationPanel.handleOperationConfirm}
+              onCancel={operationPanel.handleOperationCancel}
             />
           </Box>
         )}
@@ -246,15 +192,15 @@ export function CADSidebar({
                 items={featureTree}
                 selectedItem={selectedTreeItem}
                 onSelectItem={onSelectTreeItem}
-                onToggleExpand={onToggleTreeItemExpansion}
-                onToggleVisibility={onToggleTreeItemVisibility}
-                onEdit={onEditTreeItem}
-                onDelete={onDeleteTreeItem}
+                onToggleExpand={toggleTreeItemExpansion}
+                onToggleVisibility={toggleTreeItemVisibility}
+                onEdit={operationPanel.handleEditTreeItem}
+                onDelete={deleteTreeItem}
                 isCompact={!isSidebarOpen}
                 onToggleSidebar={toggleSidebar}
-                onReorder={onReorderFeature}
+                onReorder={reorderFeatureRelative}
                 rollbackBarIndex={rollbackBarIndex}
-                onMoveRollbackBar={onMoveRollbackBar}
+                onMoveRollbackBar={moveRollbackBar}
               />
             </Tabs.Panel>
             <Tabs.Panel value="entities">
@@ -270,24 +216,24 @@ export function CADSidebar({
                 activeSketch ? (
                   <SketchEntitiesPanel
                     sketch={activeSketch}
-                    onRemoveElement={onRemoveSketchElement}
+                    onRemoveElement={sketchEditing.handleRemoveSketchElement}
                   />
                 ) : null
               ) : (
                 <EntitiesPanel
-                  mesh={occMesh}
-                  onFaceClick={onFaceClick}
-                  onEdgeClick={onEdgeClick}
+                  mesh={occ.occMesh}
+                  onFaceClick={viewportSelection.handleFaceClick}
+                  onEdgeClick={viewportSelection.handleEdgeClick}
                 />
               )}
             </Tabs.Panel>
             <Tabs.Panel value="measure">
               <MeasurePanel
-                measurement={measurement}
-                hasBody={!!currentFeatureShapeId}
+                measurement={measurementData}
+                hasBody={!!occ.currentFeatureShapeId}
                 picks={measurePicks}
                 between={betweenMeasurement}
-                onClearPicks={onClearMeasurePicks}
+                onClearPicks={() => { setMeasurePicks([]); setBetweenMeasurement(null); }}
               />
             </Tabs.Panel>
           </Tabs>

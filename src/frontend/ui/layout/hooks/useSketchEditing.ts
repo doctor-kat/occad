@@ -9,11 +9,11 @@ import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
 import { createConstraint } from '@/cad/engine/sketch/constraintFactory';
 import { removeUnit } from '@/cad/engine/sketch/sketchGroups';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { useCadLayoutUiStore } from '../cadLayoutUiStore';
 
 interface UseSketchEditingArgs {
   project: CADProject;
   activeSketchId: string | null;
-  setActiveSidebarTab: (tab: string | null) => void;
   updateSketchElements: (sketchId: string, elements: SketchElement[]) => void;
   updateSketchState: (sketchId: string, sketch: Sketch) => void;
   addConstraint: (sketchId: string, constraint: any) => void;
@@ -29,7 +29,6 @@ interface UseSketchEditingArgs {
 export function useSketchEditing({
   project,
   activeSketchId,
-  setActiveSidebarTab,
   updateSketchElements,
   updateSketchState,
   addConstraint,
@@ -38,6 +37,8 @@ export function useSketchEditing({
   stopSketchEdit,
   selectOperation,
 }: UseSketchEditingArgs) {
+  const setActiveSidebarTab = useCadLayoutUiStore((s) => s.setActiveSidebarTab);
+
   // While editing a sketch, surface its entity list in the left sidebar so the
   // selection (incl. box/crossing select) is visible. Switch to the Entities tab
   // on entering sketch mode and back to the feature tree on exit.

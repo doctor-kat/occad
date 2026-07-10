@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import type { CADProject, Operation, OperationParams, Sketch, Feature } from '@/cad/types';
 import { FeatureOperation, SketchOperation } from '@/cad/types';
 import { SKETCH_TOOL_OPERATIONS } from '../ioOperations';
+import { useCadLayoutUiStore } from '../cadLayoutUiStore';
 
 interface UseOperationPanelArgs {
   project: CADProject;
@@ -34,8 +35,10 @@ export function useOperationPanel({
   updateFeatureParameters,
   addFeature,
 }: UseOperationPanelArgs) {
-  const [operationPanelOpen, setOperationPanelOpen] = useState(false);
-  const [editingFeatureId, setEditingFeatureId] = useState<string | null>(null);
+  const operationPanelOpen = useCadLayoutUiStore((s) => s.operationPanelOpen);
+  const setOperationPanelOpen = useCadLayoutUiStore((s) => s.setOperationPanelOpen);
+  const editingFeatureId = useCadLayoutUiStore((s) => s.editingFeatureId);
+  const setEditingFeatureId = useCadLayoutUiStore((s) => s.setEditingFeatureId);
 
   // Open/close the OperationPanel for non-sketch operations. Kept separate from
   // the sketch-tool effect below so selection changes don't reset editing state.
@@ -50,7 +53,7 @@ export function useOperationPanel({
     setOperationPanelOpen(true);
     setEditingFeatureId(null);
     if (!isSidebarOpen) toggleSidebar();
-  }, [activeOperation, isSidebarOpen, toggleSidebar]);
+  }, [activeOperation, isSidebarOpen, toggleSidebar, setOperationPanelOpen, setEditingFeatureId]);
 
   // Handle operation confirmation
   const handleOperationConfirm = (params: OperationParams, sketchId?: string) => {
