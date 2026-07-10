@@ -238,7 +238,31 @@ enum cleanup is a separate, larger type-system task if it's ever worth doing.
   without a design-system decision.
 - **`no-giant-component`** (6: `OperationPanel.tsx` 810 lines, `SketchOverlay.tsx` 1429 lines,
   `CADLayout.tsx` 1341 lines, `OpenCascadeViewport.tsx`, `OCCModel.tsx`, `SketchRenderer.tsx`) —
-  splitting these is a real, multi-hour restructuring job, not a lint fix.
+  splitting these is a real, multi-hour restructuring job, not a lint fix. `OperationPanel.tsx` has a
+  started path out of this now — see the Strategy/registry entry below — but is not fully split yet.
+- **`OperationPanel.tsx` per-operation Strategy + registry-factory split** — 🚧 vertical slice done,
+  ~23 operations remain. `OperationPanel` fanned every one of its ~25 operations through five parallel
+  `switch`/`if` ladders (render fields, build params, validate, two init effects) keyed on the same
+  `operation` — a GoF **Strategy** pattern crying out to happen (Command was considered and rejected:
+  the app already has a command/memento layer at the `Feature`/parametric-history level, so the panel
+  only needs to *produce* params, not execute/undo them). Built `src/frontend/ui/operations/strategies/`:
+  a `PanelState`-registry-factory-selectable structure at only migrated `FeatureOperation.BOX` and
+  `FILLET` (one primitive, one selection-based op — bookend cases) to self-contained
+  `forwardRef`+`useImperativeHandle` components (`OperationPanelProps`/`OperationPanelHandle` in
+  `strategies/types.ts`), each owning its own local state, validity, and `buildParams`. `registry.ts`
+  is a typed `Partial<Record<Operation, OperationPanelComponent>>` — `OperationPanel.tsx` checks it
+  first and falls back to the legacy switch-based rendering for anything not yet migrated, so this
+  landed with zero risk to the other ~23 operations. Shared logic factored out: `useEdgeSelection`
+  (viewport-click-append hook — add `useFaceSelection` the same way when Shell/Offset migrate),
+  `SelectorRuleInput` (the select-by-rule text/preset/live-checkbox block used by fillet/chamfer/shell).
+  Verified in-browser: registry-routed Box primitive applies with reducer defaults; registry-routed
+  Fillet correctly disables Apply with zero edges, resolves a selector-rule preset, and both succeeds
+  (valid radius → real new faces in Entities panel) and fails-cleanly (radius too large for the edges →
+  OCC rejects, feature stays in history failing every rebuild — same behavior the old switch-based path
+  had, not a regression). Full 589-test suite green. **Next**: migrate the remaining primitives
+  (Sphere/Cylinder/Cone/Torus/Wedge — same shape as Box), then Chamfer/Shell (same shape as Fillet plus
+  `useFaceSelection` for Shell), then extrude/revolve/sweep/loft/boolean/transform — each migration is
+  additive (new file + one registry line), no shell changes needed.
 - **`prefer-useReducer` in `OperationPanel.tsx`** — ✅ done. The ~30 individual `useState` fields
   were collapsed into a single `useReducer` (`PanelState` + `panelReducer`), with a `set(patch)` helper
   and one `addToList` action for the sub-shape selection merges. Verified in-browser (Box primitive:

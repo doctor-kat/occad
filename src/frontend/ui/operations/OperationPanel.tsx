@@ -1,18 +1,19 @@
-import { useReducer, useEffect, useMemo } from 'react';
+import { useReducer, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, TextInput, Select, Stack, Group, Text, Alert, Box, useMantineTheme, ActionIcon, Title, NumberInput, Checkbox, MultiSelect } from '@mantine/core';
 import { X, Check } from '@phosphor-icons/react';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
+import { OPERATION_PANEL_REGISTRY } from './strategies/registry';
+import type { OperationPanelHandle } from './strategies/types';
+import { EDGE_SELECTOR_PRESETS, FACE_SELECTOR_PRESETS } from './strategies/shared/selectorPresets';
 import type {
   Sketch,
   ExtrudeParams,
   RevolveParams,
-  PrimitiveBoxParams,
   PrimitiveSphereParams,
   PrimitiveCylinderParams,
   PrimitiveConeParams,
   PrimitiveTorusParams,
   PrimitiveWedgeParams,
-  FilletParams,
   ChamferParams,
   ShellParams,
   OffsetParams,
@@ -28,18 +29,6 @@ import type {
   StableRef,
 } from '@/cad/types';
 import { PlaneType, FeatureOperation, TransformOperation, SketchOperation, refLabel, SubShapeKind } from '@/cad/types';
-
-/** Common presets for the selector-rule input — discoverable without learning the DSL. */
-const EDGE_SELECTOR_PRESETS = [
-  { label: 'All vertical edges', selector: '|Z' },
-  { label: 'Top edges', selector: '>Z' },
-  { label: 'Bottom edges', selector: '<Z' },
-];
-const FACE_SELECTOR_PRESETS = [
-  { label: 'Top face', selector: '>Z' },
-  { label: 'Bottom face', selector: '<Z' },
-  { label: 'Side faces', selector: '#Z' },
-];
 
 /**
  * Helper to get the normal vector for a sketch plane
@@ -187,6 +176,13 @@ export function OperationPanel({
   const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
   const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
 
+  // Registry-factory lookup: operations migrated to a self-contained Strategy
+  // component (src/frontend/ui/operations/strategies/) render through here
+  // instead of the legacy switch-based renderInputs/handleConfirm/isValid below.
+  const RegisteredPanel = OPERATION_PANEL_REGISTRY[operation];
+  const registeredPanelRef = useRef<OperationPanelHandle>(null);
+  const [registeredValid, setRegisteredValid] = useState(false);
+
   // All form state lives in one reducer; `set` patches individual fields.
   // Phase 4 note: `keepSelectorLive` persists the last-applied rule on the
   // feature so it re-evaluates live every rebuild (instead of just materializing
@@ -259,7 +255,8 @@ export function OperationPanel({
       }
     } else {
       // Default initializations for some ops based on selection
-      if (operation === FeatureOperation.FILLET || operation === FeatureOperation.CHAMFER) {
+      // (FILLET seeds its own edge selection inside FilletPanel.)
+      if (operation === FeatureOperation.CHAMFER) {
         if (selectedEdgeIndex !== null) {
           patch.selectedEdges = [`edge-${selectedEdgeIndex}`];
         }
@@ -279,8 +276,9 @@ export function OperationPanel({
   }, [operation, initialParams, selectedEdgeIndex, selectedFaceId, initialSketchId, project.sketches, project.features, selectedTreeItem]);
 
   // Append new selections from viewport while panel is open
+  // (FILLET appends its own edge selection inside FilletPanel.)
   useEffect(() => {
-    if (operation === FeatureOperation.FILLET || operation === FeatureOperation.CHAMFER) {
+    if (operation === FeatureOperation.CHAMFER) {
       if (selectedEdgeIndex !== null) {
         dispatch({ type: 'addToList', key: 'selectedEdges', values: [`edge-${selectedEdgeIndex}`] });
       }
@@ -306,7 +304,6 @@ export function OperationPanel({
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operation, project.sketches, sketchId]);
 
   const handleConfirm = () => {
@@ -345,10 +342,6 @@ export function OperationPanel({
         } as BooleanParams;
         onConfirm(params);
         break;
-      case FeatureOperation.BOX:
-        params = { width, height, depth, center: { x: 0, y: 0, z: 0 } } as PrimitiveBoxParams;
-        onConfirm(params);
-        break;
       case FeatureOperation.SPHERE:
         params = { radius, center: { x: 0, y: 0, z: 0 } } as PrimitiveSphereParams;
         onConfirm(params);
@@ -367,10 +360,6 @@ export function OperationPanel({
         break;
       case FeatureOperation.WEDGE:
         params = { width, height, depth, ltx, center: { x: 0, y: 0, z: 0 } } as PrimitiveWedgeParams;
-        onConfirm(params);
-        break;
-      case FeatureOperation.FILLET:
-        params = { radius, edges: selectedEdges, selector: liveSelector } as FilletParams;
         onConfirm(params);
         break;
       case FeatureOperation.CHAMFER:
@@ -645,15 +634,6 @@ export function OperationPanel({
           </>
         );
 
-      case FeatureOperation.BOX:
-        return (
-          <>
-            <NumberInput label="Width" value={width} onChange={(val) => set({ width: Number(val) })} min={0.1} size="sm" />
-            <NumberInput label="Height" value={height} onChange={(val) => set({ height: Number(val) })} min={0.1} size="sm" />
-            <NumberInput label="Depth" value={depth} onChange={(val) => set({ depth: Number(val) })} min={0.1} size="sm" />
-          </>
-        );
-
       case FeatureOperation.SPHERE:
         return <NumberInput label="Radius" value={radius} onChange={(val) => set({ radius: Number(val) })} min={0.1} size="sm" />;
 
@@ -689,24 +669,6 @@ export function OperationPanel({
             <NumberInput label="Height" value={height} onChange={(val) => set({ height: Number(val) })} min={0.1} size="sm" />
             <NumberInput label="Depth" value={depth} onChange={(val) => set({ depth: Number(val) })} min={0.1} size="sm" />
             <NumberInput label="Top X Length (LTX)" value={ltx} onChange={(val) => set({ ltx: Number(val) })} min={0} size="sm" />
-          </>
-        );
-
-      case FeatureOperation.FILLET:
-        return (
-          <>
-            <NumberInput label="Radius" value={radius} onChange={(val) => set({ radius: Number(val) })} min={0.1} size="sm" />
-            {renderSelectorInput(SubShapeKind.Edge, EDGE_SELECTOR_PRESETS)}
-            <MultiSelect
-              label="Edges"
-              placeholder="Select edges"
-              value={selectedEdges}
-              onChange={(v) => set({ selectedEdges: v })}
-              data={selectedEdges.map(e => ({ value: e, label: e }))}
-              size="sm"
-              readOnly
-            />
-            <Text size="xs" c="dimmed">Click edges in the viewport to add them.</Text>
           </>
         );
 
@@ -873,7 +835,6 @@ export function OperationPanel({
       case FeatureOperation.UNION:
       case FeatureOperation.INTERSECT:
         return selectedFeatures.length > 0;
-      case FeatureOperation.FILLET:
       case FeatureOperation.CHAMFER:
         return selectedEdges.length > 0;
       case FeatureOperation.SHELL:
@@ -882,7 +843,6 @@ export function OperationPanel({
         return !!profileSketchId && !!pathSketchId;
       case FeatureOperation.LOFT:
         return loftSketchIds.length >= 2;
-      case FeatureOperation.BOX:
       case FeatureOperation.SPHERE:
       case FeatureOperation.CYLINDER:
       case FeatureOperation.CONE:
@@ -901,6 +861,9 @@ export function OperationPanel({
         return false;
     }
   }, [operation, sketchId, selectedEdges, selectedFaces, selectedFeatures, selectedTreeItem, project.referenceGeometry, profileSketchId, pathSketchId, loftSketchIds]);
+
+  const canApply = RegisteredPanel ? registeredValid : isValid;
+  const handleApply = RegisteredPanel ? () => registeredPanelRef.current?.submit() : handleConfirm;
 
   return (
     <Stack gap={0} style={{ backgroundColor: theme.other.colors.background }}>
@@ -921,7 +884,7 @@ export function OperationPanel({
             <ActionIcon variant="subtle" color="gray" onClick={onCancel}>
               <X size={16} />
             </ActionIcon>
-            <ActionIcon variant="filled" color="blue" onClick={handleConfirm} disabled={!isValid}>
+            <ActionIcon variant="filled" color="blue" onClick={handleApply} disabled={!canApply}>
               <Check size={16} />
             </ActionIcon>
           </Group>
@@ -931,7 +894,20 @@ export function OperationPanel({
       {/* Content */}
       <Box p={16} style={{ overflowY: 'auto' }}>
         <Stack gap="md">
-          {renderInputs()}
+          {RegisteredPanel ? (
+            <RegisteredPanel
+              ref={registeredPanelRef}
+              project={project}
+              ctx={{ selectedFaceId, selectedEdgeIndex, selectedVertexIndex, selectedTreeItem }}
+              initialParams={initialParams}
+              initialSketchId={initialSketchId}
+              onResolveSelector={onResolveSelector}
+              onConfirm={onConfirm}
+              onValidChange={setRegisteredValid}
+            />
+          ) : (
+            renderInputs()
+          )}
         </Stack>
       </Box>
 
@@ -941,7 +917,7 @@ export function OperationPanel({
           <Button variant="subtle" size="sm" onClick={onCancel}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleConfirm} disabled={!isValid}>
+          <Button size="sm" onClick={handleApply} disabled={!canApply}>
             Apply
           </Button>
         </Group>

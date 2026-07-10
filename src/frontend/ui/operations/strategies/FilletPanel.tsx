@@ -1,0 +1,55 @@
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { MultiSelect, NumberInput, Text } from '@mantine/core';
+import { refLabel, SubShapeKind, type FilletParams } from '@/cad/types';
+import { useEdgeSelection } from './shared/useSubShapeSelection';
+import { SelectorRuleInput } from './shared/SelectorRuleInput';
+import { EDGE_SELECTOR_PRESETS } from './shared/selectorPresets';
+import type { OperationPanelHandle, OperationPanelProps } from './types';
+
+export const FilletPanel = forwardRef<OperationPanelHandle, OperationPanelProps>(function FilletPanel(
+  { ctx, initialParams, onResolveSelector, onConfirm, onValidChange },
+  ref,
+) {
+  const p = initialParams as FilletParams | undefined;
+  const [radius, setRadius] = useState(p?.radius ?? 25);
+  const [selectedEdges, setSelectedEdges] = useEdgeSelection(
+    p ? p.edges.map(refLabel) : (ctx.selectedEdgeIndex !== null ? [`edge-${ctx.selectedEdgeIndex}`] : []),
+    ctx.selectedEdgeIndex,
+  );
+  const [liveSelector, setLiveSelector] = useState<string | undefined>(p?.selector);
+
+  const isValid = selectedEdges.length > 0;
+  useEffect(() => onValidChange(isValid), [isValid, onValidChange]);
+
+  useImperativeHandle(ref, () => ({
+    submit: () => {
+      if (!isValid) return;
+      onConfirm({ radius, edges: selectedEdges, selector: liveSelector } as FilletParams);
+    },
+  }));
+
+  return (
+    <>
+      <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
+      <SelectorRuleInput
+        kind={SubShapeKind.Edge}
+        presets={EDGE_SELECTOR_PRESETS}
+        onResolveSelector={onResolveSelector}
+        selected={selectedEdges}
+        setSelected={setSelectedEdges}
+        liveSelector={liveSelector}
+        setLiveSelector={setLiveSelector}
+      />
+      <MultiSelect
+        label="Edges"
+        placeholder="Select edges"
+        value={selectedEdges}
+        onChange={setSelectedEdges}
+        data={selectedEdges.map((e) => ({ value: e, label: e }))}
+        size="sm"
+        readOnly
+      />
+      <Text size="xs" c="dimmed">Click edges in the viewport to add them.</Text>
+    </>
+  );
+});
