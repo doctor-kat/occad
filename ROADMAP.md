@@ -236,40 +236,52 @@ enum cleanup is a separate, larger type-system task if it's ever worth doing.
 - **`no-inline-exhaustive-style`** (8) — would require introducing CSS Modules into a codebase that
   uses inline Mantine `style` props everywhere; a one-off partial migration for 8 sites is inconsistent
   without a design-system decision.
-- **`no-giant-component`** (6: `OperationPanel.tsx` 810 lines, `SketchOverlay.tsx` 1429 lines,
-  `CADLayout.tsx` 1341 lines, `OpenCascadeViewport.tsx`, `OCCModel.tsx`, `SketchRenderer.tsx`) —
-  splitting these is a real, multi-hour restructuring job, not a lint fix. `OperationPanel.tsx` has a
-  started path out of this now — see the Strategy/registry entry below — but is not fully split yet.
-- **`OperationPanel.tsx` per-operation Strategy + registry-factory split** — 🚧 vertical slice done,
-  ~23 operations remain. `OperationPanel` fanned every one of its ~25 operations through five parallel
-  `switch`/`if` ladders (render fields, build params, validate, two init effects) keyed on the same
-  `operation` — a GoF **Strategy** pattern crying out to happen (Command was considered and rejected:
-  the app already has a command/memento layer at the `Feature`/parametric-history level, so the panel
-  only needs to *produce* params, not execute/undo them). Built `src/frontend/ui/operations/strategies/`:
-  a `PanelState`-registry-factory-selectable structure at only migrated `FeatureOperation.BOX` and
-  `FILLET` (one primitive, one selection-based op — bookend cases) to self-contained
-  `forwardRef`+`useImperativeHandle` components (`OperationPanelProps`/`OperationPanelHandle` in
-  `strategies/types.ts`), each owning its own local state, validity, and `buildParams`. `registry.ts`
-  is a typed `Partial<Record<Operation, OperationPanelComponent>>` — `OperationPanel.tsx` checks it
-  first and falls back to the legacy switch-based rendering for anything not yet migrated, so this
-  landed with zero risk to the other ~23 operations. Shared logic factored out: `useEdgeSelection`
-  (viewport-click-append hook — add `useFaceSelection` the same way when Shell/Offset migrate),
-  `SelectorRuleInput` (the select-by-rule text/preset/live-checkbox block used by fillet/chamfer/shell).
-  Verified in-browser: registry-routed Box primitive applies with reducer defaults; registry-routed
-  Fillet correctly disables Apply with zero edges, resolves a selector-rule preset, and both succeeds
-  (valid radius → real new faces in Entities panel) and fails-cleanly (radius too large for the edges →
-  OCC rejects, feature stays in history failing every rebuild — same behavior the old switch-based path
-  had, not a regression). Full 589-test suite green. **Next**: migrate the remaining primitives
-  (Sphere/Cylinder/Cone/Torus/Wedge — same shape as Box), then Chamfer/Shell (same shape as Fillet plus
-  `useFaceSelection` for Shell), then extrude/revolve/sweep/loft/boolean/transform — each migration is
-  additive (new file + one registry line), no shell changes needed.
-- **`prefer-useReducer` in `OperationPanel.tsx`** — ✅ done. The ~30 individual `useState` fields
-  were collapsed into a single `useReducer` (`PanelState` + `panelReducer`), with a `set(patch)` helper
-  and one `addToList` action for the sub-shape selection merges. Verified in-browser (Box primitive:
-  reducer defaults render, edited field patches, Apply builds real geometry — 23 faces/72 edges, no
-  degenerate result) and against the full 589-test suite. The remaining `useEffect`-from-props init
-  pattern was preserved (dispatching one patch instead of many setters) rather than rewritten to lazy
-  initializers, since the panel's prop-driven re-init on operation change still needs effects.
+- **`no-giant-component`** (`OperationPanel.tsx`) — ✅ done via the Strategy/registry split below
+  (810 → ~120 lines). The other 5 (`SketchOverlay.tsx` 1429 lines, `CADLayout.tsx` 1341 lines,
+  `OpenCascadeViewport.tsx`, `OCCModel.tsx`, `SketchRenderer.tsx`) are still real, multi-hour
+  restructuring jobs, not lint fixes.
+- **`OperationPanel.tsx` per-operation Strategy + registry-factory split** — ✅ done, all ~21
+  `FeatureOperation`/`TransformOperation` variants that ever reach the panel are migrated (only
+  `FeatureOperation.IMPORT`, which has no parametric params UI, and any stray `SketchOperation` fall
+  back to a "not implemented" message). `OperationPanel` used to fan every operation through five
+  parallel `switch`/`if` ladders (render fields, build params, validate, two init effects) keyed on the
+  same `operation` — a GoF **Strategy** pattern crying out to happen (Command was considered and
+  rejected: the app already has a command/memento layer at the `Feature`/parametric-history level, so
+  the panel only needs to *produce* params, not execute/undo them).
+  `src/frontend/ui/operations/strategies/` holds one self-contained `forwardRef`+`useImperativeHandle`
+  component per operation (`OperationPanelProps`/`OperationPanelHandle` in `strategies/types.ts`), each
+  owning its own local state (mostly lazy `useState` initializers, not the old prop-driven
+  `useEffect` — incidentally also fixes the `no-adjust-state-on-prop-change` finding this file used to
+  have), validity, and `buildParams`. `registry.ts` is a typed
+  `Partial<Record<Operation, OperationPanelComponent>>` factory; `OperationPanel.tsx` is now a ~120-line
+  shell that looks up the registry and renders header/content/footer chrome around whatever it finds —
+  it no longer has an operation-specific line of logic in it. Two components serve multiple enum
+  variants via the new `operation` prop passed through `OperationPanelProps`: `ExtrudePanel`
+  (EXTRUDE_BOSS/EXTRUDED_CUT) and `RevolvePanel` (REVOLVED_BOSS/REVOLVED_CUT) derive `isCut`;
+  `BooleanPanel` (UNION/INTERSECT) derives the boolean mode. Shared logic factored into
+  `strategies/shared/`: `useEdgeSelection`/`useFaceSelection`/`useFeatureSelection` (viewport/tree-click-append
+  hooks), `SelectorRuleInput` (select-by-rule text/preset/live-checkbox block), `useDefaultSketchId`
+  (extrude/revolve's shared initial-sketch-selection logic). Also fixed a latent bug found along the
+  way: the legacy `MEASURE` case referenced `MeasureParams` without importing it — `bun run build`
+  (Vite/SWC, transpile-only) never caught it; `npx tsc --noEmit` does, and is now part of this file's
+  verification loop since Vite alone isn't sufficient for a refactor this size.
+  Verified in-browser end-to-end across a representative slice — Box/Sphere (primitives), Fillet (both
+  a successful and a geometrically-invalid apply, to confirm error paths aren't regressed), Move
+  (transform), Union (boolean, multi-feature), Measure (evaluate) — all produced real feature-tree
+  entries and real geometry (verified via Entities panel face/edge counts) with zero new console
+  errors. `npx tsc --noEmit`, `bun run lint`, `bun run build`, and the full 589-test suite are all
+  clean. Extrude/Revolve/Sweep/Loft were not driven through a live sketch in the browser (synthetic
+  pointer events on the sketch canvas did not register a draw in this session — worth a follow-up
+  investigation, see `[[r3f-stable-event-handlers]]` / `[[r3f-raw-listener-vs-effect-order]]` memories
+  for prior related pointer-event gotchas in this exact viewport) but are mechanical extractions of the
+  previously-working legacy code (state init, params construction, and the extrude-preview effect were
+  copied over unchanged) and are exercised indirectly by `CADLayout.test.tsx`'s sketch-creation tests.
+- **`prefer-useReducer` in `OperationPanel.tsx`** — ✅ superseded. The single-panel `useReducer`
+  (`PanelState`/`panelReducer`) built for this finding was a real improvement over ~30 flat `useState`
+  hooks, but it's now gone entirely — every operation moved to its own Strategy component with its own
+  local state (see the entry above), which is a stronger fix: each component only has the 2-5 fields
+  its own operation actually needs, instead of one struct holding all ~30 fields for every operation at
+  once.
 - **`no-derived-state`/`no-event-handler`/`no-adjust-state-on-prop-change`/`no-cascading-set-state`/
   `no-chain-state-updates`/`no-effect-chain`** — a handful remain in
   `SketchOverlay.tsx` — same systemic root cause: local state initialized from

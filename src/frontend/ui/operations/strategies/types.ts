@@ -1,5 +1,13 @@
 import type { ForwardRefExoticComponent, RefAttributes } from 'react';
-import type { CADProject, OperationParams, StableRef, SubShapeKind } from '@/cad/types';
+import type {
+  CADProject,
+  FeatureOperation,
+  OperationParams,
+  StableRef,
+  SubShapeKind,
+  SketchOperation,
+  TransformOperation,
+} from '@/cad/types';
 
 /** Live viewport selection, passed down so a panel can seed/append from clicks. */
 export interface SelectionContext {
@@ -17,6 +25,9 @@ export interface SelectionContext {
  * through the imperative handle below.
  */
 export interface OperationPanelProps {
+  /** Exact enum variant being rendered — needed by Strategies that serve more than one
+   *  variant (e.g. ExtrudePanel handles both EXTRUDE_BOSS and EXTRUDED_CUT). */
+  operation: FeatureOperation | TransformOperation | SketchOperation;
   project: CADProject;
   ctx: SelectionContext;
   initialParams?: OperationParams;
