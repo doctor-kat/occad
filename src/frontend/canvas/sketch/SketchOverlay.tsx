@@ -1,5 +1,5 @@
 import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
-import { ThreeEvent, useThree } from '@react-three/fiber';
+import { ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Dot, DotsThree } from '@phosphor-icons/react';
 import * as THREE from 'three';
@@ -17,19 +17,17 @@ import {
 import { expandSelection } from '@/cad/engine/sketch/sketchGroups';
 import { circleFromThreePoints, centerpointArc, tangentArc } from '@/cad/engine/sketch/arcGeometry';
 import { arcElementFrom, lastEndTangent } from '@/cad/engine/sketch/arcElementFactory';
-import { projectPointOntoLineSegment, getDistanceToElement } from '@/cad/engine/sketch/elementHitTest';
+import { getDistanceToElement } from '@/cad/engine/sketch/elementHitTest';
 import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
 import { useViewportStore, isMultiSelectClick } from '@/frontend/shared/viewportStore';
-import {
-  boxMode,
-  rectFromCorners,
-  selectElementsInBox,
-} from '@/cad/engine/sketch/sketchBoxSelection';
 import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors';
-import { hitsDimensionHandle } from '@/cad/engine/sketch/dimensionHandleHitTest';
 import { ORIGIN_POINT_ID } from '@/cad/engine/sketch/originPoint';
 import { NO_RAYCAST, CONSTRAINT_ICONS } from './sketchOverlayConstants';
+import { useSketchSnapping } from './hooks/useSketchSnapping';
+import { useDimensionTool } from './hooks/useDimensionTool';
+import { useSketchBoxSelection } from './hooks/useSketchBoxSelection';
+import { useSketchKeyboardActions } from './hooks/useSketchKeyboardActions';
 
 export interface SketchOverlayProps {
   sketch: Sketch;
@@ -74,26 +72,17 @@ export function SketchOverlay({
     },
     []
   );
-  // Dimension tool: the first entity (point primitive or line element) picked,
-  // waiting for a second pick to complete the pair. Mirrored into a ref for the
-  // same reason as currentPointsRef — the point-handle onClick callbacks must
-  // stay stable across the first/second click.
-  type DimTarget = { id: string; kind: 'point' | 'line' };
-  const [pendingDimTarget, setPendingDimTargetState] = useState<DimTarget | null>(null);
-  const pendingDimTargetRef = useRef<DimTarget | null>(null);
-  const setPendingDimTarget = useCallback((target: DimTarget | null) => {
-    pendingDimTargetRef.current = target;
-    setPendingDimTargetState(target);
-  }, []);
-  // Entity (point primitive or line element id) currently under the cursor while
-  // in Dimension mode — drives hover highlighting in place of grid/origin snapping.
-  const [hoveredDimTargetId, setHoveredDimTargetId] = useState<string | null>(null);
+  const {
+    pendingDimTarget,
+    pendingDimTargetRef,
+    setPendingDimTarget,
+    hoveredDimTargetId,
+    setHoveredDimTargetId,
+    handleDimensionPick,
+    resetDimensionState,
+  } = useDimensionTool(sketch, onCreateConstraint);
   const [previewElement, setPreviewElement] = useState<SketchElement | null>(null);
   const [hoverPoint, setHoverPoint] = useState<Point2D | null>(null);
-  const [snapPoint2D, setSnapPoint2D] = useState<Point2D | null>(null);
-  // True while the cursor is snapped to the origin during a draw — drives the
-  // "coincident-to-be-added" preview badge shown at the origin.
-  const [originSnap, setOriginSnap] = useState(false);
   // Sketch element selection + hover live in the shared viewport store so the
   // constraint toolbar and the sidebar entity list (both rendered outside the R3F
   // canvas) can read and drive them.
@@ -131,47 +120,39 @@ export function SketchOverlay({
     () => constraintIconPlacements(sketch.constraints || [], sketch.elements),
     [sketch.constraints, sketch.elements]
   );
-  const [snapToGrid, setSnapToGrid] = useState(true);
-  // Grid *visibility* — independent of snapping (you can snap to a hidden grid,
-  // or show the grid without snapping). Toggled with 'H'.
-  const [showGrid, setShowGrid] = useState(true);
   const planeRef = useRef<THREE.Mesh>(null);
 
-  // R3F context for box-select: project plane points to screen px via the live
-  // camera, and attach the rubber-band drag listeners to the canvas element.
-  const { camera, gl, size, scene } = useThree();
-
-  // Mutable mirrors read by the gl.domElement listeners (registered once). Reading
-  // these from refs keeps the listener effect from re-binding on every elements/
-  // camera/size change mid-drag.
-  const cameraRef = useRef(camera);
-  const sizeRef = useRef(size);
-  const sceneRef = useRef(scene);
-  const elementsRef = useRef(sketch.elements);
-  const planeTransformRef = useRef<THREE.Matrix4 | null>(null);
-  if (planeTransformRef.current === null) planeTransformRef.current = new THREE.Matrix4();
-  const activeOperationRef = useRef(activeOperation);
-  const selectedRef = useRef(selectedSketchElementIds);
-  // Set true the moment a box drag passes the movement threshold, so the plane's
-  // onClick (which still fires on pointer-up after a drag) skips its single-pick
-  // toggle. The click handler resets it.
-  const suppressClickRef = useRef(false);
-
-  const gridSize = 10;
-  const snapDistance = 5; // Distance threshold for snapping to points/edges
   const hoverThreshold = 3; // Distance threshold for element hover detection
 
   // Calculate plane transformation
   const planeTransform = useMemo(() => getWorkplaneTransform(sketch.workplane), [sketch.workplane]);
 
-  // Keep the listener-facing mirrors current (cheap, runs every render).
-  cameraRef.current = camera;
-  sizeRef.current = size;
-  sceneRef.current = scene;
-  elementsRef.current = sketch.elements;
-  planeTransformRef.current = planeTransform;
-  activeOperationRef.current = activeOperation;
-  selectedRef.current = selectedSketchElementIds;
+  const {
+    gridSize,
+    snapDistance,
+    snapToGrid,
+    setSnapToGrid,
+    showGrid,
+    setShowGrid,
+    snapPoint2D,
+    setSnapPoint2D,
+    originSnap,
+    setOriginSnap,
+    snapPoints,
+    edgeMidpoints,
+    circleCenters,
+    snapPoint,
+    resetSnapIndicators,
+  } = useSketchSnapping(sketch, activeConstraint);
+
+  const suppressClickRef = useSketchBoxSelection(
+    sketch.elements,
+    activeOperation,
+    selectedSketchElementIds,
+    planeTransform,
+    setSketchSelectionBox,
+    setSketchElementSelection
+  );
 
   // Clear selection when switching INTO a drawing tool (selection is only meaningful in
   // selection mode). Guarding on activeOperation avoids wiping a deliberate selection on
@@ -182,56 +163,11 @@ export function SketchOverlay({
       setHoveredElementId(null);
     }
     if (activeOperation !== SketchOperation.DIMENSION) {
-      setPendingDimTarget(null);
-      setHoveredDimTargetId(null);
+      resetDimensionState();
       setHoverPoint(null);
-      setSnapPoint2D(null);
-      setOriginSnap(false);
+      resetSnapIndicators();
     }
-  }, [activeOperation, clearSketchSelection, setPendingDimTarget, setHoveredElementId]);
-
-  /** Complete a Dimension-tool pick: arm the first entity, or (on the second
-   *  pick) create the appropriate distance constraint between it and this one.
-   *  point+point -> p2p_distance; point+line -> p2l_distance (perpendicular);
-   *  line+line -> unsupported (no such planegcs primitive). */
-  const handleDimensionPick = useCallback(
-    (id: string, kind: 'point' | 'line') => {
-      const armed = pendingDimTargetRef.current;
-      if (!armed) {
-        setPendingDimTarget({ id, kind });
-        return;
-      }
-      if (armed.id === id && armed.kind === kind) return; // same target again — no-op
-
-      if (armed.kind === 'point' && kind === 'point') {
-        const p1 = sketch.primitives?.find((p) => p.id === armed.id)?.data;
-        const p2 = sketch.primitives?.find((p) => p.id === id)?.data;
-        if (p1 && p2) {
-          onCreateConstraint?.({
-            kind: 'distance',
-            p1Id: armed.id,
-            p2Id: id,
-            distance: Math.hypot(p2.x - p1.x, p2.y - p1.y),
-          });
-        }
-      } else if (armed.kind === 'line' && kind === 'line') {
-        console.warn('Dimension tool: line-to-line distance is not supported (no planegcs primitive).');
-      } else {
-        const pointId = armed.kind === 'point' ? armed.id : id;
-        const lineId = armed.kind === 'line' ? armed.id : id;
-        const pointData = sketch.primitives?.find((p) => p.id === pointId)?.data;
-        const linePrim = sketch.primitives?.find((p) => p.id === lineId && p.type === 'line');
-        const lineStart = linePrim ? sketch.primitives?.find((p) => p.id === linePrim.data.p1_id)?.data : undefined;
-        const lineEnd = linePrim ? sketch.primitives?.find((p) => p.id === linePrim.data.p2_id)?.data : undefined;
-        if (pointData && lineStart && lineEnd) {
-          const { distance } = projectPointOntoLineSegment(pointData, lineStart, lineEnd);
-          onCreateConstraint?.({ kind: 'point-line-distance', pointId, lineId, distance });
-        }
-      }
-      setPendingDimTarget(null);
-    },
-    [sketch.primitives, onCreateConstraint, setPendingDimTarget]
-  );
+  }, [activeOperation, clearSketchSelection, resetDimensionState, resetSnapIndicators, setHoveredElementId]);
 
   // Complete polygon (for polygon operation)
   const handleCompletePolygon = useCallback(() => {
@@ -248,181 +184,23 @@ export function SketchOverlay({
     }
   }, [activeOperation, sketch.elements, sketch.id, onElementsChange, setPoints]);
 
-  // Handle keyboard events
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Select all sketch entities (Ctrl/Cmd+A) — Del then deletes them.
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A')) {
-        e.preventDefault();
-        setSketchElementSelection(sketch.elements.map((el) => el.id));
-        return;
-      }
-
-      // Toggle grid snap
-      if (e.key === 'g' || e.key === 'G') {
-        setSnapToGrid((prev) => !prev);
-        return;
-      }
-
-      // Toggle grid visibility (independent of snapping)
-      if (e.key === 'h' || e.key === 'H') {
-        setShowGrid((prev) => !prev);
-        return;
-      }
-
-      // Complete polygon
-      if (e.key === 'Enter') {
-        handleCompletePolygon();
-        return;
-      }
-
-      // Escape: abort the in-progress element if one is being drawn; otherwise
-      // exit sketch mode entirely (falls back to clearing selection if the sketch
-      // can't be exited for some reason).
-      if (e.key === 'Escape') {
-        if (pendingDimTargetRef.current) {
-          setPendingDimTarget(null);
-        } else if (currentPointsRef.current.length > 0) {
-          setPoints([]);
-          setPreviewElement(null);
-        } else if (onExitSketch) {
-          onExitSketch();
-        } else {
-          clearSketchSelection();
-        }
-        return;
-      }
-
-      // Deletion
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedElementIds.size > 0) {
-          // Prevent default browser behavior
-          e.preventDefault();
-
-          // Filter out selected elements
-          const newElements = sketch.elements.filter(
-            (element) => !selectedElementIds.has(element.id)
-          );
-          onElementsChange(sketch.id, newElements);
-
-          // Clear selection
-          clearSketchSelection();
-          setHoveredElementId(null);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedElementIds, sketch.elements, sketch.id, onElementsChange, handleCompletePolygon, clearSketchSelection, setPoints, onExitSketch, setHoveredElementId, setSketchElementSelection, setPendingDimTarget]);
-
-  // Left-button rubber-band box / crossing selection of sketch entities — active
-  // only in selection mode (no draw tool). The camera is on the middle button, so
-  // the left button is free here. Listeners live on the canvas element (not the
-  // R3F plane mesh) so the gesture works in raw screen px and doesn't depend on the
-  // plane's move-only raycasting. Drag right → window (fully enclosed); drag left →
-  // crossing (touching). See sketchBoxSelection.ts for the hit math.
-  useEffect(() => {
-    const dom = gl.domElement;
-    const DRAG_THRESHOLD = 4; // px before a press counts as a drag, not a click
-
-    let startX = 0, startY = 0; // canvas-local px at press
-    let curX = 0, curY = 0;
-    let pressed = false;
-    let dragging = false;
-    let additive = false; // Ctrl/Shift held → merge/toggle into the current set
-
-    const toLocal = (e: PointerEvent) => {
-      const r = dom.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
-    };
-
-    // Plane point → screen px, via the live camera (matches the rubber-band space).
-    const project = (p: { x: number; y: number }) => {
-      const v = new THREE.Vector3(p.x, p.y, 0).applyMatrix4(planeTransformRef.current);
-      v.project(cameraRef.current as THREE.Camera);
-      const { width, height } = sizeRef.current;
-      return { x: (v.x * 0.5 + 0.5) * width, y: (-v.y * 0.5 + 0.5) * height };
-    };
-
-    const raycaster = new THREE.Raycaster();
-    const ndc = new THREE.Vector2();
-
-    const onDown = (e: PointerEvent) => {
-      if (e.button !== 0) return;            // left button only
-      if (activeOperationRef.current) return; // a draw tool owns the left button
-      // A dimension label/arrowhead drag owns this gesture instead of box-select.
-      // Raycast directly against tagged handle meshes rather than relying on a
-      // flag set by another listener — two listeners on the same canvas element
-      // (this raw one, and r3f's own dispatcher) fire in registration order, which
-      // depends on component mount order (child effects run before parent ones),
-      // not on which gesture logically "owns" the pointerdown.
-      const p = toLocal(e);
-      ndc.set((p.x / sizeRef.current.width) * 2 - 1, -(p.y / sizeRef.current.height) * 2 + 1);
-      raycaster.setFromCamera(ndc, cameraRef.current as THREE.Camera);
-      if (hitsDimensionHandle(raycaster, sceneRef.current)) return;
-      pressed = true;
-      dragging = false;
-      additive = e.ctrlKey || e.metaKey || e.shiftKey;
-      startX = curX = p.x;
-      startY = curY = p.y;
-    };
-
-    const onMove = (e: PointerEvent) => {
-      if (!pressed) return;
-      const p = toLocal(e);
-      curX = p.x;
-      curY = p.y;
-      if (!dragging && Math.hypot(curX - startX, curY - startY) > DRAG_THRESHOLD) {
-        dragging = true;
-        suppressClickRef.current = true; // swallow the trailing plane onClick
-      }
-      if (dragging) {
-        setSketchSelectionBox({
-          x: Math.min(startX, curX),
-          y: Math.min(startY, curY),
-          w: Math.abs(curX - startX),
-          h: Math.abs(curY - startY),
-          mode: boxMode(startX, curX),
-        });
-      }
-    };
-
-    const onUp = () => {
-      if (!pressed) return;
-      pressed = false;
-      if (!dragging) return;
-      dragging = false;
-      const mode = boxMode(startX, curX);
-      const rect = rectFromCorners(startX, startY, curX, curY);
-      const hits = selectElementsInBox(elementsRef.current, rect, mode, project);
-      if (additive) {
-        const set = new Set(selectedRef.current);
-        for (const id of hits) set.has(id) ? set.delete(id) : set.add(id);
-        setSketchElementSelection(Array.from(set));
-      } else {
-        setSketchElementSelection(hits);
-      }
-      setSketchSelectionBox(null);
-    };
-
-    const onCancel = () => {
-      pressed = false;
-      dragging = false;
-      setSketchSelectionBox(null);
-    };
-
-    dom.addEventListener('pointerdown', onDown);
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onCancel);
-    return () => {
-      dom.removeEventListener('pointerdown', onDown);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onCancel);
-    };
-  }, [gl, setSketchSelectionBox, setSketchElementSelection]);
+  useSketchKeyboardActions({
+    selectedElementIds,
+    sketch,
+    onElementsChange,
+    onCompletePolygon: handleCompletePolygon,
+    clearSketchSelection,
+    setSketchElementSelection,
+    setHoveredElementId,
+    onExitSketch,
+    pendingDimTargetRef,
+    setPendingDimTarget,
+    currentPointsRef,
+    setPoints,
+    setPreviewElement,
+    setSnapToGrid,
+    setShowGrid,
+  });
 
   // Origin crosshair geometries (memoised to avoid per-render allocation)
   const xAxisGeo = useMemo(() => {
@@ -436,193 +214,6 @@ export function SketchOverlay({
     geo.setFromPoints([new THREE.Vector3(0, -50, 0), new THREE.Vector3(0, 50, 0)]);
     return geo;
   }, []);
-
-  // Get all snap points from existing sketch elements
-  const snapPoints = useMemo(() => {
-    const points: Point2D[] = [];
-    sketch.elements.forEach((element) => {
-      switch (element.type) {
-        case SketchElementType.POINT:
-          points.push({ x: element.x, y: element.y });
-          break;
-        case SketchElementType.LINE:
-          points.push(element.start, element.end);
-          break;
-        case SketchElementType.CIRCLE:
-          points.push(element.center);
-          break;
-        case SketchElementType.RECTANGLE:
-          points.push(element.corner1, element.corner2);
-          points.push({ x: element.corner1.x, y: element.corner2.y });
-          points.push({ x: element.corner2.x, y: element.corner1.y });
-          break;
-        case SketchElementType.POLYGON:
-          points.push(...element.points);
-          break;
-        case SketchElementType.ARC:
-          if (element.points) {
-            points.push(...element.points);
-          }
-          if (element.center) {
-            points.push(element.center);
-          }
-          break;
-      }
-    });
-    return points;
-  }, [sketch.elements]);
-
-  // Get all edge midpoints from existing sketch elements
-  const edgeMidpoints = useMemo(() => {
-    const midpoints: Point2D[] = [];
-    sketch.elements.forEach((element) => {
-      switch (element.type) {
-        case SketchElementType.LINE:
-          midpoints.push({
-            x: (element.start.x + element.end.x) / 2,
-            y: (element.start.y + element.end.y) / 2,
-          });
-          break;
-        case SketchElementType.RECTANGLE:
-          const { corner1, corner2 } = element;
-          // Four edges of rectangle
-          midpoints.push({ x: (corner1.x + corner2.x) / 2, y: corner1.y });
-          midpoints.push({ x: (corner1.x + corner2.x) / 2, y: corner2.y });
-          midpoints.push({ x: corner1.x, y: (corner1.y + corner2.y) / 2 });
-          midpoints.push({ x: corner2.x, y: (corner1.y + corner2.y) / 2 });
-          break;
-      }
-    });
-    return midpoints;
-  }, [sketch.elements]);
-
-  // Get all circle centers from existing sketch elements
-  const circleCenters = useMemo(() => {
-    const centers: Point2D[] = [];
-    sketch.elements.forEach((element) => {
-      if (element.type === SketchElementType.CIRCLE) {
-        centers.push(element.center);
-      } else if (element.type === SketchElementType.ARC && element.center) {
-        centers.push(element.center);
-      }
-    });
-    return centers;
-  }, [sketch.elements]);
-
-  // Find nearest snap point based on active constraint
-  const findSnapPoint = useCallback(
-    (point: Point2D): Point2D | null => {
-      let candidatePoints: Point2D[] = [];
-
-      switch (activeConstraint) {
-        case 'point':
-          candidatePoints = snapPoints;
-          break;
-        case 'midpoint':
-          candidatePoints = edgeMidpoints;
-          break;
-        case 'center':
-          candidatePoints = circleCenters;
-          break;
-        case 'edge': {
-          // Project onto nearest edge
-          let closestProjection: Point2D | null = null;
-          let minDistance = snapDistance;
-
-          sketch.elements.forEach((element) => {
-            if (element.type === SketchElementType.LINE) {
-              const { projection, distance } = projectPointOntoLineSegment(
-                point,
-                element.start,
-                element.end
-              );
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestProjection = projection;
-              }
-            } else if (element.type === SketchElementType.RECTANGLE) {
-              // Check all four edges of the rectangle
-              const edges = [
-                [element.corner1, { x: element.corner2.x, y: element.corner1.y }],
-                [{ x: element.corner2.x, y: element.corner1.y }, element.corner2],
-                [element.corner2, { x: element.corner1.x, y: element.corner2.y }],
-                [{ x: element.corner1.x, y: element.corner2.y }, element.corner1],
-              ];
-
-              edges.forEach(([start, end]) => {
-                const { projection, distance } = projectPointOntoLineSegment(
-                  point,
-                  start as Point2D,
-                  end as Point2D
-                );
-                if (distance < minDistance) {
-                  minDistance = distance;
-                  closestProjection = projection;
-                }
-              });
-            }
-          });
-
-          return closestProjection;
-        }
-        case 'none':
-        default:
-          return null;
-      }
-
-      // Find closest point within snap distance
-      let closestPoint: Point2D | null = null;
-      let minDistance = snapDistance;
-
-      candidatePoints.forEach((candidate) => {
-        const distance = Math.sqrt(
-          Math.pow(candidate.x - point.x, 2) + Math.pow(candidate.y - point.y, 2)
-        );
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestPoint = candidate;
-        }
-      });
-
-      return closestPoint;
-    },
-    [activeConstraint, snapPoints, edgeMidpoints, circleCenters, snapDistance, sketch.elements]
-  );
-
-  // Snap point to grid or constraint
-  const snapPoint = useCallback(
-    (point: Point2D): Point2D => {
-      // First try constraint snapping
-      if (activeConstraint !== 'none') {
-        const constraintSnap = findSnapPoint(point);
-        if (constraintSnap) {
-          setSnapPoint2D(constraintSnap);
-          setOriginSnap(false);
-          return constraintSnap;
-        }
-      }
-
-      // Origin snapping: always available while placing a point, so drawn geometry
-      // can land exactly on (0,0). A coincident-to-origin constraint is then inferred
-      // for the endpoint (see originPoint.inferOriginCoincidence).
-      if (Math.hypot(point.x, point.y) < snapDistance) {
-        setSnapPoint2D({ x: 0, y: 0 });
-        setOriginSnap(true);
-        return { x: 0, y: 0 };
-      }
-
-      setSnapPoint2D(null);
-      setOriginSnap(false);
-
-      // Fall back to grid snapping
-      if (!snapToGrid) return point;
-      return {
-        x: Math.round(point.x / gridSize) * gridSize,
-        y: Math.round(point.y / gridSize) * gridSize,
-      };
-    },
-    [gridSize, snapToGrid, activeConstraint, findSnapPoint]
-  );
 
   // Handle clicks on the sketch plane
   const handlePlaneClick = useCallback(
@@ -932,7 +523,7 @@ export function SketchOverlay({
           console.warn(`Operation ${activeOperation} not yet implemented`);
       }
     },
-    [activeOperation, sketch, onElementsChange, snapPoint, planeTransform, selectOrToggle, clearSketchSelection, setPoints, handleDimensionPick]
+    [activeOperation, sketch, onElementsChange, snapPoint, planeTransform, selectOrToggle, clearSketchSelection, setPoints, handleDimensionPick, suppressClickRef]
   );
 
   // Handle mouse move for preview
@@ -1172,7 +763,7 @@ export function SketchOverlay({
           break;
       }
     },
-    [activeOperation, snapPoint, planeTransform, hoverThreshold, snapDistance, sketch.elements, sketch.primitives, setHoveredElementId]
+    [activeOperation, snapPoint, planeTransform, hoverThreshold, snapDistance, sketch.elements, sketch.primitives, setHoveredElementId, setHoveredDimTargetId, setOriginSnap, setSnapPoint2D]
   );
 
   const originSelected = selectedElementIds.has(ORIGIN_POINT_ID);
