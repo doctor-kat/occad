@@ -1,7 +1,5 @@
 import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
 import { ThreeEvent } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
-import { Dot, DotsThree } from '@phosphor-icons/react';
 import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D, ConstraintInput } from '@/cad/types';
 import { SketchOperation, SketchElementType } from '@/cad/types';
@@ -9,16 +7,20 @@ import { getWorkplaneTransform } from './getPlaneTransform';
 import { expandSelection } from '@/cad/engine/sketch/sketchGroups';
 import { getDistanceToElement } from '@/cad/engine/sketch/elementHitTest';
 import { drawToolRegistry } from '@/cad/engine/sketch/drawTools/registry';
-import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
 import { useViewportStore, isMultiSelectClick } from '@/frontend/shared/viewportStore';
 import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors';
 import { ORIGIN_POINT_ID } from '@/cad/engine/sketch/originPoint';
-import { NO_RAYCAST, CONSTRAINT_ICONS } from './sketchOverlayConstants';
 import { useSketchSnapping } from './hooks/useSketchSnapping';
 import { useDimensionTool } from './hooks/useDimensionTool';
 import { useSketchBoxSelection } from './hooks/useSketchBoxSelection';
 import { useSketchKeyboardActions } from './hooks/useSketchKeyboardActions';
+import { SketchPlaneAndGrid } from './components/SketchPlaneAndGrid';
+import { SketchOriginGizmo } from './components/SketchOriginGizmo';
+import { SketchElementsLayer } from './components/SketchElementsLayer';
+import { SketchConstraintBadges } from './components/SketchConstraintBadges';
+import { SketchDrawingFeedback } from './components/SketchDrawingFeedback';
+import { SketchConstraintSnapHighlights } from './components/SketchConstraintSnapHighlights';
 
 export interface SketchOverlayProps {
   sketch: Sketch;
@@ -369,7 +371,18 @@ export function SketchOverlay({
   const originSelected = selectedElementIds.has(ORIGIN_POINT_ID);
   const originHoverTarget = (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === ORIGIN_POINT_ID)
     || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === ORIGIN_POINT_ID);
-  const originHighlighted = originSelected || originHoverTarget;
+
+  const pickPoint = useCallback(
+    (id: string, e: ThreeEvent<MouseEvent>) => {
+      e.stopPropagation();
+      if (activeOperation === SketchOperation.DIMENSION) {
+        handleDimensionPick(id, 'point');
+      } else {
+        selectOrToggle(id, e);
+      }
+    },
+    [activeOperation, handleDimensionPick, selectOrToggle]
+  );
 
   return (
     <group matrix={planeTransform} matrixAutoUpdate={false}>
@@ -381,292 +394,63 @@ export function SketchOverlay({
         showGrid={showGrid}
       />
 
-      {/* Semi-transparent sketch plane */}
-      <mesh
-        ref={planeRef}
-        position={[0, 0, 0.01]}
+      <SketchPlaneAndGrid
+        planeRef={planeRef}
         onClick={handlePlaneClick}
         onPointerMove={handlePlaneMove}
         onPointerLeave={() => {
           setHoverPoint(null);
           setOriginSnap(false);
         }}
-      >
-        <planeGeometry args={[200, 200]} />
-        <meshBasicMaterial
-          color="#3b82f6"
-          transparent
-          opacity={0.05}
-          side={THREE.DoubleSide}
-          depthWrite={false}
+        showGrid={showGrid}
+        gridSize={gridSize}
+        xAxisGeo={xAxisGeo}
+        yAxisGeo={yAxisGeo}
+      />
+
+      <SketchOriginGizmo
+        activeOperation={activeOperation}
+        originSelected={originSelected}
+        originHoverTarget={originHoverTarget}
+        onPick={(e) => pickPoint(ORIGIN_POINT_ID, e)}
+      />
+
+      <SketchElementsLayer
+        sketch={sketch}
+        activeOperation={activeOperation}
+        hoveredElementId={hoveredElementId}
+        hoveredDimTargetId={hoveredDimTargetId}
+        selectedElementIds={selectedElementIds}
+        pendingDimTarget={pendingDimTarget}
+        onPickPoint={pickPoint}
+      />
+
+      {!activeOperation && (
+        <SketchConstraintBadges
+          constraintIcons={constraintIcons}
+          selectedConstraintId={selectedConstraintId}
+          hoveredConstraintId={hoveredConstraintId}
+          setSelectedConstraintId={setSelectedConstraintId}
+          setHoveredConstraintId={setHoveredConstraintId}
         />
-      </mesh>
-
-      {/* Grid on sketch plane (visibility toggled with 'H', independent of snap) */}
-      {showGrid && (
-        <gridHelper
-          args={[200, 200 / gridSize, '#6366f1', '#444466']}
-          rotation={[Math.PI / 2, 0, 0]}
-          position={[0, 0, 0.01]}
-          raycast={NO_RAYCAST}
-        />
       )}
 
-      {/* Origin crosshair — red X, green Y */}
-      <line geometry={xAxisGeo} position={[0, 0, 0.02]} renderOrder={1000} raycast={NO_RAYCAST}>
-        <lineBasicMaterial color="#ef4444" transparent opacity={0.35} depthTest={false} />
-      </line>
-      <line geometry={yAxisGeo} position={[0, 0, 0.02]} renderOrder={1000} raycast={NO_RAYCAST}>
-        <lineBasicMaterial color="#22c55e" transparent opacity={0.35} depthTest={false} />
-      </line>
-      {/* Origin point — a fixed sketch entity at (0,0), mirroring the world Origin.
-          Selectable in selection mode (so it can be picked for a constraint); the
-          underlying fixed point primitive lives in sketch.primitives (originPoint.ts). */}
-      <mesh
-        position={[0, 0, 0.03]}
-        renderOrder={1001}
-        raycast={activeOperation && activeOperation !== SketchOperation.DIMENSION ? NO_RAYCAST : undefined}
-        onClick={
-          activeOperation && activeOperation !== SketchOperation.DIMENSION
-            ? undefined
-            : (e) => {
-                e.stopPropagation();
-                if (activeOperation === SketchOperation.DIMENSION) {
-                  handleDimensionPick(ORIGIN_POINT_ID, 'point');
-                } else {
-                  selectOrToggle(ORIGIN_POINT_ID, e);
-                }
-              }
-        }
-      >
-        <circleGeometry args={[originHighlighted ? 2 : 1.5, 24]} />
-        <meshBasicMaterial
-          color={originSelected ? '#3b82f6' : originHoverTarget ? '#f97316' : '#ffffff'}
-          transparent
-          opacity={originHighlighted ? 0.95 : 0.6}
-          depthTest={false}
-        />
-      </mesh>
+      <SketchDrawingFeedback
+        previewElement={previewElement}
+        currentPoints={currentPoints}
+        hoverPoint={hoverPoint}
+        activeOperation={activeOperation}
+        snapPoint2D={snapPoint2D}
+        originSnap={originSnap}
+      />
 
-      {/* Render existing sketch elements */}
-      {sketch.elements.map((element) => {
-        // Grouped elements highlight as one unit: hovering any sibling (or the group's
-        // folder row in the sidebar) highlights the whole group.
-        const hoveredGroupId = hoveredElementId
-          ? sketch.elements.find((e) => e.id === hoveredElementId)?.groupId
-          : undefined;
-        const isHovered = hoveredElementId === element.id
-          || (Boolean(element.groupId) && element.groupId === hoveredGroupId)
-          || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === element.id);
-        const isSelected = selectedElementIds.has(element.id)
-          || (activeOperation === SketchOperation.DIMENSION && pendingDimTarget?.kind === 'line' && pendingDimTarget.id === element.id);
-        return (
-          <SketchElementRenderer3D
-            key={element.id}
-            element={element}
-            color="#7c93c3"
-            lineWidth={2}
-            isHovered={isHovered}
-            isSelected={isSelected}
-          />
-        );
-      })}
-
-      {/* Endpoint/center handles for point-level selection (coincident/distance).
-          Only in selection mode (no active drawing operation). */}
-      {(!activeOperation || activeOperation === SketchOperation.DIMENSION) && sketch.primitives
-        ?.flatMap((p) => {
-          if (!(p.type === 'point' && !p.isExternal && p.data && typeof p.data.x === 'number')) return [];
-          const isSelected = selectedElementIds.has(p.id);
-          const isHoverTarget = (pendingDimTarget?.kind === 'point' && pendingDimTarget.id === p.id)
-            || (activeOperation === SketchOperation.DIMENSION && hoveredDimTargetId === p.id);
-          const isSel = isSelected || isHoverTarget;
-          const color = isSelected ? '#3b82f6' : isHoverTarget ? '#f97316' : '#94a3b8';
-          return [
-            <mesh
-              key={`handle-${p.id}`}
-              position={[p.data.x, p.data.y, 0.2]}
-              renderOrder={1002}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (activeOperation === SketchOperation.DIMENSION) {
-                  handleDimensionPick(p.id, 'point');
-                } else {
-                  selectOrToggle(p.id, e);
-                }
-              }}
-            >
-              <circleGeometry args={[isSel ? 1.6 : 1.1, 20]} />
-              <meshBasicMaterial color={color} transparent opacity={isSel ? 0.95 : 0.6} depthTest={false} />
-            </mesh>,
-          ];
-        })}
-
-      {/* Constraint badges: a small labelled square just above each constrained
-          entity's midpoint, drawn as a crisp DOM overlay (screen-constant size, so
-          it's readable at any zoom). Clicking one selects (toggles) that
-          constraint. Selection mode only, so they don't interfere with drawing. */}
-      {!activeOperation && constraintIcons.map((icon) => {
-        const isSel = selectedConstraintId === icon.id;
-        const isHovered = hoveredConstraintId === icon.id;
-        const Icon = CONSTRAINT_ICONS[icon.type] ?? DotsThree;
-        return (
-          <Html
-            key={`constraint-${icon.id}`}
-            position={[icon.x, icon.y, 0.25]}
-            center
-            zIndexRange={[30, 10]}
-            style={{ pointerEvents: 'auto' }}
-          >
-            <button
-              type="button"
-              data-testid={`constraint-badge-${icon.id}`}
-              data-hovered={isHovered}
-              title={icon.type}
-              aria-label={icon.type}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedConstraintId(isSel ? null : icon.id);
-              }}
-              onMouseEnter={() => setHoveredConstraintId(icon.id)}
-              onMouseLeave={() => setHoveredConstraintId(null)}
-              style={{
-                width: 18,
-                height: 18,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: isSel ? '#3b82f6' : isHovered ? '#f97316' : '#22d3ee',
-                border: `1.5px solid ${isSel ? '#60a5fa' : isHovered ? '#fdba74' : '#0e7490'}`,
-                borderRadius: 4,
-                boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
-                cursor: 'pointer',
-                userSelect: 'none',
-                padding: 0,
-              }}
-            >
-              <Icon size={12} color="#0a0a0f" />
-            </button>
-          </Html>
-        );
-      })}
-
-      {/* Render preview element */}
-      {previewElement && (
-        <SketchElementRenderer3D element={previewElement} color="#fbbf24" opacity={0.7} lineWidth={2} />
-      )}
-
-      {/* Render current construction points */}
-      {currentPoints.map((point) => (
-        <mesh key={`${point.x},${point.y}`} position={[point.x, point.y, 0.1]} raycast={NO_RAYCAST}>
-          <circleGeometry args={[1, 16]} />
-          <meshBasicMaterial color="#22c55e" />
-        </mesh>
-      ))}
-
-      {/* Render hover point indicator */}
-      {hoverPoint && activeOperation && (
-        <mesh position={[hoverPoint.x, hoverPoint.y, 0.1]} raycast={NO_RAYCAST}>
-          <circleGeometry args={[0.8, 16]} />
-          <meshBasicMaterial color="#60a5fa" transparent opacity={0.5} />
-        </mesh>
-      )}
-
-      {/* Render snap point indicator (when snapped to a constraint) */}
-      {snapPoint2D && activeOperation && (
-        <group position={[snapPoint2D.x, snapPoint2D.y, 0.15]}>
-          {/* Outer ring */}
-          <mesh raycast={NO_RAYCAST}>
-            <ringGeometry args={[1.5, 2, 16]} />
-            <meshBasicMaterial color="#22c55e" transparent opacity={0.8} />
-          </mesh>
-          {/* Center dot */}
-          <mesh raycast={NO_RAYCAST}>
-            <circleGeometry args={[0.5, 16]} />
-            <meshBasicMaterial color="#22c55e" />
-          </mesh>
-        </group>
-      )}
-
-      {/* Coincident-to-origin preview: while drawing and snapped to the origin, show
-          the coincident constraint icon that WILL be added, using the hover accent
-          colour as its background so it reads as a pending relation. */}
-      {originSnap && activeOperation && (
-        <Html
-          position={[0, 0, 0.3]}
-          center
-          zIndexRange={[40, 20]}
-          style={{ pointerEvents: 'none' }}
-        >
-          <div
-            data-testid="origin-coincident-preview"
-            title="Coincident with origin"
-            style={{
-              width: 18,
-              height: 18,
-              transform: 'translate(12px, -12px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: '#f97316',
-              border: '1.5px solid #fdba74',
-              borderRadius: 4,
-              boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
-              userSelect: 'none',
-            }}
-          >
-            <Dot size={14} weight="bold" color="#0a0a0f" />
-          </div>
-        </Html>
-      )}
-
-      {/* Render available snap points based on active constraint */}
-      {activeConstraint === 'point' && snapPoints.map((point) => (
-        <mesh key={`snap-${point.x},${point.y}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
-          <circleGeometry args={[0.6, 8]} />
-          <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} />
-        </mesh>
-      ))}
-
-      {activeConstraint === 'midpoint' && edgeMidpoints.map((point) => (
-        <mesh key={`midpoint-${point.x},${point.y}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
-          <boxGeometry args={[1.2, 1.2, 0.1]} />
-          <meshBasicMaterial color="#8b5cf6" transparent opacity={0.6} />
-        </mesh>
-      ))}
-
-      {activeConstraint === 'center' && circleCenters.map((point) => (
-        <mesh key={`center-${point.x},${point.y}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
-          <ringGeometry args={[0.8, 1.2, 16]} />
-          <meshBasicMaterial color="#ec4899" transparent opacity={0.6} />
-        </mesh>
-      ))}
-
-      {/* Highlight edges when edge constraint is active */}
-      {activeConstraint === 'edge' && sketch.elements.map((element) => {
-        if (element.type === SketchElementType.LINE) {
-          return (
-            <SketchElementRenderer3D
-              key={`edge-highlight-${element.id}`}
-              element={element}
-              color="#f97316"
-              opacity={0.5}
-              lineWidth={3}
-            />
-          );
-        } else if (element.type === SketchElementType.RECTANGLE) {
-          return (
-            <SketchElementRenderer3D
-              key={`edge-highlight-${element.id}`}
-              element={element}
-              color="#f97316"
-              opacity={0.5}
-              lineWidth={3}
-            />
-          );
-        }
-        return null;
-      })}
+      <SketchConstraintSnapHighlights
+        activeConstraint={activeConstraint}
+        sketch={sketch}
+        snapPoints={snapPoints}
+        edgeMidpoints={edgeMidpoints}
+        circleCenters={circleCenters}
+      />
     </group>
   );
 }
