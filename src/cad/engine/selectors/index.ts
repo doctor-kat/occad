@@ -28,5 +28,3 @@ export function selectSubShapes(
   const ast: SelectorNode = parse(selector);
   return evaluate(ast, descriptors, options);
 }
-
-export { SelectorSyntaxError as SelectorError };

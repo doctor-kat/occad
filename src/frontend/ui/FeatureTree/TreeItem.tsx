@@ -61,7 +61,7 @@ const FEATURE_OPERATION_ICONS: Record<FeatureOperation, ComponentType<CadIconPro
   [FeatureOperation.MEASURE]: MeasureIcon,
 };
 
-export function getItemIcon(item: TreeItemType, theme: any) {
+function getItemIcon(item: TreeItemType, theme: any) {
   const iconSize = 16;
 
   if (item.type === FeatureTreeItemType.REFERENCE_GEOMETRY) {
@@ -132,7 +132,7 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
             width: '100%',
             height: 40,
             borderRadius: theme.radius.sm,
-            transition: 'all 150ms',
+            transition: 'background-color 150ms, border-color 150ms, opacity 150ms',
             opacity: isVisible ? 1 : 0.4,
           }}
           styles={{
@@ -198,7 +198,7 @@ export function TreeItem({ item, depth, selectedItem, onSelectItem, onToggleExpa
           opacity: isRolledBack ? 0.35 : isVisible ? 1 : 0.5,
           fontStyle: isRolledBack ? 'italic' : undefined,
           cursor: isDraggable ? 'grab' : undefined,
-          transition: 'all 150ms',
+          transition: 'background-color 150ms, border-color 150ms, opacity 150ms',
         }}
         onMouseEnter={() => {
           setIsHovered(true);

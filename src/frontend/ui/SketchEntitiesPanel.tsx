@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Stack, Text, Box, ScrollArea, useMantineTheme, Group, ActionIcon, Badge, Center } from '@mantine/core';
 import { X, CaretRight, CaretDown, Folders } from '@phosphor-icons/react';
 import {
@@ -51,6 +51,7 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
   const setSelection = useViewportStore((s) => s.setSketchElementSelection);
   const setHovered = useViewportStore((s) => s.setHoveredSketchElementId);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const elements = sketch.elements || [];
 
@@ -97,7 +98,7 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
         : '1px solid transparent',
     borderRadius: theme.radius.sm,
     cursor: 'pointer',
-    transition: 'all 150ms',
+    transition: 'background-color 150ms, border-color 150ms',
   });
 
   return (
@@ -120,7 +121,7 @@ export function SketchEntitiesPanel({ sketch, onRemoveElement }: SketchEntitiesP
           {nodes.map((node) => {
             if (node.kind === 'element') {
               const Icon = TYPE_ICON[node.elementType] ?? PolygonIcon;
-              const isSelected = selectedIds.includes(node.id);
+              const isSelected = selectedIdSet.has(node.id);
               const isHovered = hoveredId === node.id;
               return (
                 <Group

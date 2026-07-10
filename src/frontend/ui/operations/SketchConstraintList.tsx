@@ -60,7 +60,7 @@ export function SketchConstraintList({ sketch, onRemove }: SketchConstraintListP
         borderRadius: theme.radius.lg,
         border: `1px solid ${theme.other.colors.border}`,
         backgroundColor: `${theme.other.colors.card}cc`,
-        backdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(8px)',
         boxShadow: theme.shadows.lg,
         padding: 8,
       }}

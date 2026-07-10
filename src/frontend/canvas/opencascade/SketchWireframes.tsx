@@ -8,7 +8,7 @@ import { computeEdgeSegments } from "./edgeSegments";
 // Sketch wireframe — renders a single sketch's edge data as purple lines,
 // highlighting orange while the sketch is hovered (in the viewport or tree).
 // ---------------------------------------------------------------------------
-export function SketchWireframe({
+function SketchWireframe({
   sketchId,
   edgeVertices,
   isSelected = false,
@@ -42,9 +42,9 @@ export function SketchWireframe({
       </lineSegments>
 
       {/* Invisible cylinder hit-areas for reliable hover/click detection */}
-      {segments.map((seg, i) => (
+      {segments.map((seg) => (
         <mesh
-          key={i}
+          key={`${seg.position.x},${seg.position.y},${seg.position.z}-${seg.length}`}
           position={seg.position}
           quaternion={seg.quaternion}
           onPointerOver={(e) => {

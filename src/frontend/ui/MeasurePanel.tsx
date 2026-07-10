@@ -89,8 +89,8 @@ export function MeasurePanel({ measurement, hasBody, picks, between, onClearPick
               </Text>
             ) : (
               <>
-                {picks.map((p, i) => (
-                  <Button key={i} size="compact-xs" variant="default" radius="sm" style={{ cursor: 'default' }}>
+                {picks.map((p) => (
+                  <Button key={`${p.kind}-${p.index}`} size="compact-xs" variant="default" radius="sm" style={{ cursor: 'default' }}>
                     {pickLabel(p)}
                   </Button>
                 ))}

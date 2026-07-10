@@ -85,8 +85,8 @@ function DimensionAnnotation({
           BOTH arrows together, toggling the whole dimension between pointing
           inward (default) and outward (the standard CAD "inside"/"outside" style,
           not two independently-flippable arrows). */}
-      {[arrow1Tip, arrow2Tip].map((tip, i) => (
-        <mesh key={i} position={[tip.x, tip.y, tip.z + 0.05]} onClick={onToggleArrows} userData={DIMENSION_HANDLE_USERDATA}>
+      {[{ id: 'arrow1', tip: arrow1Tip }, { id: 'arrow2', tip: arrow2Tip }].map(({ id, tip }) => (
+        <mesh key={id} position={[tip.x, tip.y, tip.z + 0.05]} onClick={onToggleArrows} userData={DIMENSION_HANDLE_USERDATA}>
           <circleGeometry args={[ARROW_HIT_RADIUS, 12]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>

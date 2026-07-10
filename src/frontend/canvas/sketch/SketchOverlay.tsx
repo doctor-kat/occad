@@ -320,7 +320,8 @@ export function SketchOverlay({
   const sizeRef = useRef(size);
   const sceneRef = useRef(scene);
   const elementsRef = useRef(sketch.elements);
-  const planeTransformRef = useRef<THREE.Matrix4>(new THREE.Matrix4());
+  const planeTransformRef = useRef<THREE.Matrix4 | null>(null);
+  if (planeTransformRef.current === null) planeTransformRef.current = new THREE.Matrix4();
   const activeOperationRef = useRef(activeOperation);
   const selectedRef = useRef(selectedSketchElementIds);
   // Set true the moment a box drag passes the movement threshold, so the plane's
@@ -1502,9 +1503,18 @@ export function SketchOverlay({
               data-testid={`constraint-badge-${icon.id}`}
               data-hovered={isHovered}
               title={icon.type}
+              role="button"
+              tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedConstraintId(isSel ? null : icon.id);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSelectedConstraintId(isSel ? null : icon.id);
+                }
               }}
               onMouseEnter={() => setHoveredConstraintId(icon.id)}
               onMouseLeave={() => setHoveredConstraintId(null)}
@@ -1534,8 +1544,8 @@ export function SketchOverlay({
       )}
 
       {/* Render current construction points */}
-      {currentPoints.map((point, index) => (
-        <mesh key={index} position={[point.x, point.y, 0.1]} raycast={NO_RAYCAST}>
+      {currentPoints.map((point) => (
+        <mesh key={`${point.x},${point.y}`} position={[point.x, point.y, 0.1]} raycast={NO_RAYCAST}>
           <circleGeometry args={[1, 16]} />
           <meshBasicMaterial color="#22c55e" />
         </mesh>
@@ -1598,22 +1608,22 @@ export function SketchOverlay({
       )}
 
       {/* Render available snap points based on active constraint */}
-      {activeConstraint === 'point' && snapPoints.map((point, index) => (
-        <mesh key={`snap-${index}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
+      {activeConstraint === 'point' && snapPoints.map((point) => (
+        <mesh key={`snap-${point.x},${point.y}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
           <circleGeometry args={[0.6, 8]} />
           <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} />
         </mesh>
       ))}
 
-      {activeConstraint === 'midpoint' && edgeMidpoints.map((point, index) => (
-        <mesh key={`midpoint-${index}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
+      {activeConstraint === 'midpoint' && edgeMidpoints.map((point) => (
+        <mesh key={`midpoint-${point.x},${point.y}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
           <boxGeometry args={[1.2, 1.2, 0.1]} />
           <meshBasicMaterial color="#8b5cf6" transparent opacity={0.6} />
         </mesh>
       ))}
 
-      {activeConstraint === 'center' && circleCenters.map((point, index) => (
-        <mesh key={`center-${index}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
+      {activeConstraint === 'center' && circleCenters.map((point) => (
+        <mesh key={`center-${point.x},${point.y}`} position={[point.x, point.y, 0.12]} raycast={NO_RAYCAST}>
           <ringGeometry args={[0.8, 1.2, 16]} />
           <meshBasicMaterial color="#ec4899" transparent opacity={0.6} />
         </mesh>

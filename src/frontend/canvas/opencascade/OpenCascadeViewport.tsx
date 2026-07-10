@@ -224,7 +224,7 @@ export function OpenCascadeViewport({
               paddingRight: 16,
               paddingTop: 8,
               paddingBottom: 8,
-              backdropFilter: 'blur(12px)',
+              backdropFilter: 'blur(8px)',
               boxShadow: theme.shadows.lg,
             }}
           >
@@ -260,7 +260,7 @@ export function OpenCascadeViewport({
               paddingRight: 12,
               paddingTop: 6,
               paddingBottom: 6,
-              backdropFilter: 'blur(12px)',
+              backdropFilter: 'blur(8px)',
               boxShadow: theme.shadows.lg,
             }}
           >
@@ -285,7 +285,7 @@ export function OpenCascadeViewport({
             borderRadius: theme.radius.lg,
             border: `1px solid ${theme.colors.yellow[6]}`,
             backgroundColor: `${theme.other.colors.card}cc`,
-            backdropFilter: 'blur(12px)',
+            backdropFilter: 'blur(8px)',
             boxShadow: theme.shadows.lg,
             paddingLeft: 16,
             paddingRight: 16,
@@ -327,7 +327,7 @@ export function OpenCascadeViewport({
             borderRadius: theme.radius.lg,
             border: `1px solid ${theme.other.colors.border}`,
             backgroundColor: `${theme.other.colors.card}cc`,
-            backdropFilter: 'blur(12px)',
+            backdropFilter: 'blur(8px)',
             boxShadow: theme.shadows.lg,
           }}
         >

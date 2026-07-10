@@ -22,6 +22,7 @@ export function translatePrimitivesToOCC(
   const { oc } = ctx;
   const shapes = new Map<string, TopoDS_Shape>();
   const workplane = sketch.workplane;
+  const primitivesById = new Map(sketch.primitives.map((p) => [p.id, p]));
 
   for (const primitive of sketch.primitives) {
     try {
@@ -39,8 +40,8 @@ export function translatePrimitivesToOCC(
         }
 
         case 'line': {
-          const p1Data = sketch.primitives.find(p => p.id === primitive.data.p1_id)?.data;
-          const p2Data = sketch.primitives.find(p => p.id === primitive.data.p2_id)?.data;
+          const p1Data = primitivesById.get(primitive.data.p1_id)?.data;
+          const p2Data = primitivesById.get(primitive.data.p2_id)?.data;
           if (!p1Data || !p2Data) break;
 
           const p1_3d = lift({ x: p1Data.x, y: p1Data.y }, workplane);
@@ -59,7 +60,7 @@ export function translatePrimitivesToOCC(
         }
 
         case 'circle': {
-          const centerData = sketch.primitives.find(p => p.id === centerPointId(primitive.data))?.data;
+          const centerData = primitivesById.get(centerPointId(primitive.data))?.data;
           if (!centerData) break;
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
@@ -84,7 +85,7 @@ export function translatePrimitivesToOCC(
         }
 
         case 'arc': {
-          const centerData = sketch.primitives.find(p => p.id === centerPointId(primitive.data))?.data;
+          const centerData = primitivesById.get(centerPointId(primitive.data))?.data;
           if (!centerData) break;
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);
@@ -115,7 +116,7 @@ export function translatePrimitivesToOCC(
         }
 
         case 'ellipse': {
-          const centerData = sketch.primitives.find(p => p.id === centerPointId(primitive.data))?.data;
+          const centerData = primitivesById.get(centerPointId(primitive.data))?.data;
           if (!centerData) break;
 
           const center_3d = lift({ x: centerData.x, y: centerData.y }, workplane);

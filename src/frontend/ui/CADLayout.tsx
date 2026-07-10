@@ -1135,7 +1135,7 @@ export function CADLayout() {
               style={{
                 borderRight: `1px solid ${theme.other.colors.border}`,
                 backgroundColor: theme.other.colors.sidebarBackground,
-                transition: 'all 300ms ease-in-out',
+                transition: 'width 300ms ease-in-out, background-color 300ms ease-in-out, border-color 300ms ease-in-out',
                 overflow: 'hidden',
               }}
             >
@@ -1189,7 +1189,7 @@ export function CADLayout() {
                         textTransform: 'uppercase',
                         letterSpacing: '0.05em',
                         color: theme.other.colors.mutedForeground,
-                        transition: 'all 200ms',
+                        transition: 'color 200ms, border-bottom-color 200ms',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',

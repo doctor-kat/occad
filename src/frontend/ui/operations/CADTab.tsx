@@ -24,7 +24,7 @@ export function CADTab({ value, label, isActive, theme }: CADTabProps) {
         letterSpacing: '0.05em',
         color: isActive ? theme.colors.blue[5] : theme.other.colors.mutedForeground,
         backgroundColor: isActive ? `${theme.colors.blue[5]}15` : 'transparent',
-        transition: 'all 200ms',
+        transition: 'color 200ms, background-color 200ms',
       }}
     >
       {label}

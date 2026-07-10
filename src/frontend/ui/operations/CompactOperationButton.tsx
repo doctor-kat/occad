@@ -42,7 +42,7 @@ export function CompactOperationButton({ icon, label, isActive, onClick, disable
         padding: '0 8px',
         opacity: disabled ? 0.4 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'all 200ms',
+        transition: 'opacity 200ms',
       }}
       styles={{
         root: {
@@ -69,7 +69,7 @@ export function CompactOperationButton({ icon, label, isActive, onClick, disable
         <Box style={{ fontSize: 16, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {icon}
         </Box>
-        <Box component="span" style={{ fontSize: 11, fontWeight: 500, textAlign: 'left', lineHeight: 1.2 }}>
+        <Box component="span" style={{ fontSize: 12, fontWeight: 500, textAlign: 'left', lineHeight: 1.2 }}>
           {label}
         </Box>
       </Box>

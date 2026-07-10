@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
-import { isPlaneVisible, buildReferenceVisibilityMap, createPlaneCrosshair, ReferencePlanes } from './ReferencePlanes';
+import { ReferencePlanes } from './ReferencePlanes';
+import { isPlaneVisible, buildReferenceVisibilityMap, createPlaneCrosshair } from './referencePlaneGeometry';
 
 // drei's <Text> (troika) loads a font asynchronously and is irrelevant to the
 // plane geometry under test — stub it so the scene graph stays deterministic.

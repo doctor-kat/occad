@@ -133,7 +133,7 @@ export function EntitiesPanel({
                           : '1px solid transparent',
                       borderRadius: theme.radius.sm,
                       cursor: 'pointer',
-                      transition: 'all 150ms',
+                      transition: 'background-color 150ms, border-color 150ms',
                     }}
                     onClick={() => onFaceClick?.(i)}
                     onMouseEnter={() => setHoveredFaceId(i)}
@@ -235,7 +235,7 @@ export function EntitiesPanel({
                           : '1px solid transparent',
                       borderRadius: theme.radius.sm,
                       cursor: 'pointer',
-                      transition: 'all 150ms',
+                      transition: 'background-color 150ms, border-color 150ms',
                     }}
                     onClick={() => onEdgeClick?.(i)}
                     onMouseEnter={() => setHoveredEdgeIndex(i)}

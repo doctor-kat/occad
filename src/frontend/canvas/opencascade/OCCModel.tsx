@@ -282,8 +282,9 @@ export function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVert
         }
 
         // Render each topological edge as a single lineSegments
+        const selectedEdgeIndexSet = new Set(selectedEdgeIndices);
         return Array.from(edgeGroups.entries()).map(([edgeId, segments]) => {
-          const isSelected = selectedEdgeIndex === edgeId || selectedEdgeIndices.includes(edgeId);
+          const isSelected = selectedEdgeIndex === edgeId || selectedEdgeIndexSet.has(edgeId);
           const isHovered = !inSketchMode && effectiveHoveredEdgeIndex === edgeId;
 
           // Collect all vertices for this topological edge
@@ -322,9 +323,11 @@ export function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVert
       }, [mesh.edgeVertices, mesh.edgeMapping, selectedEdgeIndex, selectedEdgeIndices, effectiveHoveredEdgeIndex])}
 
       {/* Cylinders for edge hover detection and hover highlight */}
-      {!inSketchMode && Array.from({ length: Math.floor(mesh.edgeVertices.length / 6) }).map((_, i) => {
+      {!inSketchMode && (() => {
+        const selectedEdgeIndexSet = new Set(selectedEdgeIndices);
+        return Array.from({ length: Math.floor(mesh.edgeVertices.length / 6) }).map((_, i) => {
         const topologicalEdgeId = mesh.edgeMapping ? mesh.edgeMapping[i] : i;
-        const isSelected = selectedEdgeIndex === topologicalEdgeId || selectedEdgeIndices.includes(topologicalEdgeId);
+        const isSelected = selectedEdgeIndex === topologicalEdgeId || selectedEdgeIndexSet.has(topologicalEdgeId);
         const isHovered = effectiveHoveredEdgeIndex === topologicalEdgeId;
 
         const p1 = new THREE.Vector3(
@@ -387,7 +390,8 @@ export function OCCModel({ mesh, selectedFaceId, selectedEdgeIndex, selectedVert
             />
           </mesh>
         );
-      })}
+        });
+      })()}
 
       {/* Vertices as clickable points */}
       <points

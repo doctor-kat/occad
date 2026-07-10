@@ -44,7 +44,7 @@ export function IconOperationButton({ icon, label, isActive, onClick, disabled =
           padding: 0,
           opacity: disabled ? 0.4 : 1,
           cursor: disabled ? 'not-allowed' : 'pointer',
-          transition: 'all 200ms',
+          transition: 'opacity 200ms',
         }}
         styles={{
           root: {

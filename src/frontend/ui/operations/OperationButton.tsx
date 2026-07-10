@@ -55,7 +55,7 @@ export function OperationButton({ icon, label, isActive, onClick, disabled = fal
         padding: 0,
         opacity: disabled ? 0.4 : 1,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        transition: 'all 200ms',
+        transition: 'opacity 200ms',
       }}
       styles={{
         root: {
@@ -81,7 +81,7 @@ export function OperationButton({ icon, label, isActive, onClick, disabled = fal
         <Box style={{ lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {sizedIcon}
         </Box>
-        <Box component="span" style={{ fontSize: 10, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>
+        <Box component="span" style={{ fontSize: 12, fontWeight: 500, textAlign: 'center', lineHeight: 1.2 }}>
           {label}
         </Box>
       </Box>

@@ -8,18 +8,18 @@ interface SketchHotkeysProps {
   showGrid: boolean;
 }
 
-export function SketchHotkeys({ activeOperation, currentPointsCount, snapToGrid, showGrid }: SketchHotkeysProps) {
-  const kbdStyle = {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    padding: '2px 8px',
-    borderRadius: 5,
-    border: '1px solid rgba(255, 255, 255, 0.25)',
-    fontSize: '10px',
-    fontWeight: 'bold' as const,
-    boxShadow: '0 1px 0 rgba(255, 255, 255, 0.2)',
-    color: '#fff',
-  };
+const kbdStyle = {
+  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  padding: '2px 8px',
+  borderRadius: 5,
+  border: '1px solid rgba(255, 255, 255, 0.25)',
+  fontSize: '10px',
+  fontWeight: 'bold' as const,
+  boxShadow: '0 1px 0 rgba(255, 255, 255, 0.2)',
+  color: '#fff',
+};
 
+export function SketchHotkeys({ activeOperation, currentPointsCount, snapToGrid, showGrid }: SketchHotkeysProps) {
   return (
     <Html
       position={[0, 0, 0]}
