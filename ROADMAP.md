@@ -239,15 +239,19 @@ enum cleanup is a separate, larger type-system task if it's ever worth doing.
 - **`no-giant-component`** (6: `OperationPanel.tsx` 810 lines, `SketchOverlay.tsx` 1429 lines,
   `CADLayout.tsx` 1341 lines, `OpenCascadeViewport.tsx`, `OCCModel.tsx`, `SketchRenderer.tsx`) —
   splitting these is a real, multi-hour restructuring job, not a lint fix.
+- **`prefer-useReducer` in `OperationPanel.tsx`** — ✅ done. The ~30 individual `useState` fields
+  were collapsed into a single `useReducer` (`PanelState` + `panelReducer`), with a `set(patch)` helper
+  and one `addToList` action for the sub-shape selection merges. Verified in-browser (Box primitive:
+  reducer defaults render, edited field patches, Apply builds real geometry — 23 faces/72 edges, no
+  degenerate result) and against the full 589-test suite. The remaining `useEffect`-from-props init
+  pattern was preserved (dispatching one patch instead of many setters) rather than rewritten to lazy
+  initializers, since the panel's prop-driven re-init on operation change still needs effects.
 - **`no-derived-state`/`no-event-handler`/`no-adjust-state-on-prop-change`/`no-cascading-set-state`/
-  `no-chain-state-updates`/`no-effect-chain`/`prefer-useReducer`** in `OperationPanel.tsx` (~35 findings)
-  and a handful in `SketchOverlay.tsx` — all one systemic root cause: local state initialized from
-  props via `useEffect` instead of lazy `useState` initializers. `OperationPanel` is the parameter UI
-  for every CAD operation (extrude/revolve/6 primitives/fillet/chamfer/shell/offset/sweep/loft/boolean/
-  transform) and has only 82 lines of tests for that whole surface. The panel does actually
-  unmount/remount between operations (`CADLayout.tsx`'s conditional render, no explicit `key`), so a
-  lazy-initializer rewrite is plausible — but it needs new tests per operation type and browser
-  verification before landing, not a blind mechanical edit. Also touches `SketchOverlay.tsx`'s
+  `no-chain-state-updates`/`no-effect-chain`** — a handful remain in
+  `SketchOverlay.tsx` — same systemic root cause: local state initialized from
+  props via `useEffect`. `SketchOverlay.tsx`'s state is a poor reducer fit (independent
+  transient-drawing vs. persisted grid prefs, updated at different times), so it was left as-is. Touches
+  `SketchOverlay.tsx`'s
   tool-switching reset effect (line ~348), which is deliberately *not* touched here: past incidents
   (see `[[r3f-stable-event-handlers]]` memory) show refactoring this exact pointer/event-handler wiring
   can silently break sketch interactions.

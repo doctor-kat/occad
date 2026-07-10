@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useReducer, useEffect, useMemo } from 'react';
 import { Button, TextInput, Select, Stack, Group, Text, Alert, Box, useMantineTheme, ActionIcon, Title, NumberInput, Checkbox, MultiSelect } from '@mantine/core';
 import { X, Check } from '@phosphor-icons/react';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
@@ -55,6 +55,107 @@ function getSketchNormal(plane: SketchPlane): Vector3D {
   }
 }
 
+type SelectorStatus = 'idle' | 'loading' | 'matched' | 'no-match' | 'error';
+
+/**
+ * All of the panel's form state in one object. It's local, ephemeral state
+ * scoped to a single panel instance (a `useReducer` rather than a shared store),
+ * so it resets cleanly each time the panel mounts for a new operation.
+ */
+interface PanelState {
+  // Common
+  sketchId: string;
+  isCut: boolean;
+  // Extrude / revolve
+  distance: number;
+  angle: number;
+  direction: 'normal' | 'reverse';
+  // Primitives
+  width: number;
+  height: number;
+  depth: number;
+  radius: number;
+  radius2: number;
+  majorRadius: number;
+  minorRadius: number;
+  ltx: number;
+  // Modifications
+  selectedEdges: string[];
+  selectedFaces: string[];
+  selectedFeatures: string[];
+  thickness: number;
+  // Advanced modeling (sweep / loft)
+  profileSketchId: string;
+  pathSketchId: string;
+  loftSketchIds: string[];
+  loftRuled: boolean;
+  // Selector-rule (ROADMAP §9.1 Phase 3/4)
+  selectorText: string;
+  selectorStatus: SelectorStatus;
+  keepSelectorLive: boolean;
+  liveSelector: string | undefined;
+  // Transforms
+  translateX: number;
+  translateY: number;
+  translateZ: number;
+  rotateAngle: number;
+  scaleFactor: number;
+}
+
+const INITIAL_STATE: PanelState = {
+  sketchId: '',
+  isCut: false,
+  distance: 10,
+  angle: 360,
+  direction: 'normal',
+  width: 50,
+  height: 50,
+  depth: 50,
+  radius: 25,
+  radius2: 0,
+  majorRadius: 40,
+  minorRadius: 10,
+  ltx: 25,
+  selectedEdges: [],
+  selectedFaces: [],
+  selectedFeatures: [],
+  thickness: 2,
+  profileSketchId: '',
+  pathSketchId: '',
+  loftSketchIds: [],
+  loftRuled: false,
+  selectorText: '',
+  selectorStatus: 'idle',
+  keepSelectorLive: false,
+  liveSelector: undefined,
+  translateX: 0,
+  translateY: 0,
+  translateZ: 0,
+  rotateAngle: 0,
+  scaleFactor: 1,
+};
+
+type PanelAction =
+  | { type: 'patch'; patch: Partial<PanelState> }
+  /** Union a label into one of the sub-shape selection lists (viewport click / selector match). */
+  | { type: 'addToList'; key: 'selectedEdges' | 'selectedFaces' | 'selectedFeatures'; values: string[] };
+
+function panelReducer(state: PanelState, action: PanelAction): PanelState {
+  switch (action.type) {
+    case 'patch':
+      return { ...state, ...action.patch };
+    case 'addToList': {
+      const merged = Array.from(new Set([...state[action.key], ...action.values]));
+      // Preserve reference if nothing new was added (avoids needless re-renders).
+      return merged.length === state[action.key].length
+        ? state
+        : { ...state, [action.key]: merged };
+    }
+    default:
+      return state;
+  }
+}
+
 interface OperationPanelProps {
   title: string;
   operation: FeatureOperation | TransformOperation | SketchOperation;
@@ -86,141 +187,110 @@ export function OperationPanel({
   const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
   const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
 
-  // --- Common State ---
-  const [sketchId, setSketchId] = useState<string>('');
-  const [isCut, setIsCut] = useState(false);
-
-  // --- Extrude/Revolve State ---
-  const [distance, setDistance] = useState<number>(10);
-  const [angle, setAngle] = useState<number>(360);
-  const [direction, setDirection] = useState<'normal' | 'reverse'>('normal');
-
-  // --- Primitive State ---
-  const [width, setWidth] = useState<number>(50);
-  const [height, setHeight] = useState<number>(50);
-  const [depth, setDepth] = useState<number>(50);
-  const [radius, setRadius] = useState<number>(25);
-  const [radius2, setRadius2] = useState<number>(0);
-  const [majorRadius, setMajorRadius] = useState<number>(40);
-  const [minorRadius, setMinorRadius] = useState<number>(10);
-  const [ltx, setLtx] = useState<number>(25);
-
-  // --- Modification State ---
-  const [selectedEdges, setSelectedEdges] = useState<string[]>([]);
-  const [selectedFaces, setSelectedFaces] = useState<string[]>([]);
-  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
-  const [thickness, setThickness] = useState<number>(2);
-
-  // --- Advanced modeling (sweep / loft) state ---
-  const [profileSketchId, setProfileSketchId] = useState<string>('');
-  const [pathSketchId, setPathSketchId] = useState<string>('');
-  const [loftSketchIds, setLoftSketchIds] = useState<string[]>([]);
-  const [loftRuled, setLoftRuled] = useState<boolean>(false);
-
-  // --- Selector-rule state (ROADMAP §9.1 Phase 3/4) ---
-  const [selectorText, setSelectorText] = useState('');
-  const [selectorStatus, setSelectorStatus] = useState<'idle' | 'loading' | 'matched' | 'no-match' | 'error'>('idle');
-  // Phase 4: when checked, the last-applied rule is persisted on the feature and
-  // re-evaluated live every rebuild (instead of just materializing matches once
-  // into the manual edge/face list above).
-  const [keepSelectorLive, setKeepSelectorLive] = useState(false);
-  const [liveSelector, setLiveSelector] = useState<string | undefined>(undefined);
-
-  // --- Transform State ---
-  const [translateX, setTranslateX] = useState<number>(0);
-  const [translateY, setTranslateY] = useState<number>(0);
-  const [translateZ, setTranslateZ] = useState<number>(0);
-  const [rotateAngle, setTranslateAngle] = useState<number>(0);
-  const [scaleFactor, setScaleFactor] = useState<number>(1);
+  // All form state lives in one reducer; `set` patches individual fields.
+  // Phase 4 note: `keepSelectorLive` persists the last-applied rule on the
+  // feature so it re-evaluates live every rebuild (instead of just materializing
+  // matches once into the manual edge/face list).
+  const [state, dispatch] = useReducer(panelReducer, INITIAL_STATE);
+  const set = (patch: Partial<PanelState>) => dispatch({ type: 'patch', patch });
+  const {
+    sketchId, isCut, distance, angle, direction,
+    width, height, depth, radius, radius2, majorRadius, minorRadius, ltx,
+    selectedEdges, selectedFaces, selectedFeatures, thickness,
+    profileSketchId, pathSketchId, loftSketchIds, loftRuled,
+    selectorText, selectorStatus, keepSelectorLive, liveSelector,
+    translateX, translateY, translateZ, rotateAngle, scaleFactor,
+  } = state;
 
   // Initialize state based on operation and initialParams
   useEffect(() => {
+    const patch: Partial<PanelState> = {};
+
     // Determine if it's a cut operation
-    const isCutOp = operation === FeatureOperation.EXTRUDED_CUT || operation === FeatureOperation.REVOLVED_CUT;
-    setIsCut(isCutOp);
+    patch.isCut = operation === FeatureOperation.EXTRUDED_CUT || operation === FeatureOperation.REVOLVED_CUT;
 
     if (initialSketchId) {
-      setSketchId(initialSketchId);
+      patch.sketchId = initialSketchId;
     } else if (!sketchId) {
       // If no sketchId set yet, try to find a valid one based on selection or defaults
       const selectedSketch = project.sketches.find(s => s.id === selectedTreeItem);
       if (selectedSketch) {
-        setSketchId(selectedSketch.id);
+        patch.sketchId = selectedSketch.id;
       } else {
         const closedSketches = project.sketches.filter(s => s.isClosed);
         if (closedSketches.length > 0) {
-          setSketchId(closedSketches[0].id);
+          patch.sketchId = closedSketches[0].id;
         }
       }
     }
 
     if (initialParams) {
-      // TODO: Populate all states from initialParams
       if ('distance' in initialParams) {
-        setDistance(Math.abs(initialParams.distance));
-        setDirection(initialParams.distance >= 0 ? 'normal' : 'reverse');
+        patch.distance = Math.abs(initialParams.distance);
+        patch.direction = initialParams.distance >= 0 ? 'normal' : 'reverse';
       }
-      if ('angle' in initialParams) setAngle(initialParams.angle);
-      if ('width' in initialParams) setWidth(initialParams.width);
-      if ('height' in initialParams) setHeight(initialParams.height);
-      if ('depth' in initialParams) setDepth(initialParams.depth);
-      if ('radius' in initialParams) setRadius(initialParams.radius);
-      if ('radius1' in initialParams) setRadius(initialParams.radius1);
-      if ('radius2' in initialParams) setRadius2(initialParams.radius2);
-      if ('majorRadius' in initialParams) setMajorRadius(initialParams.majorRadius);
-      if ('minorRadius' in initialParams) setMinorRadius(initialParams.minorRadius);
-      if ('ltx' in initialParams) setLtx(initialParams.ltx);
+      if ('angle' in initialParams) patch.angle = initialParams.angle;
+      if ('width' in initialParams) patch.width = initialParams.width;
+      if ('height' in initialParams) patch.height = initialParams.height;
+      if ('depth' in initialParams) patch.depth = initialParams.depth;
+      if ('radius' in initialParams) patch.radius = initialParams.radius;
+      if ('radius1' in initialParams) patch.radius = initialParams.radius1;
+      if ('radius2' in initialParams) patch.radius2 = initialParams.radius2;
+      if ('majorRadius' in initialParams) patch.majorRadius = initialParams.majorRadius;
+      if ('minorRadius' in initialParams) patch.minorRadius = initialParams.minorRadius;
+      if ('ltx' in initialParams) patch.ltx = initialParams.ltx;
       // Params may carry fingerprinted StableRefs; show their `edge-N`/`face-N`
       // label. (The worker re-captures fingerprints on the next rebuild, so
       // editing a modification this way doesn't permanently lose them.)
-      if ('edges' in initialParams) setSelectedEdges(initialParams.edges.map(refLabel));
-      if ('faces' in initialParams) setSelectedFaces(initialParams.faces.map(refLabel));
+      if ('edges' in initialParams) patch.selectedEdges = initialParams.edges.map(refLabel);
+      if ('faces' in initialParams) patch.selectedFaces = initialParams.faces.map(refLabel);
       if ('selector' in initialParams && initialParams.selector) {
-        setLiveSelector(initialParams.selector);
-        setKeepSelectorLive(true);
-        setSelectorText(initialParams.selector);
+        patch.liveSelector = initialParams.selector;
+        patch.keepSelectorLive = true;
+        patch.selectorText = initialParams.selector;
       }
-      if ('featureIds' in (initialParams as any)) setSelectedFeatures((initialParams as any).featureIds);
-      if ('thickness' in initialParams) setThickness(initialParams.thickness);
-      if ('profileSketchId' in initialParams) setProfileSketchId((initialParams as SweepParams).profileSketchId);
-      if ('pathSketchId' in initialParams) setPathSketchId((initialParams as SweepParams).pathSketchId);
+      if ('featureIds' in (initialParams as any)) patch.selectedFeatures = (initialParams as any).featureIds;
+      if ('thickness' in initialParams) patch.thickness = initialParams.thickness;
+      if ('profileSketchId' in initialParams) patch.profileSketchId = (initialParams as SweepParams).profileSketchId;
+      if ('pathSketchId' in initialParams) patch.pathSketchId = (initialParams as SweepParams).pathSketchId;
       if ('sketchIds' in initialParams) {
-        setLoftSketchIds((initialParams as LoftParams).sketchIds);
-        setLoftRuled(!!(initialParams as LoftParams).ruled);
+        patch.loftSketchIds = (initialParams as LoftParams).sketchIds;
+        patch.loftRuled = !!(initialParams as LoftParams).ruled;
       }
     } else {
       // Default initializations for some ops based on selection
       if (operation === FeatureOperation.FILLET || operation === FeatureOperation.CHAMFER) {
         if (selectedEdgeIndex !== null) {
-          setSelectedEdges([`edge-${selectedEdgeIndex}`]);
+          patch.selectedEdges = [`edge-${selectedEdgeIndex}`];
         }
       } else if (operation === FeatureOperation.SHELL) {
         if (selectedFaceId !== null) {
-          setSelectedFaces([`face-${selectedFaceId}`]);
+          patch.selectedFaces = [`face-${selectedFaceId}`];
         }
       } else if (operation === FeatureOperation.UNION || operation === FeatureOperation.INTERSECT) {
         if (selectedTreeItem && project.features.some(f => f.id === selectedTreeItem)) {
-          setSelectedFeatures([selectedTreeItem]);
+          patch.selectedFeatures = [selectedTreeItem];
         }
       }
     }
+
+    set(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operation, initialParams, selectedEdgeIndex, selectedFaceId, initialSketchId, project.sketches, project.features, selectedTreeItem]);
 
   // Append new selections from viewport while panel is open
   useEffect(() => {
     if (operation === FeatureOperation.FILLET || operation === FeatureOperation.CHAMFER) {
       if (selectedEdgeIndex !== null) {
-        const edgeRef = `edge-${selectedEdgeIndex}`;
-        setSelectedEdges(prev => prev.includes(edgeRef) ? prev : [...prev, edgeRef]);
+        dispatch({ type: 'addToList', key: 'selectedEdges', values: [`edge-${selectedEdgeIndex}`] });
       }
     } else if (operation === FeatureOperation.SHELL || operation === FeatureOperation.OFFSET) {
       if (selectedFaceId !== null) {
-        const faceRef = `face-${selectedFaceId}`;
-        setSelectedFaces(prev => prev.includes(faceRef) ? prev : [...prev, faceRef]);
+        dispatch({ type: 'addToList', key: 'selectedFaces', values: [`face-${selectedFaceId}`] });
       }
     } else if (operation === FeatureOperation.UNION || operation === FeatureOperation.INTERSECT) {
       if (selectedTreeItem && project.features.some(f => f.id === selectedTreeItem)) {
-        setSelectedFeatures(prev => prev.includes(selectedTreeItem) ? prev : [...prev, selectedTreeItem]);
+        dispatch({ type: 'addToList', key: 'selectedFeatures', values: [selectedTreeItem] });
       }
     }
   }, [selectedEdgeIndex, selectedFaceId, selectedTreeItem, operation, project.features]);
@@ -232,10 +302,11 @@ export function OperationPanel({
       if (!sketchId) {
         const closedSketches = project.sketches.filter(s => s.isClosed);
         if (closedSketches.length > 0) {
-          setSketchId(closedSketches[0].id);
+          set({ sketchId: closedSketches[0].id });
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [operation, project.sketches, sketchId]);
 
   const handleConfirm = () => {
@@ -397,21 +468,22 @@ export function OperationPanel({
   // like clicking each matched sub-shape in the viewport.
   const applySelector = async (kind: SubShapeKind, selector: string) => {
     if (!onResolveSelector || !selector.trim()) return;
-    setSelectorStatus('loading');
+    set({ selectorStatus: 'loading' });
     try {
       const refs = await onResolveSelector(kind, selector);
       if (refs.length === 0) {
-        setSelectorStatus('no-match');
+        set({ selectorStatus: 'no-match' });
         return;
       }
       const labels = refs.map(refLabel);
-      const merge = (prev: string[]) => Array.from(new Set([...prev, ...labels]));
-      if (kind === SubShapeKind.Edge) setSelectedEdges(merge);
-      else setSelectedFaces(merge);
-      setSelectorStatus('matched');
-      if (keepSelectorLive) setLiveSelector(selector);
+      dispatch({
+        type: 'addToList',
+        key: kind === SubShapeKind.Edge ? 'selectedEdges' : 'selectedFaces',
+        values: labels,
+      });
+      set({ selectorStatus: 'matched', ...(keepSelectorLive ? { liveSelector: selector } : {}) });
     } catch {
-      setSelectorStatus('error');
+      set({ selectorStatus: 'error' });
     }
   };
 
@@ -426,7 +498,7 @@ export function OperationPanel({
           label="Select by rule"
           placeholder={kind === SubShapeKind.Edge ? 'e.g. |Z (all vertical edges)' : 'e.g. >Z (top face)'}
           value={selectorText}
-          onChange={(e) => { setSelectorText(e.currentTarget.value); setSelectorStatus('idle'); }}
+          onChange={(e) => set({ selectorText: e.currentTarget.value, selectorStatus: 'idle' })}
           onKeyDown={(e) => { if (e.key === 'Enter') applySelector(kind, selectorText); }}
           size="sm"
         />
@@ -436,8 +508,7 @@ export function OperationPanel({
           checked={keepSelectorLive}
           onChange={(e) => {
             const checked = e.currentTarget.checked;
-            setKeepSelectorLive(checked);
-            setLiveSelector(checked ? selectorText || liveSelector : undefined);
+            set({ keepSelectorLive: checked, liveSelector: checked ? selectorText || liveSelector : undefined });
           }}
         />
         <Group gap={4}>
@@ -446,7 +517,7 @@ export function OperationPanel({
               key={p.selector}
               size="compact-xs"
               variant="light"
-              onClick={() => { setSelectorText(p.selector); applySelector(kind, p.selector); }}
+              onClick={() => { set({ selectorText: p.selector }); applySelector(kind, p.selector); }}
             >
               {p.label}
             </Button>
@@ -493,7 +564,7 @@ export function OperationPanel({
                   label="Sketch"
                   placeholder="Select a sketch"
                   value={sketchId}
-                  onChange={(value) => setSketchId(value || '')}
+                  onChange={(value) => set({ sketchId: value || '' })}
                   data={closedSketches.map((sketch) => ({
                     value: sketch.id,
                     label: sketch.name,
@@ -503,7 +574,7 @@ export function OperationPanel({
                 <NumberInput
                   label="Distance"
                   value={distance}
-                  onChange={(val) => setDistance(Number(val))}
+                  onChange={(val) => set({ distance: Number(val) })}
                   min={0.1}
                   step={1}
                   size="sm"
@@ -511,7 +582,7 @@ export function OperationPanel({
                 <Select
                   label="Direction"
                   value={direction}
-                  onChange={(value) => setDirection(value as 'normal' | 'reverse')}
+                  onChange={(value) => set({ direction: value as 'normal' | 'reverse' })}
                   data={[
                     { value: 'normal', label: 'Normal' },
                     { value: 'reverse', label: 'Reverse' },
@@ -537,7 +608,7 @@ export function OperationPanel({
                   label="Sketch"
                   placeholder="Select a sketch"
                   value={sketchId}
-                  onChange={(value) => setSketchId(value || '')}
+                  onChange={(value) => set({ sketchId: value || '' })}
                   data={closedSketches.map((sketch) => ({
                     value: sketch.id,
                     label: sketch.name,
@@ -547,7 +618,7 @@ export function OperationPanel({
                 <NumberInput
                   label="Angle"
                   value={angle}
-                  onChange={(val) => setAngle(Number(val))}
+                  onChange={(val) => set({ angle: Number(val) })}
                   min={0.1}
                   max={360}
                   step={1}
@@ -566,7 +637,7 @@ export function OperationPanel({
               label="Features"
               placeholder="Select features"
               value={selectedFeatures}
-              onChange={setSelectedFeatures}
+              onChange={(v) => set({ selectedFeatures: v })}
               data={project.features.map(f => ({ value: f.id, label: f.name }))}
               size="sm"
             />
@@ -577,60 +648,60 @@ export function OperationPanel({
       case FeatureOperation.BOX:
         return (
           <>
-            <NumberInput label="Width" value={width} onChange={(val) => setWidth(Number(val))} min={0.1} size="sm" />
-            <NumberInput label="Height" value={height} onChange={(val) => setHeight(Number(val))} min={0.1} size="sm" />
-            <NumberInput label="Depth" value={depth} onChange={(val) => setDepth(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Width" value={width} onChange={(val) => set({ width: Number(val) })} min={0.1} size="sm" />
+            <NumberInput label="Height" value={height} onChange={(val) => set({ height: Number(val) })} min={0.1} size="sm" />
+            <NumberInput label="Depth" value={depth} onChange={(val) => set({ depth: Number(val) })} min={0.1} size="sm" />
           </>
         );
 
       case FeatureOperation.SPHERE:
-        return <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />;
+        return <NumberInput label="Radius" value={radius} onChange={(val) => set({ radius: Number(val) })} min={0.1} size="sm" />;
 
       case FeatureOperation.CYLINDER:
         return (
           <>
-            <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
-            <NumberInput label="Height" value={height} onChange={(val) => setHeight(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Radius" value={radius} onChange={(val) => set({ radius: Number(val) })} min={0.1} size="sm" />
+            <NumberInput label="Height" value={height} onChange={(val) => set({ height: Number(val) })} min={0.1} size="sm" />
           </>
         );
 
       case FeatureOperation.CONE:
         return (
           <>
-            <NumberInput label="Base Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
-            <NumberInput label="Top Radius" value={radius2} onChange={(val) => setRadius2(Number(val))} min={0} size="sm" />
-            <NumberInput label="Height" value={height} onChange={(val) => setHeight(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Base Radius" value={radius} onChange={(val) => set({ radius: Number(val) })} min={0.1} size="sm" />
+            <NumberInput label="Top Radius" value={radius2} onChange={(val) => set({ radius2: Number(val) })} min={0} size="sm" />
+            <NumberInput label="Height" value={height} onChange={(val) => set({ height: Number(val) })} min={0.1} size="sm" />
           </>
         );
 
       case FeatureOperation.TORUS:
         return (
           <>
-            <NumberInput label="Major Radius" value={majorRadius} onChange={(val) => setMajorRadius(Number(val))} min={0.1} size="sm" />
-            <NumberInput label="Minor Radius" value={minorRadius} onChange={(val) => setMinorRadius(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Major Radius" value={majorRadius} onChange={(val) => set({ majorRadius: Number(val) })} min={0.1} size="sm" />
+            <NumberInput label="Minor Radius" value={minorRadius} onChange={(val) => set({ minorRadius: Number(val) })} min={0.1} size="sm" />
           </>
         );
 
       case FeatureOperation.WEDGE:
         return (
           <>
-            <NumberInput label="Width" value={width} onChange={(val) => setWidth(Number(val))} min={0.1} size="sm" />
-            <NumberInput label="Height" value={height} onChange={(val) => setHeight(Number(val))} min={0.1} size="sm" />
-            <NumberInput label="Depth" value={depth} onChange={(val) => setDepth(Number(val))} min={0.1} size="sm" />
-            <NumberInput label="Top X Length (LTX)" value={ltx} onChange={(val) => setLtx(Number(val))} min={0} size="sm" />
+            <NumberInput label="Width" value={width} onChange={(val) => set({ width: Number(val) })} min={0.1} size="sm" />
+            <NumberInput label="Height" value={height} onChange={(val) => set({ height: Number(val) })} min={0.1} size="sm" />
+            <NumberInput label="Depth" value={depth} onChange={(val) => set({ depth: Number(val) })} min={0.1} size="sm" />
+            <NumberInput label="Top X Length (LTX)" value={ltx} onChange={(val) => set({ ltx: Number(val) })} min={0} size="sm" />
           </>
         );
 
       case FeatureOperation.FILLET:
         return (
           <>
-            <NumberInput label="Radius" value={radius} onChange={(val) => setRadius(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Radius" value={radius} onChange={(val) => set({ radius: Number(val) })} min={0.1} size="sm" />
             {renderSelectorInput(SubShapeKind.Edge, EDGE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Edges"
               placeholder="Select edges"
               value={selectedEdges}
-              onChange={setSelectedEdges}
+              onChange={(v) => set({ selectedEdges: v })}
               data={selectedEdges.map(e => ({ value: e, label: e }))}
               size="sm"
               readOnly
@@ -642,13 +713,13 @@ export function OperationPanel({
       case FeatureOperation.CHAMFER:
         return (
           <>
-            <NumberInput label="Distance" value={distance} onChange={(val) => setDistance(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Distance" value={distance} onChange={(val) => set({ distance: Number(val) })} min={0.1} size="sm" />
             {renderSelectorInput(SubShapeKind.Edge, EDGE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Edges"
               placeholder="Select edges"
               value={selectedEdges}
-              onChange={setSelectedEdges}
+              onChange={(v) => set({ selectedEdges: v })}
               data={selectedEdges.map(e => ({ value: e, label: e }))}
               size="sm"
               readOnly
@@ -660,13 +731,13 @@ export function OperationPanel({
       case FeatureOperation.SHELL:
         return (
           <>
-            <NumberInput label="Thickness" value={thickness} onChange={(val) => setThickness(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Thickness" value={thickness} onChange={(val) => set({ thickness: Number(val) })} min={0.1} size="sm" />
             {renderSelectorInput(SubShapeKind.Face, FACE_SELECTOR_PRESETS)}
             <MultiSelect
               label="Faces to Remove"
               placeholder="Select faces"
               value={selectedFaces}
-              onChange={setSelectedFaces}
+              onChange={(v) => set({ selectedFaces: v })}
               data={selectedFaces.map(f => ({ value: f, label: f }))}
               size="sm"
               readOnly
@@ -678,7 +749,7 @@ export function OperationPanel({
       case FeatureOperation.OFFSET:
         return (
           <>
-            <NumberInput label="Distance" value={distance} onChange={(val) => setDistance(Number(val))} min={0.1} size="sm" />
+            <NumberInput label="Distance" value={distance} onChange={(val) => set({ distance: Number(val) })} min={0.1} size="sm" />
             <Text size="xs" c="dimmed">Offset full body by given distance.</Text>
           </>
         );
@@ -696,7 +767,7 @@ export function OperationPanel({
                   label="Profile (closed)"
                   placeholder="Select a profile sketch"
                   value={profileSketchId}
-                  onChange={(value) => setProfileSketchId(value || '')}
+                  onChange={(value) => set({ profileSketchId: value || '' })}
                   data={closedSketches.map((s) => ({ value: s.id, label: s.name }))}
                   size="sm"
                 />
@@ -704,7 +775,7 @@ export function OperationPanel({
                   label="Path"
                   placeholder="Select a path sketch"
                   value={pathSketchId}
-                  onChange={(value) => setPathSketchId(value || '')}
+                  onChange={(value) => set({ pathSketchId: value || '' })}
                   data={project.sketches.flatMap((s) =>
                     s.id !== profileSketchId ? [{ value: s.id, label: s.name }] : []
                   )}
@@ -729,7 +800,7 @@ export function OperationPanel({
                   label="Profiles (in order)"
                   placeholder="Select 2+ profile sketches"
                   value={loftSketchIds}
-                  onChange={setLoftSketchIds}
+                  onChange={(v) => set({ loftSketchIds: v })}
                   data={closedSketches.map((s) => ({ value: s.id, label: s.name }))}
                   size="sm"
                 />
@@ -737,7 +808,7 @@ export function OperationPanel({
                   size="xs"
                   label="Ruled (straight transitions)"
                   checked={loftRuled}
-                  onChange={(e) => setLoftRuled(e.currentTarget.checked)}
+                  onChange={(e) => set({ loftRuled: e.currentTarget.checked })}
                 />
                 <Text size="xs" c="dimmed">Lofts a solid through the profiles in the selected order.</Text>
               </>
@@ -748,14 +819,14 @@ export function OperationPanel({
       case TransformOperation.MOVE:
         return (
           <>
-            <NumberInput label="X" value={translateX} onChange={(val) => setTranslateX(Number(val))} size="sm" />
-            <NumberInput label="Y" value={translateY} onChange={(val) => setTranslateY(Number(val))} size="sm" />
-            <NumberInput label="Z" value={translateZ} onChange={(val) => setTranslateZ(Number(val))} size="sm" />
+            <NumberInput label="X" value={translateX} onChange={(val) => set({ translateX: Number(val) })} size="sm" />
+            <NumberInput label="Y" value={translateY} onChange={(val) => set({ translateY: Number(val) })} size="sm" />
+            <NumberInput label="Z" value={translateZ} onChange={(val) => set({ translateZ: Number(val) })} size="sm" />
           </>
         );
 
       case TransformOperation.ROTATE:
-        return <NumberInput label="Angle" value={rotateAngle} onChange={(val) => setTranslateAngle(Number(val))} size="sm" />;
+        return <NumberInput label="Angle" value={rotateAngle} onChange={(val) => set({ rotateAngle: Number(val) })} size="sm" />;
 
       case TransformOperation.MIRROR:
         return (
@@ -770,7 +841,7 @@ export function OperationPanel({
         );
 
       case TransformOperation.SCALE:
-        return <NumberInput label="Factor" value={scaleFactor} onChange={(val) => setScaleFactor(Number(val))} min={0.01} step={0.1} size="sm" />;
+        return <NumberInput label="Factor" value={scaleFactor} onChange={(val) => set({ scaleFactor: Number(val) })} min={0.01} step={0.1} size="sm" />;
 
       case FeatureOperation.MEASURE:
         return (
