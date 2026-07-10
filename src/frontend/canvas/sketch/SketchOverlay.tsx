@@ -1,20 +1,7 @@
-import { useRef, useMemo, useCallback, useState, useEffect, type ComponentType } from 'react';
+import { useRef, useMemo, useCallback, useState, useEffect } from 'react';
 import { ThreeEvent, useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { Dot, DotsThree } from '@phosphor-icons/react';
-import {
-  HorizontalIcon,
-  VerticalIcon,
-  ParallelIcon,
-  PerpendicularIcon,
-  EqualIcon,
-  AngularIcon,
-  CoincidentIcon,
-  SmartLinearIcon,
-  RadiusIcon,
-  TangentIcon,
-  type CadIconProps,
-} from '@/frontend/shared/icons';
 import * as THREE from 'three';
 import type { Sketch, SketchElement, Point2D, ConstraintInput } from '@/cad/types';
 import { SketchOperation, SketchElementType } from '@/cad/types';
@@ -28,13 +15,9 @@ import {
   buildParallelogram,
 } from '@/cad/engine/sketch/sketchShapeBuilders';
 import { expandSelection } from '@/cad/engine/sketch/sketchGroups';
-import {
-  circleFromThreePoints,
-  centerpointArc,
-  tangentArc,
-  endTangentDirection,
-  type ArcGeometry,
-} from '@/cad/engine/sketch/arcGeometry';
+import { circleFromThreePoints, centerpointArc, tangentArc } from '@/cad/engine/sketch/arcGeometry';
+import { arcElementFrom, lastEndTangent } from '@/cad/engine/sketch/arcElementFactory';
+import { projectPointOntoLineSegment, getDistanceToElement } from '@/cad/engine/sketch/elementHitTest';
 import { SketchElementRenderer3D } from './SketchElementRenderer3D';
 import { SketchHotkeys } from './SketchHotkeys';
 import { useViewportStore, isMultiSelectClick } from '@/frontend/shared/viewportStore';
@@ -46,162 +29,7 @@ import {
 import { constraintIconPlacements } from '@/cad/engine/sketch/constraintAnchors';
 import { hitsDimensionHandle } from '@/cad/engine/sketch/dimensionHandleHitTest';
 import { ORIGIN_POINT_ID } from '@/cad/engine/sketch/originPoint';
-
-/**
- * No-op raycast: makes a mesh/line render but never be an intersection target.
- * Every sketch decoration (grid, axes, hover/snap/construction indicators,
- * element/preview lines) uses this so it can't sit under the cursor and swallow
- * a click meant for the sketch plane. Element hover/selection is computed from
- * 2D distance math on pointer-move, not from raycasting these objects, so making
- * them non-interactive costs nothing. Only the plane and the point-selection
- * handles remain real pointer targets.
- */
-const NO_RAYCAST = () => null;
-
-/**
- * Icon shown inside a constraint badge, keyed by planegcs constraint type —
- * mirrors the icons used to *create* each constraint in `SketchConstraintToolbar`.
- */
-const CONSTRAINT_ICONS: Record<string, ComponentType<CadIconProps>> = {
-  horizontal_l: HorizontalIcon,
-  vertical_l: VerticalIcon,
-  parallel: ParallelIcon,
-  perpendicular_ll: PerpendicularIcon,
-  equal_length: EqualIcon,
-  l2l_angle_ll: AngularIcon,
-  p2p_coincident: CoincidentIcon,
-  p2p_distance: SmartLinearIcon,
-  circle_radius: RadiusIcon,
-  arc_radius: RadiusIcon,
-  tangent_lc: TangentIcon,
-};
-
-/** Build an ARC sketch element from solved arc geometry (center + angle sweep). */
-function arcElementFrom(g: ArcGeometry): SketchElement {
-  return {
-    type: SketchElementType.ARC,
-    id: crypto.randomUUID(),
-    center: g.center,
-    radius: g.radius,
-    startAngle: g.startAngle,
-    endAngle: g.endAngle,
-  };
-}
-
-/**
- * Tangent direction at the end of the most recently drawn (non-construction)
- * element — the Tangent Arc tool continues from it. Falls back to +X when the
- * sketch is empty.
- */
-function lastEndTangent(elements: SketchElement[]): Point2D {
-  for (let i = elements.length - 1; i >= 0; i--) {
-    const el = elements[i];
-    if (el.type === SketchElementType.LINE && el.construction) continue;
-    const dir = endTangentDirection(el as unknown as { type: string } & Record<string, any>);
-    if (dir) return dir;
-  }
-  return { x: 1, y: 0 };
-}
-
-/** Project a point onto a line segment; returns the projection and distance. */
-function projectPointOntoLineSegment(
-  point: Point2D,
-  lineStart: Point2D,
-  lineEnd: Point2D
-): { projection: Point2D; distance: number } {
-  const dx = lineEnd.x - lineStart.x;
-  const dy = lineEnd.y - lineStart.y;
-  const lengthSquared = dx * dx + dy * dy;
-
-  if (lengthSquared === 0) {
-    const distance = Math.sqrt(
-      Math.pow(point.x - lineStart.x, 2) + Math.pow(point.y - lineStart.y, 2)
-    );
-    return { projection: lineStart, distance };
-  }
-
-  let t = ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / lengthSquared;
-  t = Math.max(0, Math.min(1, t));
-
-  const projection: Point2D = { x: lineStart.x + t * dx, y: lineStart.y + t * dy };
-  const distance = Math.sqrt(
-    Math.pow(point.x - projection.x, 2) + Math.pow(point.y - projection.y, 2)
-  );
-  return { projection, distance };
-}
-
-/**
- * Distance from a 2D point to a sketch element (for hover/selection). Pure —
- * hoisted to module scope so the pointer handlers that use it stay referentially
- * stable across renders (see `currentPointsRef`).
- */
-function getDistanceToElement(point: Point2D, element: SketchElement): number {
-  switch (element.type) {
-    case SketchElementType.POINT:
-      return Math.sqrt(Math.pow(point.x - element.x, 2) + Math.pow(point.y - element.y, 2));
-
-    case SketchElementType.LINE: {
-      const { distance } = projectPointOntoLineSegment(point, element.start, element.end);
-      return distance;
-    }
-
-    case SketchElementType.RECTANGLE: {
-      const edges: [Point2D, Point2D][] = [
-        [element.corner1, { x: element.corner2.x, y: element.corner1.y }],
-        [{ x: element.corner2.x, y: element.corner1.y }, element.corner2],
-        [element.corner2, { x: element.corner1.x, y: element.corner2.y }],
-        [{ x: element.corner1.x, y: element.corner2.y }, element.corner1],
-      ];
-      let minDistance = Infinity;
-      edges.forEach(([start, end]) => {
-        const { distance } = projectPointOntoLineSegment(point, start, end);
-        minDistance = Math.min(minDistance, distance);
-      });
-      return minDistance;
-    }
-
-    case SketchElementType.CIRCLE: {
-      const distToCenter = Math.sqrt(
-        Math.pow(point.x - element.center.x, 2) + Math.pow(point.y - element.center.y, 2)
-      );
-      return Math.abs(distToCenter - element.radius);
-    }
-
-    case SketchElementType.POLYGON: {
-      if (element.points.length < 2) return Infinity;
-      let minDistance = Infinity;
-      for (let i = 0; i < element.points.length; i++) {
-        const start = element.points[i];
-        const end = element.points[(i + 1) % element.points.length];
-        const { distance } = projectPointOntoLineSegment(point, start, end);
-        minDistance = Math.min(minDistance, distance);
-      }
-      return minDistance;
-    }
-
-    case SketchElementType.ARC: {
-      // Center-based arc (centerpoint/tangent): distance to the arc's circle.
-      if (element.center && typeof element.radius === 'number') {
-        const distToCenter = Math.sqrt(
-          Math.pow(point.x - element.center.x, 2) + Math.pow(point.y - element.center.y, 2)
-        );
-        return Math.abs(distToCenter - element.radius);
-      }
-      if (element.points && element.points.length === 3) {
-        let minDistance = Infinity;
-        element.points.forEach((p) => {
-          const dist = Math.sqrt(Math.pow(point.x - p.x, 2) + Math.pow(point.y - p.y, 2));
-          minDistance = Math.min(minDistance, dist);
-        });
-        return minDistance;
-      }
-      return Infinity;
-    }
-
-    default:
-      return Infinity;
-  }
-}
+import { NO_RAYCAST, CONSTRAINT_ICONS } from './sketchOverlayConstants';
 
 export interface SketchOverlayProps {
   sketch: Sketch;
