@@ -238,8 +238,9 @@ enum cleanup is a separate, larger type-system task if it's ever worth doing.
   without a design-system decision.
 - **`no-giant-component`** (`OperationPanel.tsx`) — ✅ done via the Strategy/registry split below
   (810 → ~120 lines). `SketchOverlay.tsx` — ✅ done, see the dedicated entry below (1654 → 456 lines).
-  The other 4 (`CADLayout.tsx` 1341 lines, `OpenCascadeViewport.tsx`, `OCCModel.tsx`,
-  `SketchRenderer.tsx`) are still real, multi-hour restructuring jobs, not lint fixes.
+  `CADLayout.tsx` — ✅ done, see the dedicated entry below (1409 → ~330 lines). The remaining 3
+  (`OpenCascadeViewport.tsx`, `OCCModel.tsx`, `SketchRenderer.tsx`) are still real, multi-hour
+  restructuring jobs, not lint fixes.
 - **`OperationPanel.tsx` per-operation Strategy + registry-factory split** — ✅ done, all ~21
   `FeatureOperation`/`TransformOperation` variants that ever reach the panel are migrated (only
   `FeatureOperation.IMPORT`, which has no parametric params UI, and any stray `SketchOperation` fall
@@ -328,3 +329,36 @@ Left deliberately untouched: the tool-switching reset effect and the `no-derived
 `no-event-handler`/effect-chain findings noted above — same reasoning as before (poor reducer fit,
 risk of silently breaking pointer/tool-switching interactions). Full suite (615 tests, up from 603 —
 new tests for the extracted geometry/registry modules) and build pass after each phase.
+
+### `CADLayout.tsx` breakup (1409 → ~330 lines)
+
+Same `hooks/` + `components/` pattern as the `SketchOverlay.tsx` breakup above, under a new
+`src/frontend/ui/layout/` directory (`CADLayout.tsx` itself stays directly under `src/frontend/ui/`
+and is now a thin orchestrator: calls the hooks below in dependency order, then composes three JSX
+components).
+
+- `layout/ioOperations.ts` — pure, already free-standing: `SKETCH_TOOL_OPERATIONS`,
+  `IMPORT_FORMATS`/`EXPORT_FORMATS`, `parseIoOperation`.
+- `layout/hooks/`: `useOpenCascadeBridge` (the `useOpenCascade(...)` call, its callbacks, and the
+  rebuild/tessellation/clear-mesh effects — largest hook, most others depend on values it returns),
+  `useMeasurement`, `useSketchEditing` (sketch element/constraint mutation handlers, all funneling
+  through `applySketchElements`), `useSketchPlaneSelection` (face/plane-driven sketch creation +
+  the Sketch toolbar button dispatch), `useViewportSelection` (face/edge/vertex click handling),
+  `useProjectIO` (new/open/save/export + CAD import/export), `useOperationPanel`, `useHeaderHeight`,
+  `useUndoRedoShortcut`.
+- `layout/components/`: `CADHeader` (Toolbar + OperationsBar), `CADSidebar` (OperationPanel + Feature
+  Tree/Entities/Measure tabs — the largest extracted piece), `CADMainCanvas` (CADViewport +
+  SketchConstraintToolbar/List + ViewportContextMenu).
+
+One cross-hook wiring wrinkle: `useOpenCascadeBridge`'s `onMeasured`/`onMeasuredBetween` worker
+callbacks need setters that live in `useMeasurement`, which itself needs `currentFeatureShapeId` back
+from the bridge — resolved with a `setMeasuredHandlers` indirection (bridge exposes it, `useMeasurement`
+calls it in an effect) rather than restructuring hook call order, since JS closures resolve free
+variables lazily and the callbacks are only invoked long after both hooks have run in the same render.
+
+Verified with `bun run build`, `bun run test` (614/615 passing — the one failure,
+`SketchOverlay.dimension.test.tsx`, reproduces identically on `main` pre-refactor and in isolation, so
+is pre-existing flakiness unrelated to this change), `bun run lint` (455 problems vs. 458 on `main`,
+no new findings), and a manual `bun run dev` + Playwright pass: selected Front Plane, entered sketch
+mode, drew with the Corner Rectangle tool, Finish Sketch, Undo — all wired through with zero new
+console errors (only pre-existing `TreeItem.tsx` inline-style shorthand warnings).
