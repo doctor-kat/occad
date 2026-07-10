@@ -238,9 +238,9 @@ enum cleanup is a separate, larger type-system task if it's ever worth doing.
   without a design-system decision.
 - **`no-giant-component`** (`OperationPanel.tsx`) — ✅ done via the Strategy/registry split below
   (810 → ~120 lines). `SketchOverlay.tsx` — ✅ done, see the dedicated entry below (1654 → 456 lines).
-  `CADLayout.tsx` — ✅ done, see the dedicated entry below (1409 → ~330 lines). The remaining 3
-  (`OpenCascadeViewport.tsx`, `OCCModel.tsx`, `SketchRenderer.tsx`) are still real, multi-hour
-  restructuring jobs, not lint fixes.
+  `CADLayout.tsx` — ✅ done, see the dedicated entry below (1409 → ~330 lines).
+  `OpenCascadeViewport.tsx` — ✅ done, see the dedicated entry below (410 → ~215 lines). The remaining 2
+  (`OCCModel.tsx`, `SketchRenderer.tsx`) are still real, multi-hour restructuring jobs, not lint fixes.
 - **`OperationPanel.tsx` per-operation Strategy + registry-factory split** — ✅ done, all ~21
   `FeatureOperation`/`TransformOperation` variants that ever reach the panel are migrated (only
   `FeatureOperation.IMPORT`, which has no parametric params UI, and any stray `SketchOperation` fall
@@ -329,6 +329,29 @@ Left deliberately untouched: the tool-switching reset effect and the `no-derived
 `no-event-handler`/effect-chain findings noted above — same reasoning as before (poor reducer fit,
 risk of silently breaking pointer/tool-switching interactions). Full suite (615 tests, up from 603 —
 new tests for the extracted geometry/registry modules) and build pass after each phase.
+
+### `OpenCascadeViewport.tsx` breakup (410 → ~215 lines)
+
+The component had grown into three jobs jammed together: hosting the R3F `<Canvas>`/`<Scene>`, rendering
+the sketch-mode HUD overlays, and wiring the right-click context menu. Extracted the self-contained
+overlay blocks into sibling components under `src/frontend/canvas/opencascade/` (matching the existing
+`LoadingOverlay`/`ErrorOverlay`/`SelectionDisplay` pattern), leaving the main file a thin orchestrator:
+
+- `SketchModeControls.tsx` — top-right Cancel/Finish + element-count HUD.
+- `SketchPlanePrompt.tsx` — top-center "Select a sketch plane" prompt.
+- `SketchConstraintsMenu.tsx` — bottom-center snapping-constraint toolbar; owns and exports the
+  `ConstraintType` union (`'none' | 'point' | 'edge' | 'midpoint' | 'center'`). State stays lifted in the
+  parent since `Scene` also consumes `activeConstraint`; the menu takes `activeConstraint`/`onChange`.
+- `SketchSelectionBox.tsx` — the box/crossing rubber-band overlay; reads `sketchSelectionBox` from
+  `viewportStore` itself rather than through a prop.
+- `ViewportEmptyState.tsx` — the "No geometry to display" placeholder.
+- `contextMenu/useViewportContextMenu.ts` — the `onContextMenu` handler extracted to a memoized hook
+  keyed on `inSketchMode`.
+
+Incidental cleanups: moved the stray mid-file `import { SketchRenderer }` (was on line 64) up into the
+import block, and dropped now-unused Mantine/icon imports. Verified with `bun run build`, `bun run test`
+(615/615 passing), and `bun run lint` (no new findings — the 3 `any` errors on the props interface are
+pre-existing and carried over verbatim).
 
 ### `CADLayout.tsx` breakup (1409 → ~330 lines)
 
