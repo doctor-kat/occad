@@ -4,45 +4,24 @@
 
 type TopoDS_Shape = any;
 import type {
-  ExtrudeParams,
-  RevolveParams,
-  PrimitiveBoxParams,
-  FilletParams,
-  ChamferParams,
-  ShellParams,
-  OffsetParams,
-  SweepParams,
-  LoftParams,
-  TransformParams,
-  BooleanParams,
   CADProject,
   SketchEdgeData,
   FeatureRefEnrichment,
   SketchRefEnrichment,
   TessellationQuality,
-  ImportParams,
 } from '@/cad/types';
-import { FeatureOperation, compareBuildOrder, isRolledBack, SubShapeKind } from '@/cad/types';
+import { compareBuildOrder, isRolledBack, SubShapeKind } from '@/cad/types';
 import type { WorkerContext } from '../../workerContext';
 import { post, bodyTessellation } from '../../workerContext';
-import { getTransferables, findSketchShape, ensureFace } from '../../helpers';
+import { getTransferables } from '../../helpers';
 import { buildSketchWire, buildProfileFace } from '../../sketchBuilders';
-import { applyFillet } from '../../modifications/fillet';
-import { applyChamfer } from '../../modifications/chamfer';
-import { applyShell } from '../../modifications/shell';
-import { applyOffset } from '../../modifications/offset';
-import { enrichRefs } from '../../modifications/shared';
-import { applySweep, applyLoft } from '../../advancedModeling';
-import { applyTransform } from '../../transforms';
+import { performBooleanOperation } from '../boolean';
 import { tessellate, extractEdgeVertices } from '../../tessellation';
 import { reprojectExternalGeometry, enrichSketchExternalRefs } from '../../sketch/externalGeometry';
 import { fingerprintAll } from '../../fingerprint';
 import { attributeFaceOwners, EMPTY_OWNERSHIP, type FaceOwnership } from '../../faceAttribution';
-import { importShapeFromString } from '../../io';
-import { buildPrimitiveShape } from '../primitives';
-import { performBooleanOperation } from '../boolean';
-import { resolveExtrudeDirection } from '../sketch/extrudeSketch';
 import { solver, nextShapeId, formatError } from '../shared';
+import { FEATURE_STRATEGY_REGISTRY } from './strategies/registry';
 
 /**
  * Handle full rebuild of project from feature history
@@ -52,7 +31,6 @@ export async function handleRebuild(
   project: CADProject,
   tessellation?: TessellationQuality
 ): Promise<void> {
-  const { oc } = ctx;
   // Carry the requested mesh resolution for the whole rebuild so every
   // body-tessellating step (features + final body) uses it.
   ctx.tessellation = tessellation ?? ctx.tessellation;
@@ -133,168 +111,27 @@ export async function handleRebuild(
           const feature = item.data;
           if (feature.isSuppressed) { processedItems++; continue; }
 
-          let newShape: TopoDS_Shape | null = null;
+          // Every body-affecting feature type has an explicit strategy in the
+          // registry. Anything missing (e.g. a newly added FeatureOperation
+          // that was never wired in) fails loudly instead of silently
+          // dropping it from the replayed history.
+          const strategy = FEATURE_STRATEGY_REGISTRY[feature.type];
+          if (!strategy) throw new Error(`Feature type "${feature.type}" is not wired into parametric rebuild`);
 
-          if (feature.type === 'extrude-boss' || feature.type === FeatureOperation.EXTRUDED_CUT) {
-            const sketchShape = findSketchShape(ctx, feature.sketchId!);
-            if (!sketchShape) throw new Error(`Sketch ${feature.sketchId} not found`);
-            {
-              const faceToExtrude = ensureFace(ctx, sketchShape);
-              const params = feature.parameters as ExtrudeParams;
-              const direction = resolveExtrudeDirection(ctx, faceToExtrude, params);
-              const extrudeVec = new oc.gp_Vec_4(direction.x * params.distance, direction.y * params.distance, direction.z * params.distance);
-              const prism = new oc.BRepPrimAPI_MakePrism_1(faceToExtrude, extrudeVec, false, true);
-              if (prism.IsDone()) newShape = prism.Shape();
-              extrudeVec.delete(); prism.delete();
-            }
-          } else if (feature.type === FeatureOperation.REVOLVED_BOSS || feature.type === FeatureOperation.REVOLVED_CUT) {
-            const sketchShape = findSketchShape(ctx, feature.sketchId!);
-            if (!sketchShape) throw new Error(`Sketch ${feature.sketchId} not found`);
-            {
-              const faceToRevolve = ensureFace(ctx, sketchShape);
-              const params = feature.parameters as RevolveParams;
-              const axisOrigin = new oc.gp_Pnt_3(params.axis.origin.x, params.axis.origin.y, params.axis.origin.z);
-              const axisDir = new oc.gp_Dir_4(params.axis.direction.x, params.axis.direction.y, params.axis.direction.z);
-              const axis = new oc.gp_Ax1_2(axisOrigin, axisDir);
-              const revol = new oc.BRepPrimAPI_MakeRevol_1(faceToRevolve, axis, (params.angle * Math.PI) / 180, false);
-              if (revol.IsDone()) newShape = revol.Shape();
-              axisOrigin.delete(); axisDir.delete(); axis.delete(); revol.delete();
-            }
-          } else if (feature.type === FeatureOperation.IMPORT) {
-            // An imported solid has no parametric inputs — its geometry is the
-            // file content carried in the feature params, re-parsed each rebuild
-            // (worker shape storage is cleared per rebuild). Unions into the body
-            // like a primitive.
-            const params = feature.parameters as ImportParams;
-            newShape = importShapeFromString(ctx, params.format, params.content);
-          } else if (
-            feature.type === FeatureOperation.BOX ||
-            feature.type === FeatureOperation.CYLINDER ||
-            feature.type === FeatureOperation.SPHERE ||
-            feature.type === FeatureOperation.CONE ||
-            feature.type === FeatureOperation.TORUS ||
-            feature.type === FeatureOperation.WEDGE
-          ) {
-            newShape = buildPrimitiveShape(ctx, feature.type, feature.parameters as PrimitiveBoxParams);
-          } else if (feature.type === FeatureOperation.SWEEP) {
-            const params = feature.parameters as SweepParams;
-            const profileShape = findSketchShape(ctx, params.profileSketchId);
-            if (!profileShape) throw new Error(`Sweep profile sketch ${params.profileSketchId} not found`);
-            const pathShape = findSketchShape(ctx, params.pathSketchId);
-            if (!pathShape) throw new Error(`Sweep path sketch ${params.pathSketchId} not found`);
-            newShape = applySweep(ctx, profileShape, pathShape);
-          } else if (feature.type === FeatureOperation.LOFT) {
-            const params = feature.parameters as LoftParams;
-            const profileShapes = (params.sketchIds ?? []).map((id) => {
-              const s = findSketchShape(ctx, id);
-              if (!s) throw new Error(`Loft profile sketch ${id} not found`);
-              return s;
-            });
-            newShape = applyLoft(ctx, profileShapes, params.ruled);
-          } else if (
-            feature.type === FeatureOperation.FILLET ||
-            feature.type === FeatureOperation.CHAMFER ||
-            feature.type === FeatureOperation.SHELL ||
-            feature.type === FeatureOperation.OFFSET
-          ) {
-            // Modifications transform the current body in place rather than
-            // producing a separate solid to boolean-combine. A modification
-            // with no body to act on (none built yet) is a no-op.
-            if (currentBody) {
-              const body = currentBody;
-              // Capture fingerprints against the pre-modification body (where the
-              // stored indices are valid), then apply. Push only after the apply
-              // succeeds, so a failed modification doesn't enrich. See step 3b.
-              switch (feature.type) {
-                case FeatureOperation.FILLET: {
-                  const p = feature.parameters as FilletParams;
-                  const enriched = enrichRefs(ctx, body, p.edges, SubShapeKind.Edge);
-                  currentBody = applyFillet(ctx, body, p);
-                  if (enriched) refEnrichments.push({ featureId: feature.id, key: 'edges', refs: enriched });
-                  break;
-                }
-                case FeatureOperation.CHAMFER: {
-                  const p = feature.parameters as ChamferParams;
-                  const enriched = enrichRefs(ctx, body, p.edges, SubShapeKind.Edge);
-                  currentBody = applyChamfer(ctx, body, p);
-                  if (enriched) refEnrichments.push({ featureId: feature.id, key: 'edges', refs: enriched });
-                  break;
-                }
-                case FeatureOperation.SHELL: {
-                  const p = feature.parameters as ShellParams;
-                  const enriched = enrichRefs(ctx, body, p.faces, SubShapeKind.Face);
-                  currentBody = applyShell(ctx, body, p);
-                  if (enriched) refEnrichments.push({ featureId: feature.id, key: 'faces', refs: enriched });
-                  break;
-                }
-                case FeatureOperation.OFFSET: {
-                  const p = feature.parameters as OffsetParams;
-                  const enriched = enrichRefs(ctx, body, p.faces, SubShapeKind.Face);
-                  currentBody = applyOffset(ctx, body, p);
-                  if (enriched) refEnrichments.push({ featureId: feature.id, key: 'faces', refs: enriched });
-                  break;
-                }
-              }
-            }
-          } else if (
-            feature.type === FeatureOperation.MOVE ||
-            feature.type === FeatureOperation.ROTATE ||
-            feature.type === FeatureOperation.MIRROR ||
-            feature.type === FeatureOperation.SCALE
-          ) {
-            // Transforms reposition/resize the current body in place (like
-            // modifications, no boolean combine). A transform with no body to
-            // act on (none built yet) is a no-op.
-            if (currentBody) {
-              currentBody = applyTransform(ctx, currentBody, feature.parameters as TransformParams);
-            }
-          } else if (
-            feature.type === FeatureOperation.UNION ||
-            feature.type === FeatureOperation.INTERSECT
-          ) {
-            // A standalone boolean combines specific feature solids (referenced
-            // by id) and replaces the current body with the result. Union fuses,
-            // Intersect keeps the common volume. Needs at least two operands.
-            const params = feature.parameters as BooleanParams;
-            const operands = (params.featureIds ?? [])
-              .map((id) => featureSolids.get(id))
-              .filter((s): s is TopoDS_Shape => !!s && !s.IsNull());
-            if (operands.length >= 2) {
-              const op = feature.type === FeatureOperation.UNION ? 'union' : 'intersect';
-              let combined = operands[0];
-              for (let i = 1; i < operands.length; i++) {
-                combined = performBooleanOperation(ctx, op, combined, operands[i]);
-              }
-              currentBody = combined;
-            }
-          } else if (feature.type === FeatureOperation.MEASURE) {
-            // Measurement/analysis features carry no geometry to build — they are
-            // pure readouts. Skip them without touching the running body.
-          } else {
-            // Every body-producing feature type has an explicit branch above.
-            // Anything reaching here is an unhandled type (e.g. a newly added
-            // FeatureOperation that was never wired into rebuild). Fail loudly
-            // instead of silently dropping it from the replayed history.
-            throw new Error(`Feature type "${feature.type}" is not wired into parametric rebuild`);
-          }
+          const result = strategy({ ctx, feature, currentBody, featureSolids, refEnrichments });
 
-          if (newShape && !newShape.IsNull()) {
-            // Capture the isolated solid so later standalone booleans can
-            // reference it, before it is auto-combined into the running body.
-            featureSolids.set(feature.id, newShape);
-            if (currentBody) {
-              // Sweep/loft can add or remove material depending on their isCut flag.
-              const advancedCut =
-                (feature.type === FeatureOperation.SWEEP || feature.type === FeatureOperation.LOFT) &&
-                (feature.parameters as SweepParams | LoftParams)?.isCut === true;
-              if (feature.type === FeatureOperation.EXTRUDED_CUT || feature.type === FeatureOperation.REVOLVED_CUT || advancedCut) {
-                currentBody = performBooleanOperation(ctx, 'subtract', currentBody, newShape);
-              } else {
-                currentBody = performBooleanOperation(ctx, 'union', currentBody, newShape);
-              }
-            } else {
-              currentBody = newShape;
+          if (result.kind === 'produce') {
+            const newShape = result.shape;
+            if (newShape && !newShape.IsNull()) {
+              // Capture the isolated solid so later standalone booleans can
+              // reference it, before it is auto-combined into the running body.
+              featureSolids.set(feature.id, newShape);
+              currentBody = currentBody
+                ? performBooleanOperation(ctx, result.combine, currentBody, newShape)
+                : newShape;
             }
+          } else if (result.kind === 'replace') {
+            currentBody = result.body;
           }
           if (currentBody) ctx.shapeStorage.set(`feature_${feature.id}_${nextShapeId()}`, currentBody);
           // Roll face ownership forward: faces surviving this feature keep their

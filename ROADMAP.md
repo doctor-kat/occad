@@ -157,9 +157,10 @@ not a mechanical edit):
 - **`viewportStore` has three parallel "something is happening on the canvas" flags**
   (`draggingDimensionLabel`, `pendingSketchOnFace`, `extrudePreview`) — a generalized `interactionMode`
   union would scale better.
-- **`handleRebuild` re-implements** extrude/revolve construction already in
-  `handleExtrudeSketch`/`handleRevolveSketch`, and re-derives boss-vs-cut by re-testing `feature.type`
-  rather than carrying an `isCut` flag.
+- **`handleRebuild`'s per-op strategies re-implement** extrude/revolve construction already in
+  `handleExtrudeSketch`/`handleRevolveSketch` (see "Rebuild strategy table" below — the boss-vs-cut
+  re-derivation from `feature.type` is now confined to each strategy's own `combine` decision instead of
+  leaking into the shared loop, but the duplicate OCC construction code itself is still separate).
 - **Worker dispatch has no request-id correlation for the state-mutating ops** — a targeted sketch build
   and a version-bump rebuild can race against the same worker-side `shapeStorage`. (The 5
   `requestId`-carrying, single-response ops — `resolveSelector`/`exportShape`/`measureShape`/
@@ -167,6 +168,33 @@ not a mechanical edit):
   this note is about `buildSketch`/`extrudeSketch`/`revolveSketch`/`rebuild`, which stay event-style.)
 - **`OCCModel.tsx` per-edge hover cylinders / highlight geometry** are unmemoized and recompute on every
   hover/selection change.
+
+## Rebuild strategy table (2026-07-11)
+
+Per Architecture review candidate #2 ("make `handleRebuild`'s feature dispatch a strategy table"):
+the ~180-line if/else chain dispatching 20+ feature types in `handleRebuild.ts` is now a registry
+(`src/cad/engine/operations/rebuild/strategies/registry.ts`, `FEATURE_STRATEGY_REGISTRY`) mapping each
+`FeatureOperation` to a `FeatureStrategy` function, mirroring the existing `drawTools/registry.ts` and
+`OPERATION_PANEL_REGISTRY` patterns. One file per operation group under `strategies/`
+(extrude/revolve/import/primitive/sweepLoft/modifications/transform/boolean/measure); each returns a
+tagged `StrategyResult` (`produce` — new solid, loop auto-combines via a `combine: 'union'|'subtract'`
+field the strategy itself decides; `replace` — body swapped in place; `noop`). The loop in
+`handleRebuild.ts` no longer branches on `feature.type` at all — the boss/cut/isCut decision that used
+to live in the shared loop now lives in each producing strategy, closing the "no locality" seam the
+review flagged (the extracted pure helpers were tested; the wiring around them wasn't). A feature type
+missing a registry entry still fails loudly instead of silently no-opping.
+
+`modifications.ts` collapsed fillet/chamfer/shell/offset (4 near-identical functions differing only in
+apply-fn/param-key/SubShapeKind) into one `makeModificationStrategy` config-driven factory, found during
+a `/simplify` pass alongside the `combine`-field extraction (a `/simplify` altitude finding: the initial
+cut across the loop still special-cased `feature.type` for the auto-union decision).
+
+Added `strategies/strategies.test.ts` — direct tests for `extrudeStrategy` (face-normal-based direction,
+regression-tested the same way as `operations.test.ts`), `revolveStrategy`, `booleanStrategy` (operand
+collection, insufficient-operand no-op), `filletStrategy`/`transformStrategy` (no-op with no body),
+`measureStrategy`, and a registry-completeness check that every body-affecting `FeatureOperation` has an
+entry. Full suite (635 tests) + build pass; verified live in-browser (Entities panel: 10 faces/21 edges,
+unchanged before/after, on the same multi-feature persisted project — primitives, sketches, booleans).
 
 ## Worker bridge: generic call() for correlated ops (2026-07-11)
 
