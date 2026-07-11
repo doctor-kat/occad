@@ -3,9 +3,13 @@ import { renderHook, act } from "@testing-library/react";
 
 // Capture the onmessage handler set on the mock Worker
 let workerOnMessage: ((e: MessageEvent) => void) | null = null;
+// Every message posted to the (single, most-recent) mock worker instance.
+let postedMessages: unknown[] = [];
 
 class MockWorker {
-  postMessage = vi.fn();
+  postMessage = vi.fn((msg: unknown) => {
+    postedMessages.push(msg);
+  });
   terminate = vi.fn();
 
   set onmessage(handler: ((e: MessageEvent) => void) | null) {
@@ -31,6 +35,7 @@ function fireWorkerMessage(data: unknown) {
 describe("useOpenCascade", () => {
   beforeEach(() => {
     workerOnMessage = null;
+    postedMessages = [];
     vi.clearAllMocks();
   });
 
@@ -176,5 +181,85 @@ describe("useOpenCascade", () => {
 
     expect(staleCb).not.toHaveBeenCalled();
     expect(freshCb).toHaveBeenCalledWith(mockMesh);
+  });
+
+  // The generic call() dispatch (Architecture review candidate #1) replaces
+  // per-op onXxx callbacks + onmessage cases for resolveSelector/exportShape/
+  // measureShape/measureBetween/getEdgeLoop. These cover its requestId
+  // correlation, since it's the only new logic — the DTOs themselves are
+  // unchanged and covered by their own handler tests.
+  describe("call() requestId correlation", () => {
+    it("resolves the promise matching the response's requestId, ignoring in-flight others", async () => {
+      const { result } = renderHook(() => useOpenCascade());
+
+      let resolveSelectorPromise: Promise<unknown>;
+      let measureShapePromise: Promise<unknown>;
+      act(() => {
+        resolveSelectorPromise = result.current.resolveSelector("req-1", "shape-1", "face" as never, "F1");
+        measureShapePromise = result.current.measureShape("req-2", "shape-1");
+      });
+
+      // Responses arrive out of order; each must resolve its own requestId's promise only.
+      act(() => {
+        fireWorkerMessage({ type: "measured", requestId: "req-2", measurement: { volume: 42 } });
+      });
+      await expect(measureShapePromise!).resolves.toEqual({
+        type: "measured",
+        requestId: "req-2",
+        measurement: { volume: 42 },
+      });
+
+      act(() => {
+        fireWorkerMessage({ type: "selectorResolved", requestId: "req-1", refs: ["ref-a"] });
+      });
+      await expect(resolveSelectorPromise!).resolves.toEqual({
+        type: "selectorResolved",
+        requestId: "req-1",
+        refs: ["ref-a"],
+      });
+    });
+
+    it("posts a message combining the type, requestId, and payload", () => {
+      const { result } = renderHook(() => useOpenCascade());
+
+      act(() => {
+        void result.current.measureBetween("req-3", "shape-9", { kind: "face", index: 0 } as never, { kind: "face", index: 1 } as never);
+      });
+
+      const posted = postedMessages.at(-1);
+      expect(posted).toEqual({
+        type: "measureBetween",
+        requestId: "req-3",
+        shapeId: "shape-9",
+        a: { kind: "face", index: 0 },
+        b: { kind: "face", index: 1 },
+      });
+    });
+
+    it("only fires each pending resolver once, even if the same requestId message arrives twice", async () => {
+      const { result } = renderHook(() => useOpenCascade());
+
+      let getEdgeLoopPromise: Promise<unknown>;
+      act(() => {
+        getEdgeLoopPromise = result.current.getEdgeLoop("req-4", "shape-1", 2);
+      });
+
+      act(() => {
+        fireWorkerMessage({ type: "edgeLoop", requestId: "req-4", edgeIndices: [1, 2, 3] });
+      });
+      await expect(getEdgeLoopPromise!).resolves.toEqual({
+        type: "edgeLoop",
+        requestId: "req-4",
+        edgeIndices: [1, 2, 3],
+      });
+
+      // A stray duplicate/late message for the same requestId must not throw
+      // or resolve anything a second time (the pending entry was already removed).
+      expect(() =>
+        act(() => {
+          fireWorkerMessage({ type: "edgeLoop", requestId: "req-4", edgeIndices: [9] });
+        }),
+      ).not.toThrow();
+    });
   });
 });

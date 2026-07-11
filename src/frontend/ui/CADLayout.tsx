@@ -97,7 +97,6 @@ export function CADLayout() {
     occ.currentFeatureShapeId,
     occ.measureShape,
     occ.measureBetween,
-    occ.setMeasuredHandlers,
   );
 
   const sketchEditing = useSketchEditing({

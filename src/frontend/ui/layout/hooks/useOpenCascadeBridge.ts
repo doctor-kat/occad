@@ -11,11 +11,12 @@ import type {
   StableRef,
   SubShapeKind,
   ExportFormat,
+  MeasureSelection,
   TessellationLevel,
   FeatureRefEnrichment,
   SketchRefEnrichment,
 } from '@/cad/types';
-import { PlaneType, EXPORT_EXTENSIONS } from '@/cad/types';
+import { PlaneType } from '@/cad/types';
 
 interface UseOpenCascadeBridgeArgs {
   project: CADProject;
@@ -49,14 +50,6 @@ export function useOpenCascadeBridge({
   const pendingSketchOnFace = useViewportStore((state) => state.pendingSketchOnFace);
   const setPendingSketchOnFace = useViewportStore((state) => state.setPendingSketchOnFace);
 
-  // Resolves to the pending Promise for each in-flight resolveSelector request
-  // (see onSelectorResolved below / resolveSelectorAsync).
-  const pendingSelectorResolutions = useRef(new Map<string, (refs: StableRef[]) => void>());
-
-  // Export request → suggested download filename, keyed by requestId (resolved
-  // in onExported below).
-  const pendingExports = useRef(new Map<string, string>());
-
   const {
     status: occStatus,
     progress: occProgress,
@@ -67,11 +60,11 @@ export function useOpenCascadeBridge({
     clearMesh,
     extrudeSketch,
     getFaceGeometry,
-    getEdgeLoop,
+    getEdgeLoop: rawGetEdgeLoop,
     resolveSelector,
     exportShape: rawExportShape,
-    measureShape,
-    measureBetween,
+    measureShape: rawMeasureShape,
+    measureBetween: rawMeasureBetween,
     currentFeatureShapeId,
     buildSketch,
     sketchEdges: occSketchEdges,
@@ -131,37 +124,6 @@ export function useOpenCascadeBridge({
         setPendingSketchOnFace(null);
       }
     },
-    onEdgeLoop: (_requestId, edgeIndices) => {
-      // Light up the whole loop; the picked edge stays the primary selection.
-      useViewportStore.getState().setSelectedEdgeIndices(edgeIndices);
-    },
-    onSelectorResolved: (requestId, refs) => {
-      const resolve = pendingSelectorResolutions.current.get(requestId);
-      if (resolve) {
-        pendingSelectorResolutions.current.delete(requestId);
-        resolve(refs);
-      }
-    },
-    onMeasured: (_requestId, result) => {
-      onMeasuredRef.current?.(result);
-    },
-    onMeasuredBetween: (_requestId, result) => {
-      onMeasuredBetweenRef.current?.(result);
-    },
-    onExported: (requestId, format, content) => {
-      // Trigger a browser download of the serialized file. The suggested name
-      // was stashed against the requestId when the export was kicked off.
-      const fileName = pendingExports.current.get(requestId) ?? `model.${EXPORT_EXTENSIONS[format]}`;
-      pendingExports.current.delete(requestId);
-      const blob = new Blob([content], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
-      notifications.show({ color: 'green', message: `Exported ${fileName}` });
-    },
     onRefsEnriched: (enrichments) => {
       // Persist lazily-captured fingerprints (no version bump -> no rebuild loop).
       applyRefEnrichments(enrichments);
@@ -184,38 +146,49 @@ export function useOpenCascadeBridge({
     },
   });
 
-  // Measure callbacks are wired lazily by useMeasurement (which needs
-  // currentFeatureShapeId from this hook's return value, so it's constructed
-  // after this hook runs). Deferred via refs so onMeasured/onMeasuredBetween
-  // above can be created before useMeasurement's setters exist.
-  const onMeasuredRef = useRef<((result: any) => void) | undefined>(undefined);
-  const onMeasuredBetweenRef = useRef<((result: any) => void) | undefined>(undefined);
-  const setMeasuredHandlers = useCallback((onMeasured: (result: any) => void, onMeasuredBetween: (result: any) => void) => {
-    onMeasuredRef.current = onMeasured;
-    onMeasuredBetweenRef.current = onMeasuredBetween;
-  }, []);
-
   // Promise-based wrapper around the worker's request/response resolveSelector
   // bridge method, for the OperationPanel "select by rule" input (ROADMAP §9.1
   // Phase 3). Resolves to [] if there's no live body to select against yet.
   const resolveSelectorAsync = useCallback(
-    (kind: SubShapeKind, selector: string): Promise<StableRef[]> => {
-      if (!currentFeatureShapeId) return Promise.resolve([]);
-      return new Promise((resolve) => {
-        const requestId = crypto.randomUUID();
-        pendingSelectorResolutions.current.set(requestId, resolve);
-        resolveSelector(requestId, currentFeatureShapeId, kind, selector);
-      });
+    async (kind: SubShapeKind, selector: string): Promise<StableRef[]> => {
+      if (!currentFeatureShapeId) return [];
+      const response = await resolveSelector(crypto.randomUUID(), currentFeatureShapeId, kind, selector);
+      return response.refs;
     },
     [currentFeatureShapeId, resolveSelector]
   );
 
-  // Kick off an export and remember the suggested download filename against
-  // the request id (resolved in onExported above).
-  const exportShape = useCallback((requestId: string, shapeId: string, format: ExportFormat, fileName: string) => {
-    pendingExports.current.set(requestId, fileName);
-    rawExportShape(requestId, shapeId, format);
+  // Kick off an export and trigger a browser download once the worker replies.
+  const exportShape = useCallback(async (requestId: string, shapeId: string, format: ExportFormat, fileName: string) => {
+    const { content } = await rawExportShape(requestId, shapeId, format);
+    const blob = new Blob([content], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    notifications.show({ color: 'green', message: `Exported ${fileName}` });
   }, [rawExportShape]);
+
+  // Fetch a shape's volume/bbox measurement (ROADMAP §4), used by useMeasurement.
+  const measureShape = useCallback(async (requestId: string, shapeId: string) => {
+    const { measurement } = await rawMeasureShape(requestId, shapeId);
+    return measurement;
+  }, [rawMeasureShape]);
+
+  // Fetch the distance/angle between two picked sub-shapes (ROADMAP §4).
+  const measureBetween = useCallback(async (requestId: string, shapeId: string, a: MeasureSelection, b: MeasureSelection) => {
+    const { measurement } = await rawMeasureBetween(requestId, shapeId, a, b);
+    return measurement;
+  }, [rawMeasureBetween]);
+
+  // Look up the edge loop (bounding wire) containing a picked edge and light
+  // up the whole loop; the picked edge stays the primary selection.
+  const getEdgeLoop = useCallback(async (requestId: string, shapeId: string, edgeIndex: number) => {
+    const { edgeIndices } = await rawGetEdgeLoop(requestId, shapeId, edgeIndex);
+    useViewportStore.getState().setSelectedEdgeIndices(edgeIndices);
+  }, [rawGetEdgeLoop]);
 
   // Track last rebuilt version / project ID (moved from OpenCascadeViewport)
   const lastRebuiltVersion = useRef<number>(0);
@@ -274,6 +247,5 @@ export function useOpenCascadeBridge({
     buildSketch,
     resolveSelectorAsync,
     exportShape,
-    setMeasuredHandlers,
   };
 }

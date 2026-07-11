@@ -160,10 +160,41 @@ not a mechanical edit):
 - **`handleRebuild` re-implements** extrude/revolve construction already in
   `handleExtrudeSketch`/`handleRevolveSketch`, and re-derives boss-vs-cut by re-testing `feature.type`
   rather than carrying an `isCut` flag.
-- **Worker dispatch has no request-id correlation** — a targeted sketch build and a version-bump rebuild
-  can race against the same worker-side `shapeStorage`.
+- **Worker dispatch has no request-id correlation for the state-mutating ops** — a targeted sketch build
+  and a version-bump rebuild can race against the same worker-side `shapeStorage`. (The 5
+  `requestId`-carrying, single-response ops — `resolveSelector`/`exportShape`/`measureShape`/
+  `measureBetween`/`getEdgeLoop` — now do correlate via `useOpenCascade`'s generic `call()`, see below;
+  this note is about `buildSketch`/`extrudeSketch`/`revolveSketch`/`rebuild`, which stay event-style.)
 - **`OCCModel.tsx` per-edge hover cylinders / highlight geometry** are unmemoized and recompute on every
   hover/selection change.
+
+## Worker bridge: generic call() for correlated ops (2026-07-11)
+
+Per Architecture review candidate #1 ("collapse the worker message pipeline into a typed call
+registry"): the 5 `requestId`-carrying, single-response worker ops — `resolveSelector`, `exportShape`,
+`measureShape`, `measureBetween`, `getEdgeLoop` — now go through one generic `call(type, requestId,
+payload)` in `useOpenCascade.ts` (`src/worker/types/messages.ts` holds the `CorrelatedCallMap` typing
+the request/response pair per op) instead of 5 near-identical `useCallback` forwarders + 5 `onXxx` option
+callbacks + 5 `onmessage` switch cases. Each now returns a `Promise` resolving to the worker's response.
+
+Scope was kept types-preserving: the 27 DTO files in `requests/`/`responses/` and their two `index.ts`
+barrels are unchanged — only the dispatch/correlation layer collapsed. `buildSketch`/`extrudeSketch`/
+`revolveSketch`/`rebuild` stay event-style (they fan out into multiple `setState` calls, not a single
+result) and were left alone.
+
+Downstream, `useOpenCascadeBridge.ts` dropped its hand-rolled `pendingSelectorResolutions`/`pendingExports`
+correlation maps and the `onMeasuredRef`/`onMeasuredBetweenRef` deferred-callback indirection
+(`setMeasuredHandlers`) in favor of directly awaiting the new promises; `useMeasurement.ts` now awaits
+`measureShape`/`measureBetween` instead of registering handlers.
+
+Also removed 2 dead `WorkerRequest` union members with no worker handler: `createPrimitive`,
+`booleanOperation` — flagged, not deleted (kept DTO files per scope above); worth a follow-up decision on
+whether they're future work or truly dead.
+
+Added `call()` requestId-correlation tests to `useOpenCascade.test.ts` (out-of-order resolution, exact
+posted-message shape, no double-resolve on a duplicate response). Full suite (625 tests) + build pass;
+verified live in-browser (Entities panel shows correct 14-face/33-edge rebuild, Measure tab returns a real
+volume/bbox through the new `call()`-based `measureShape` path, no new console errors).
 
 ## React Doctor cleanup (2026-07-09)
 

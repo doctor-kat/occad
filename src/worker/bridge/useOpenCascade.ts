@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkerRequest, WorkerResponse } from "@/worker/types";
+import type { CorrelatedCallMap, CorrelatedCallType } from "@/worker/types/messages";
+import { CORRELATED_RESPONSE_TYPES } from "@/worker/types/messages";
 import type {
   MeshData as CADMeshData,
   SketchEdgeData,
@@ -14,10 +16,7 @@ import type {
   FeatureRefEnrichment,
   SketchRefEnrichment,
   SubShapeKind,
-  StableRef,
   ExportFormat,
-  MeasurementData,
-  MeasureBetweenData,
   MeasureSelection,
   TessellationQuality,
 } from "@/cad/types";
@@ -39,15 +38,6 @@ interface UseOpenCascadeOptions {
   onRebuildProgress?: (progress: number, currentFeatureId: string) => void;
   /** Callback when face geometry is received */
   onFaceGeometry?: (faceId: number, origin: Point3D, normal: Vector3D, boundaryEdges?: string[]) => void;
-  /** Callback when a selector has been resolved to fingerprinted refs (ROADMAP §9.1) */
-  onSelectorResolved?: (requestId: string, refs: StableRef[]) => void;
-  onEdgeLoop?: (requestId: string, edgeIndices: number[]) => void;
-  /** Callback when a shape has been exported to interchange file text (ROADMAP §3) */
-  onExported?: (requestId: string, format: ExportFormat, content: string) => void;
-  /** Callback when a shape's volume + bounding box have been measured (ROADMAP §4) */
-  onMeasured?: (requestId: string, measurement: MeasurementData) => void;
-  /** Callback when the distance/angle between two selections has been measured (ROADMAP §4) */
-  onMeasuredBetween?: (requestId: string, measurement: MeasureBetweenData) => void;
   /** Callback when an error occurs */
   onError?: (message: string, featureId?: string) => void;
   /** Callback when the worker captures fingerprint upgrades for selections (step 3b) */
@@ -67,6 +57,8 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
 
   const workerRef = useRef<Worker | null>(null);
   const hasBuiltInitial = useRef(false);
+  // Pending resolvers for in-flight call() requests, keyed by requestId.
+  const pendingCalls = useRef(new Map<string, (response: WorkerResponse) => void>());
 
   const [status, setStatus] = useState<OCCStatus>("loading");
   const [progress, setProgress] = useState("Initialising…");
@@ -85,6 +77,19 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
 
     worker.onmessage = (e: MessageEvent) => {
       const msg = e.data as WorkerResponse;
+
+      // Generic requestId-correlated dispatch for call() — resolves the
+      // pending promise and skips the type-specific case below, so
+      // resolveSelector/exportShape/measureShape/measureBetween/getEdgeLoop
+      // don't need their own onXxx option callback + switch case.
+      if (CORRELATED_RESPONSE_TYPES.has(msg.type) && "requestId" in msg) {
+        const resolve = pendingCalls.current.get(msg.requestId);
+        if (resolve) {
+          pendingCalls.current.delete(msg.requestId);
+          resolve(msg);
+          return;
+        }
+      }
 
       switch (msg.type) {
         case "ready":
@@ -142,26 +147,6 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
           optsRef.current.onFaceGeometry?.(msg.faceId, msg.origin, msg.normal, msg.boundaryEdges);
           break;
 
-        case "edgeLoop":
-          optsRef.current.onEdgeLoop?.(msg.requestId, msg.edgeIndices);
-          break;
-
-        case "selectorResolved":
-          optsRef.current.onSelectorResolved?.(msg.requestId, msg.refs);
-          break;
-
-        case "exported":
-          optsRef.current.onExported?.(msg.requestId, msg.format, msg.content);
-          break;
-
-        case "measured":
-          optsRef.current.onMeasured?.(msg.requestId, msg.measurement);
-          break;
-
-        case "measuredBetween":
-          optsRef.current.onMeasuredBetween?.(msg.requestId, msg.measurement);
-          break;
-
         case "error":
           if (!msg.featureId) {
             setError(msg.message);
@@ -189,7 +174,6 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
       worker.terminate();
       workerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Build/Solve sketch from full state
@@ -285,73 +269,62 @@ export function useOpenCascade(opts: UseOpenCascadeOptions = {}) {
     w.postMessage(message);
   }, []);
 
+  // Generic requestId-correlated call — replaces the 5 near-identical
+  // useCallback forwarders + onXxx option callbacks + onmessage cases that
+  // used to exist for resolveSelector/exportShape/measureShape/
+  // measureBetween/getEdgeLoop (Architecture review candidate #1). Resolves
+  // once the worker's matching response arrives; never rejects (the worker
+  // reports failures via the separate 'error' message, surfaced through
+  // onError).
+  const call = useCallback(
+    <T extends CorrelatedCallType>(
+      type: T,
+      requestId: string,
+      payload: CorrelatedCallMap[T]["request"],
+    ): Promise<CorrelatedCallMap[T]["response"]> => {
+      return new Promise((resolve) => {
+        const w = workerRef.current;
+        if (!w) return;
+        pendingCalls.current.set(requestId, resolve as (response: WorkerResponse) => void);
+        const message = { type, requestId, ...payload } as WorkerRequest;
+        w.postMessage(message);
+      });
+    },
+    [],
+  );
+
   // Get the edge loop (bounding wire) containing a picked edge ("Select Loop")
-  const getEdgeLoop = useCallback((requestId: string, shapeId: string, edgeIndex: number) => {
-    const w = workerRef.current;
-    if (!w) return;
-    const message: WorkerRequest = {
-      type: "getEdgeLoop",
-      requestId,
-      shapeId,
-      edgeIndex,
-    };
-    w.postMessage(message);
-  }, []);
+  const getEdgeLoop = useCallback(
+    (requestId: string, shapeId: string, edgeIndex: number) =>
+      call("getEdgeLoop", requestId, { shapeId, edgeIndex }),
+    [call],
+  );
 
   // Resolve a selector string (ROADMAP §9.1) against a body's sub-shapes
-  const resolveSelector = useCallback((requestId: string, shapeId: string, kind: SubShapeKind, selector: string) => {
-    const w = workerRef.current;
-    if (!w) return;
-    const message: WorkerRequest = {
-      type: "resolveSelector",
-      requestId,
-      shapeId,
-      kind,
-      selector,
-    };
-    w.postMessage(message);
-  }, []);
+  const resolveSelector = useCallback(
+    (requestId: string, shapeId: string, kind: SubShapeKind, selector: string) =>
+      call("resolveSelector", requestId, { shapeId, kind, selector }),
+    [call],
+  );
 
   // Export a stored shape to a standard interchange format (ROADMAP §3)
-  const exportShape = useCallback((requestId: string, shapeId: string, format: ExportFormat) => {
-    const w = workerRef.current;
-    if (!w) return;
-    const message: WorkerRequest = {
-      type: "exportShape",
-      requestId,
-      shapeId,
-      format,
-    };
-    w.postMessage(message);
-  }, []);
+  const exportShape = useCallback(
+    (requestId: string, shapeId: string, format: ExportFormat) =>
+      call("exportShape", requestId, { shapeId, format }),
+    [call],
+  );
 
   // Measure a stored shape's volume + bounding box (ROADMAP §4)
-  const measureShape = useCallback((requestId: string, shapeId: string) => {
-    const w = workerRef.current;
-    if (!w) return;
-    const message: WorkerRequest = {
-      type: "measureShape",
-      requestId,
-      shapeId,
-    };
-    w.postMessage(message);
-  }, []);
+  const measureShape = useCallback(
+    (requestId: string, shapeId: string) => call("measureShape", requestId, { shapeId }),
+    [call],
+  );
 
   // Measure distance/angle between two picked sub-shapes (ROADMAP §4)
   const measureBetween = useCallback(
-    (requestId: string, shapeId: string, a: MeasureSelection, b: MeasureSelection) => {
-      const w = workerRef.current;
-      if (!w) return;
-      const message: WorkerRequest = {
-        type: "measureBetween",
-        requestId,
-        shapeId,
-        a,
-        b,
-      };
-      w.postMessage(message);
-    },
-    [],
+    (requestId: string, shapeId: string, a: MeasureSelection, b: MeasureSelection) =>
+      call("measureBetween", requestId, { shapeId, a, b }),
+    [call],
   );
 
   const clearMesh = useCallback(() => {

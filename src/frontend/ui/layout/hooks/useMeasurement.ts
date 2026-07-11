@@ -9,9 +9,8 @@ import { useCadLayoutUiStore } from '../cadLayoutUiStore';
 export function useMeasurement(
   activeSidebarTab: string | null,
   currentFeatureShapeId: string | null,
-  measureShape: (requestId: string, shapeId: string) => void,
-  measureBetween: (requestId: string, shapeId: string, a: MeasureSelection, b: MeasureSelection) => void,
-  setMeasuredHandlers: (onMeasured: (result: MeasurementData) => void, onMeasuredBetween: (result: MeasureBetweenData) => void) => void,
+  measureShape: (requestId: string, shapeId: string) => Promise<MeasurementData>,
+  measureBetween: (requestId: string, shapeId: string, a: MeasureSelection, b: MeasureSelection) => Promise<MeasureBetweenData>,
 ) {
   const measurement = useCadLayoutUiStore((s) => s.measurement);
   const setMeasurement = useCadLayoutUiStore((s) => s.setMeasurement);
@@ -19,12 +18,6 @@ export function useMeasurement(
   const setMeasurePicks = useCadLayoutUiStore((s) => s.setMeasurePicks);
   const betweenMeasurement = useCadLayoutUiStore((s) => s.betweenMeasurement);
   const setBetweenMeasurement = useCadLayoutUiStore((s) => s.setBetweenMeasurement);
-
-  // Wire the worker's onMeasured/onMeasuredBetween callbacks (created inside
-  // useOpenCascadeBridge, before this hook's setters exist) to our setters.
-  useEffect(() => {
-    setMeasuredHandlers(setMeasurement, setBetweenMeasurement);
-  }, [setMeasuredHandlers, setMeasurement, setBetweenMeasurement]);
 
   // (Re)measure whenever the Measure tab is open and the current body changes,
   // and reset the two-slot pick set (sub-shape indices are only valid against
@@ -36,14 +29,14 @@ export function useMeasurement(
     setMeasurePicks([]);
     setBetweenMeasurement(null);
     if (activeSidebarTab !== 'measure' || !currentFeatureShapeId) return;
-    measureShape(crypto.randomUUID(), currentFeatureShapeId);
+    measureShape(crypto.randomUUID(), currentFeatureShapeId).then(setMeasurement);
   }, [activeSidebarTab, currentFeatureShapeId, measureShape, setMeasurement, setMeasurePicks, setBetweenMeasurement]);
 
   // Fire the distance/angle measurement once two sub-shapes are picked.
   useEffect(() => {
     if (measurePicks.length < 2 || !currentFeatureShapeId) return;
     setBetweenMeasurement(null);
-    measureBetween(crypto.randomUUID(), currentFeatureShapeId, measurePicks[0], measurePicks[1]);
+    measureBetween(crypto.randomUUID(), currentFeatureShapeId, measurePicks[0], measurePicks[1]).then(setBetweenMeasurement);
   }, [measurePicks, currentFeatureShapeId, measureBetween, setBetweenMeasurement]);
 
   // Record a viewport pick into the two-slot measure set (FIFO, no immediate
