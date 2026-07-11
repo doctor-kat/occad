@@ -1,5 +1,6 @@
 import { AppShell, Box } from '@mantine/core';
-import { CADViewport } from '@/frontend/canvas/CADViewport';
+import { OpenCascadeViewport } from '@/frontend/canvas/opencascade/OpenCascadeViewport';
+import { useOccStore } from '@/frontend/shared/occStore';
 import { SketchConstraintToolbar } from '../../operations/SketchConstraintToolbar';
 import { SketchConstraintList } from '../../operations/SketchConstraintList';
 import { ViewportContextMenu } from '@/frontend/canvas/contextMenu/ViewportContextMenu';
@@ -14,6 +15,7 @@ export function CADMainCanvas() {
     onPlaneClick, onSketchClick,
   } = useCADLayoutContext();
   const { project, activeSketchId, activeOperation, selectedTreeItem, toggleFeatureSuppression } = cadState;
+  const occMeshFaceOwners = useOccStore((s) => s.mesh?.faceOwners);
 
   return (
     <AppShell.Main
@@ -25,19 +27,13 @@ export function CADMainCanvas() {
       }}
     >
       <Box pos="relative" w="100%" h="100%">
-        <CADViewport
+        <OpenCascadeViewport
           project={project}
           activeSketchId={activeSketchId}
           activeOperation={activeOperation as SketchOperation}
           selectedTreeItem={selectedTreeItem}
           awaitingSketchPlane={sketchPlaneSelection.awaitingSketchPlane}
           onCancelSketchPlane={sketchPlaneSelection.handleCancelSketchPlane}
-          occStatus={occ.occStatus}
-          occProgress={occ.occProgress}
-          occError={occ.occError}
-          occMesh={occ.occMesh}
-          occSketchEdges={occ.occSketchEdges}
-          occRetry={occ.occRetry}
           onUpdateSketch={sketchEditing.handleUpdateSketch}
           onFinishSketch={sketchEditing.handleFinishSketch}
           onCancelSketch={sketchEditing.handleCancelSketch}
@@ -62,7 +58,7 @@ export function CADMainCanvas() {
           project={project}
           selectedTreeItem={selectedTreeItem}
           activeSketchId={activeSketchId}
-          faceOwners={occ.occMesh?.faceOwners}
+          faceOwners={occMeshFaceOwners}
           onEditItem={operationPanel.handleEditTreeItem}
           onSelectLoop={viewportSelection.handleSelectLoop}
           onSelectMidpoint={sketchEditing.handleSelectMidpoint}

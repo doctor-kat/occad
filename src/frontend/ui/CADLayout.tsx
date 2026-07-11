@@ -5,11 +5,13 @@ import { DEFAULT_TESSELLATION_LEVEL } from '@/cad/types';
 import type { TessellationLevel } from '@/cad/types';
 import { useLocalStorage } from '@/frontend/shared/useLocalStorage';
 import { useCadLayoutUiStore } from './layout/cadLayoutUiStore';
-import { CADLayoutProvider, type CADLayoutContextValue } from './layout/CADLayoutContext';
+import { CADLayoutProvider, type CADLayoutContextValue, type OccBridgeValue } from './layout/CADLayoutContext';
 
 import { useHeaderHeight } from './layout/hooks/useHeaderHeight';
 import { useUndoRedoShortcut } from './layout/hooks/useUndoRedoShortcut';
-import { useOpenCascadeBridge } from './layout/hooks/useOpenCascadeBridge';
+import { useOCCSync } from './layout/hooks/useOCCSync';
+import * as occClient from '@/worker/bridge/occWorkerClient';
+import { useOccStore } from '@/frontend/shared/occStore';
 import { useMeasurement } from './layout/hooks/useMeasurement';
 import { useSketchEditing } from './layout/hooks/useSketchEditing';
 import { useSketchPlaneSelection } from './layout/hooks/useSketchPlaneSelection';
@@ -79,7 +81,7 @@ export function CADLayout() {
     DEFAULT_TESSELLATION_LEVEL
   );
 
-  const occ = useOpenCascadeBridge({
+  useOCCSync({
     project,
     tessellationLevel,
     addSketch,
@@ -91,6 +93,33 @@ export function CADLayout() {
     setItemError,
     clearAllItemErrors,
   });
+
+  const occStatus = useOccStore((s) => s.status);
+  const occProgress = useOccStore((s) => s.progress);
+  const occError = useOccStore((s) => s.error);
+  const occMesh = useOccStore((s) => s.mesh);
+  const occSketchEdges = useOccStore((s) => s.sketchEdges);
+  const currentFeatureShapeId = useOccStore((s) => s.currentFeatureShapeId);
+
+  const occ: OccBridgeValue = {
+    occStatus,
+    occProgress,
+    occError,
+    occMesh,
+    occRetry: occClient.retry,
+    occSketchEdges,
+    rebuild: occClient.rebuild,
+    clearMesh: occClient.clearMesh,
+    extrudeSketch: occClient.extrudeSketch,
+    getFaceGeometry: occClient.getFaceGeometry,
+    getEdgeLoop: occClient.getEdgeLoop,
+    measureShape: occClient.measureShape,
+    measureBetween: occClient.measureBetween,
+    currentFeatureShapeId,
+    buildSketch: occClient.buildSketch,
+    resolveSelectorAsync: occClient.resolveSelectorAsync,
+    exportShape: occClient.exportShape,
+  };
 
   const measurement = useMeasurement(
     activeSidebarTab,

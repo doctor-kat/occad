@@ -22,22 +22,30 @@ export function renderWithProviders(
   return render(ui, { wrapper: TestProviders, ...options });
 }
 
-export function createMockUseOpenCascade() {
+/** Mock of the occWorkerClient module's imperative surface, for tests that
+ * mock "@/worker/bridge/occWorkerClient" wholesale (worker-output state now
+ * lives in useOccStore instead — seed that separately via useOccStore.setState). */
+export function createMockOccWorkerClient() {
   return {
-    status: "ready" as const,
-    progress: "",
-    error: null,
-    mesh: null,
-    currentShapeId: null,
-    currentFeatureShapeId: null,
-    sketchEdges: null,
     buildSketch: vi.fn(),
+    solveSketch: vi.fn(),
     extrudeSketch: vi.fn(),
     revolveSketch: vi.fn(),
     rebuild: vi.fn(),
     deleteShape: vi.fn(),
     getFaceGeometry: vi.fn(),
     resolveSelector: vi.fn(),
+    exportShapeRaw: vi.fn(),
+    measureShapeRaw: vi.fn(),
+    measureBetweenRaw: vi.fn(),
+    getEdgeLoopRaw: vi.fn(),
     clearMesh: vi.fn(),
+    retry: vi.fn(),
+    currentFeatureShapeId: null as string | null,
+    resolveSelectorAsync: vi.fn(),
+    exportShape: vi.fn(),
+    measureShape: vi.fn(),
+    measureBetween: vi.fn(),
+    getEdgeLoop: vi.fn(),
   };
 }

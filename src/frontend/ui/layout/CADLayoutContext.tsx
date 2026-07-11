@@ -1,8 +1,21 @@
 import { createContext, useContext, type RefObject } from 'react';
 import type { MantineTheme } from '@mantine/core';
-import type { Sketch, TessellationLevel } from '@/cad/types';
+import type {
+  CADProject,
+  ExportFormat,
+  MeasureSelection,
+  Measurement,
+  ExtrudeParams,
+  RevolveParams,
+  Sketch,
+  SketchEdgeData,
+  StableRef,
+  SubShapeKind,
+  TessellationLevel,
+  TessellationQuality,
+} from '@/cad/types';
+import type { OCCStatus, MeshData } from '@/frontend/shared/occStore';
 import type { useCADState } from '@/frontend/shared/useCADState';
-import type { useOpenCascadeBridge } from './hooks/useOpenCascadeBridge';
 import type { useMeasurement } from './hooks/useMeasurement';
 import type { useSketchEditing } from './hooks/useSketchEditing';
 import type { useSketchPlaneSelection } from './hooks/useSketchPlaneSelection';
@@ -16,6 +29,28 @@ import type { useOperationPanel } from './hooks/useOperationPanel';
 // drilling. Plain UI state (sidebar tab, measurement, operation-panel
 // open/edit) lives in cadLayoutUiStore.ts (Zustand) instead, so it isn't here —
 // components that need it subscribe to that store directly.
+/** Shape of the `occ` context field — worker-output state (from occStore) plus
+ * imperative ops/wrappers (from occWorkerClient), assembled once in CADLayout.tsx. */
+export interface OccBridgeValue {
+  occStatus: OCCStatus;
+  occProgress: string;
+  occError: string | null;
+  occMesh: MeshData | null;
+  occRetry: () => void;
+  occSketchEdges: Record<string, SketchEdgeData> | null;
+  rebuild: (project: CADProject, tessellation?: TessellationQuality) => void;
+  clearMesh: () => void;
+  extrudeSketch: (featureId: string, sketchId: string, params: ExtrudeParams) => void;
+  getFaceGeometry: (faceId: number, shapeId: string) => void;
+  getEdgeLoop: (requestId: string, shapeId: string, edgeIndex: number) => Promise<void>;
+  measureShape: (requestId: string, shapeId: string) => Promise<Measurement>;
+  measureBetween: (requestId: string, shapeId: string, a: MeasureSelection, b: MeasureSelection) => Promise<Measurement>;
+  currentFeatureShapeId: string | null;
+  buildSketch: (sketch: Sketch) => void;
+  resolveSelectorAsync: (kind: SubShapeKind, selector: string) => Promise<StableRef[]>;
+  exportShape: (requestId: string, shapeId: string, format: ExportFormat, fileName: string) => Promise<void>;
+}
+
 export interface CADLayoutContextValue {
   theme: MantineTheme;
   headerRef: RefObject<HTMLDivElement>;
@@ -32,7 +67,7 @@ export interface CADLayoutContextValue {
   };
   tessellationLevel: TessellationLevel;
   setTessellationLevel: (level: TessellationLevel) => void;
-  occ: ReturnType<typeof useOpenCascadeBridge>;
+  occ: OccBridgeValue;
   measurement: ReturnType<typeof useMeasurement>;
   sketchEditing: ReturnType<typeof useSketchEditing>;
   sketchPlaneSelection: ReturnType<typeof useSketchPlaneSelection>;

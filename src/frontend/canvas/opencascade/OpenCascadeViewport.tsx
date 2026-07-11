@@ -1,8 +1,9 @@
 import { Suspense, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Box } from "@mantine/core";
-import type { CADProject, MeshData, SketchEdgeData, Sketch, SketchOperation, ConstraintInput } from "@/cad/types";
-import type { OCCStatus } from "@/worker/bridge/useOpenCascade";
+import type { CADProject, Sketch, SketchOperation, ConstraintInput } from "@/cad/types";
+import { useOccStore } from "@/frontend/shared/occStore";
+import { retry as occRetry } from "@/worker/bridge/occWorkerClient";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import { useViewportContextMenu } from "../contextMenu/useViewportContextMenu";
 import { Scene } from "./Scene";
@@ -19,24 +20,12 @@ import { ViewportEmptyState } from "./ViewportEmptyState";
 export interface OpenCascadeViewportProps {
   /** CAD project to render (if provided, enables parametric mode) */
   project?: CADProject;
+  /** ID of the sketch currently being edited, if any — the active sketch is looked up from `project`. */
+  activeSketchId?: string | null;
   /** Currently selected tree item ID */
   selectedTreeItem?: string | null;
-  /** OpenCascade worker status */
-  occStatus: OCCStatus;
-  /** OpenCascade progress message */
-  occProgress: string;
-  /** OpenCascade error message */
-  occError: string | null;
-  /** Current mesh data from OpenCascade */
-  occMesh: MeshData | null;
-  /** Per-sketch edge data for wireframe rendering */
-  occSketchEdges?: Record<string, SketchEdgeData> | null;
-  /** Retry callback for OpenCascade errors */
-  occRetry: () => void;
-  /** Active sketch being edited (if in sketch mode) */
-  activeSketch?: any | null;
   /** Active sketch operation */
-  activeOperation?: any | null;
+  activeOperation?: SketchOperation | null;
   /** A sketch tool is active but no plane/face is selected yet — reveal all planes for picking */
   awaitingSketchPlane?: boolean;
   /** Cancel plane-picking sketch mode (deselect the sketch tool) */
@@ -67,14 +56,8 @@ export interface OpenCascadeViewportProps {
 
 export function OpenCascadeViewport({
   project,
+  activeSketchId,
   selectedTreeItem,
-  occStatus,
-  occProgress,
-  occError,
-  occMesh,
-  occSketchEdges,
-  occRetry,
-  activeSketch,
   activeOperation,
   awaitingSketchPlane,
   onCancelSketchPlane,
@@ -96,6 +79,16 @@ export function OpenCascadeViewport({
   const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
   const selectedEdgeIndex = useViewportStore((state) => state.selectedEdgeIndex);
   const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
+
+  // OCC worker-output state (mesh/status/error/progress/sketchEdges) lives in occStore.
+  const occStatus = useOccStore((state) => state.status);
+  const occProgress = useOccStore((state) => state.progress);
+  const occError = useOccStore((state) => state.error);
+  const occMesh = useOccStore((state) => state.mesh);
+  const occSketchEdges = useOccStore((state) => state.sketchEdges);
+
+  const activeSketch = activeSketchId ? project?.sketches.find((s) => s.id === activeSketchId) : undefined;
+
   // Sketch snapping-constraint state (shared with the Scene and the menu).
   const [activeConstraint, setActiveConstraint] = useState<ConstraintType>('none');
 

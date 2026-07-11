@@ -164,7 +164,8 @@ not a mechanical edit):
 - **Worker dispatch has no request-id correlation for the state-mutating ops** — a targeted sketch build
   and a version-bump rebuild can race against the same worker-side `shapeStorage`. (The 5
   `requestId`-carrying, single-response ops — `resolveSelector`/`exportShape`/`measureShape`/
-  `measureBetween`/`getEdgeLoop` — now do correlate via `useOpenCascade`'s generic `call()`, see below;
+  `measureBetween`/`getEdgeLoop` — now do correlate via `occWorkerClient`'s generic `call()` (moved from
+  `useOpenCascade` in the OCC worker singleton refactor below), see below;
   this note is about `buildSketch`/`extrudeSketch`/`revolveSketch`/`rebuild`, which stay event-style.)
 - **`OCCModel.tsx` per-edge hover cylinders / highlight geometry** are unmemoized and recompute on every
   hover/selection change.
@@ -223,6 +224,48 @@ Added `call()` requestId-correlation tests to `useOpenCascade.test.ts` (out-of-o
 posted-message shape, no double-resolve on a duplicate response). Full suite (625 tests) + build pass;
 verified live in-browser (Entities panel shows correct 14-face/33-edge rebuild, Measure tab returns a real
 volume/bbox through the new `call()`-based `measureShape` path, no new console errors).
+
+## OCC worker singleton + occStore + rebuild scheduler (2026-07-11)
+
+Per Architecture reviews #3 ("dissolve the double forwarding stack"), #4 ("extract a rebuild
+scheduler"), and #5 ("delete the CADViewport pass-through"):
+
+- **Pure rebuild scheduler** — `src/cad/engine/rebuild/rebuildScheduler.ts` exports
+  `shouldRebuild(prev, next): 'rebuild' | 'remesh' | 'clear' | 'none'`, encoding the policy that used to
+  be smeared across two coupled `useEffect`s with `useRef` guards in `useOpenCascadeBridge.ts`. Directly
+  unit-tested (undo/lower-version still rebuilds via `!==` not `>`, tessellation-only change remeshes,
+  project-id change clears, no-op case) in `rebuildScheduler.test.ts`.
+- **Worker singleton + zustand store** — `useOpenCascade` (React hook, one Worker per instantiation) and
+  `useOpenCascadeBridge` (the renaming/re-exporting wrapper) are both deleted. Replaced by:
+  - `src/frontend/shared/occStore.ts` — zustand store (mirrors `viewportStore.ts`) holding worker-output
+    state: `status/progress/error/mesh/currentShapeId/currentFeatureShapeId/sketchEdges`.
+  - `src/worker/bridge/occWorkerClient.ts` — a module-level singleton: spawns the Worker once, owns
+    `onmessage`/`call()`/`pendingCalls`, writes `occStore` directly, and exposes both imperative ops
+    (`buildSketch`, `rebuild`, `getFaceGeometry`, …) and an event-subscription API (`on('sketchBuilt', …)`
+    etc.) for the orchestration that used to live in `useOpenCascadeBridge`'s option callbacks. The old
+    "instantiate the hook exactly once" footgun (see project memory) is now moot — an ES module is
+    naturally a singleton.
+  - `src/frontend/ui/layout/hooks/useOCCSync.ts` — the one remaining slice of React glue: subscribes to
+    `occWorkerClient` events (via a ref-to-latest-args pattern, replacing the old `optsRef`) and forwards
+    them into `useCADState` setters, and drives rebuild/remesh/clear off `shouldRebuild`. Returns nothing;
+    components read `useOccStore` selectors and call `occWorkerClient` functions directly.
+  - `CADLayout.tsx` still assembles a stable `occ` object (typed as `OccBridgeValue` in
+    `CADLayoutContext.tsx`) from store selectors + client functions, so downstream consumers
+    (`CADSidebar`, `useMeasurement`, `useSketchPlaneSelection`, `useViewportSelection`, `useProjectIO`,
+    `useOperationPanel`) were left unchanged — only the CADMainCanvas/viewport layer was re-pointed
+    directly at the store (see below).
+- **`CADViewport.tsx` pass-through deleted** — its only real logic (the `activeSketch` lookup by
+  `activeSketchId`) moved into `OpenCascadeViewport`, which now also reads
+  `mesh/status/error/progress/sketchEdges` from `useOccStore` itself instead of taking them as 6 props.
+  `CADMainCanvas.tsx` renders `OpenCascadeViewport` directly.
+
+Tests: `useOpenCascade.test.ts` → `occWorkerClient.test.ts` (event-subscription tests replace the
+stale-closure `optsRef` tests; `call()`/`pendingCalls` correlation tests carry over; added direct
+`useOccStore`-write assertions for `rebuildComplete`/`error`/`clearMesh`). `CADLayout.test.tsx` rewritten
+to mock `occWorkerClient` (capturing `on()` subscribers) and seed `useOccStore` instead of mocking the
+deleted hook. Full suite (645 tests) + `tsc --noEmit` + build pass; verified live in-browser: kernel
+reaches ready, primitive add → rebuild → 7 faces/18 edges (real geometry, not degenerate), undo (lower
+version) still triggers a rebuild, no new console errors.
 
 ## React Doctor cleanup (2026-07-09)
 

@@ -1,26 +1,43 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithProviders, createMockUseOpenCascade } from "@/test/helpers";
+import { renderWithProviders, createMockOccWorkerClient } from "@/test/helpers";
 import { useCadLayoutUiStore } from "./layout/cadLayoutUiStore";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
+import { useOccStore } from "@/frontend/shared/occStore";
 import { OperationCategory } from "@/cad/types";
 
-// Capture the opts callbacks passed to useOpenCascade
-let capturedOpts: any = {};
-const mockOCC = createMockUseOpenCascade();
+// Capture event handlers registered via occWorkerClient.on(...), keyed by event name.
+type EventHandlers = Record<string, ((...args: any[]) => void)[]>;
+let capturedHandlers: EventHandlers = {};
+const mockClient = createMockOccWorkerClient();
 
-vi.mock("@/worker/bridge/useOpenCascade", () => ({
-  useOpenCascade: (opts: any) => {
-    capturedOpts = opts;
-    return mockOCC;
+vi.mock("@/worker/bridge/occWorkerClient", () => ({
+  ...createMockOccWorkerClient(),
+  on: (name: string, cb: (...args: any[]) => void) => {
+    (capturedHandlers[name] ??= []).push(cb);
+    return () => {
+      capturedHandlers[name] = (capturedHandlers[name] ?? []).filter((fn) => fn !== cb);
+    };
   },
+  buildSketch: (...args: any[]) => mockClient.buildSketch(...args),
+  extrudeSketch: (...args: any[]) => mockClient.extrudeSketch(...args),
+  revolveSketch: (...args: any[]) => mockClient.revolveSketch(...args),
+  rebuild: (...args: any[]) => mockClient.rebuild(...args),
+  deleteShape: (...args: any[]) => mockClient.deleteShape(...args),
+  getFaceGeometry: (...args: any[]) => mockClient.getFaceGeometry(...args),
+  clearMesh: (...args: any[]) => mockClient.clearMesh(...args),
+  retry: (...args: any[]) => mockClient.retry(...args),
+  resolveSelectorAsync: (...args: any[]) => mockClient.resolveSelectorAsync(...args),
+  exportShape: (...args: any[]) => mockClient.exportShape(...args),
+  measureShape: (...args: any[]) => mockClient.measureShape(...args),
+  measureBetween: (...args: any[]) => mockClient.measureBetween(...args),
+  getEdgeLoop: (...args: any[]) => mockClient.getEdgeLoop(...args),
 }));
 
-vi.mock("@/frontend/canvas/CADViewport", () => ({
-  CADViewport: (props: any) => (
+vi.mock("@/frontend/canvas/opencascade/OpenCascadeViewport", () => ({
+  OpenCascadeViewport: (props: any) => (
     <div data-testid="mock-viewport">
-      <span data-testid="occ-status">{props.occStatus}</span>
       <span data-testid="awaiting-plane">{String(props.awaitingSketchPlane)}</span>
       <button
         data-testid="cancel-sketch-plane"
@@ -55,10 +72,18 @@ import { CADLayout } from "./CADLayout";
 
 describe("CADLayout", () => {
   beforeEach(() => {
-    capturedOpts = {};
+    capturedHandlers = {};
     vi.clearAllMocks();
-    // Reset mock values
-    mockOCC.currentFeatureShapeId = null;
+    // Worker-output state now lives in useOccStore — reset to "ready" for every test.
+    useOccStore.setState({
+      status: "ready",
+      progress: "",
+      error: null,
+      mesh: null,
+      currentShapeId: null,
+      currentFeatureShapeId: null,
+      sketchEdges: null,
+    });
     // cadLayoutUiStore is a module-level singleton (like viewportStore) — reset
     // it between tests so a tab/measurement change in one test doesn't leak
     // into the next test's initial render.
@@ -112,11 +137,10 @@ describe("CADLayout", () => {
     });
   });
 
-  // NOTE: This test uses a fully-mocked useOpenCascade (above), so capturedOpts
-  // is re-captured on every render and always has the latest callbacks. This
-  // means it does NOT exercise the real worker.onmessage closure path. The
-  // stale-closure bug (where onFaceGeometry saw null pendingSketchOnFace) is
-  // covered by useOpenCascade.test.ts instead.
+  // NOTE: This test uses a fully-mocked occWorkerClient (above), so
+  // capturedHandlers is re-captured on every mount and always has the latest
+  // callbacks. This means it does NOT exercise the real worker.onmessage
+  // closure path — that's covered by occWorkerClient.test.ts instead.
   it("does not auto-create a sketch when a sketch tool is picked with nothing selected", async () => {
     const user = userEvent.setup();
     renderWithProviders(<CADLayout />);
@@ -194,7 +218,7 @@ describe("CADLayout", () => {
 
   it("should create sketch on face via geometry request", async () => {
     const user = userEvent.setup();
-    mockOCC.currentFeatureShapeId = "shape-123";
+    useOccStore.setState({ currentFeatureShapeId: "shape-123" });
     renderWithProviders(<CADLayout />);
 
     // Click a face in the mock viewport
@@ -211,13 +235,11 @@ describe("CADLayout", () => {
     await user.click(toolButton!);
 
     // Should have called getFaceGeometry
-    expect(mockOCC.getFaceGeometry).toHaveBeenCalledWith(0, "shape-123");
+    expect(mockClient.getFaceGeometry).toHaveBeenCalledWith(0, "shape-123");
 
     // Simulate the worker responding with face geometry
-    capturedOpts.onFaceGeometry?.(
-      0,
-      { x: 0, y: 0, z: 50 },
-      { x: 0, y: 0, z: 1 },
+    capturedHandlers.faceGeometry?.forEach((cb) =>
+      cb(0, { x: 0, y: 0, z: 50 }, { x: 0, y: 0, z: 1 }),
     );
 
     // A new sketch should now appear
@@ -268,11 +290,12 @@ describe("CADLayout", () => {
     expect(screen.getByText("Front Plane")).toBeInTheDocument();
   });
 
-  it("should pass OCC status to CADViewport from consolidated worker", () => {
+  it("reflects OCC status from the single consolidated occStore", () => {
     renderWithProviders(<CADLayout />);
 
-    // The mock viewport should receive the occStatus from useOpenCascade
-    expect(screen.getByTestId("occ-status").textContent).toBe("ready");
+    // OpenCascadeViewport now reads occStatus directly from useOccStore rather
+    // than via a prop, so assert against the store instead of the mock's props.
+    expect(useOccStore.getState().status).toBe("ready");
   });
 
   it("should trigger rebuild when status is ready and features exist", async () => {
@@ -280,30 +303,30 @@ describe("CADLayout", () => {
     renderWithProviders(<CADLayout />);
 
     // Clear initial rebuild call on mount
-    mockOCC.rebuild.mockClear();
+    mockClient.rebuild.mockClear();
 
     // Initially no rebuild because no features
-    expect(mockOCC.rebuild).not.toHaveBeenCalled();
+    expect(mockClient.rebuild).not.toHaveBeenCalled();
 
     // Add a feature (e.g. Box)
     const boxButton = screen.getByText("Box");
     await user.click(boxButton);
 
     // Should not rebuild yet (panel is open)
-    expect(mockOCC.rebuild).not.toHaveBeenCalled();
+    expect(mockClient.rebuild).not.toHaveBeenCalled();
 
     // Click Apply in the operation panel
     const applyButton = screen.getByText("Apply");
     await user.click(applyButton);
 
     // Now rebuild should be called
-    expect(mockOCC.rebuild).toHaveBeenCalled();
+    expect(mockClient.rebuild).toHaveBeenCalled();
   });
 
   it("should have currentFeatureShapeId from same worker for face-to-sketch flow", async () => {
     const user = userEvent.setup();
     // Simulate the worker having built a shape — currentFeatureShapeId is set
-    mockOCC.currentFeatureShapeId = "shape-abc";
+    useOccStore.setState({ currentFeatureShapeId: "shape-abc" });
     renderWithProviders(<CADLayout />);
 
     // Click a face in the viewport
@@ -320,7 +343,7 @@ describe("CADLayout", () => {
     await user.click(toolButton!);
 
     // Both getFaceGeometry and currentFeatureShapeId come from the same
-    // useOpenCascade instance, so the call should succeed
-    expect(mockOCC.getFaceGeometry).toHaveBeenCalledWith(0, "shape-abc");
+    // occStore/occWorkerClient, so the call should succeed
+    expect(mockClient.getFaceGeometry).toHaveBeenCalledWith(0, "shape-abc");
   });
 });
