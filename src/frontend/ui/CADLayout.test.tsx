@@ -5,7 +5,9 @@ import { renderWithProviders, createMockOccWorkerClient } from "@/test/helpers";
 import { useCadLayoutUiStore } from "./layout/cadLayoutUiStore";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import { useOccStore } from "@/frontend/shared/occStore";
-import { OperationCategory } from "@/cad/types";
+import { useProjectStore } from "@/frontend/shared/projectStore.ts";
+import { emptyHistory } from "@/cad/state/history.ts";
+import { OperationCategory, createNewProject } from "@/cad/types";
 
 // Capture event handlers registered via occWorkerClient.on(...), keyed by event name.
 type EventHandlers = Record<string, ((...args: any[]) => void)[]>;
@@ -105,6 +107,14 @@ describe("CADLayout", () => {
       isSidebarOpen: true,
       activeSketchId: null,
       itemErrors: {},
+    });
+    // The project now lives in the module-level projectStore singleton — reset it
+    // to a fresh project (and clear undo/redo history) between tests.
+    useProjectStore.setState({
+      project: createNewProject(),
+      history: emptyHistory(),
+      canUndo: false,
+      canRedo: false,
     });
   });
 

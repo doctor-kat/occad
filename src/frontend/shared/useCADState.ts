@@ -1,176 +1,40 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { useLocalStorage } from '@/frontend/shared/useLocalStorage.ts';
+import { useCallback, useMemo } from 'react';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
+import { useProjectStore } from '@/frontend/shared/projectStore.ts';
+import { buildFeatureTree, rollbackBarIndexOf } from '@/cad/state/projectSelectors.ts';
+import { makeSketch, makeFeature } from '@/cad/state/projectActions.ts';
 import {
   PlanegcsConstraint,
-  CADProject,
-  CADState,
   OperationCategory,
-  Sketch,
-  Feature,
-  FeatureTreeItem,
-  FeatureTreeItemType,
   SketchPlane,
   SketchElement,
-  SketchElementType,
+  Sketch,
+  Feature,
   OperationParams,
   ShapeReference,
   FeatureRefEnrichment,
   SketchRefEnrichment,
   createNewProject,
-  Workplane,
-  Point3D,
-  Vector3D,
-  PlaneType,
   compareBuildOrder,
-  orderKey,
-  isRolledBack,
-  rollbackIndexForThreshold,
-  rollbackThresholdForIndex
 } from '@/cad/types';
 
 /**
- * Sequence to give a newly added sketch/feature so it lands just *before* the
- * rollback bar (i.e. as the last "present" item) instead of at the very end
- * where it would fall past the bar and be immediately rolled back / hidden.
- * Returns `undefined` when there is no active bar (append normally by createdAt).
- * See ROADMAP.md §8 "Insert feature while rolled back".
+ * UI-facing facade over the two stores that hold CAD state:
+ *   - projectStore: the durable project + undo/redo history, mutated via dispatch
+ *   - viewportStore: ephemeral UI state (tabs, active operation, selection, …)
+ *
+ * It exposes named helpers (kept for call-site readability) that translate to
+ * store dispatches/actions plus the memoized selectors the UI needs.
  */
-function sequenceAtBar(prev: CADProject): number | undefined {
-  if (prev.rollbackBar == null) return undefined;
-  const bar = prev.rollbackBar;
-  const activeKeys = [...prev.sketches, ...prev.features]
-    .flatMap((item) => {
-      const k = orderKey(item);
-      return k <= bar ? [k] : [];
-    })
-    .sort((a, b) => a - b);
-  const lastActive = activeKeys.length ? activeKeys[activeKeys.length - 1] : bar - 1;
-  return (lastActive + bar) / 2;
-}
-
-/** Create a Workplane (gp_Ax3) from plane definition */
-function createWorkplane(type: PlaneType, origin?: Point3D, normal?: Vector3D, offset: number = 0): Workplane {
-  let finalOrigin: Point3D = origin || { x: 0, y: 0, z: 0 };
-  let finalNormal: Vector3D = normal || { x: 0, y: 0, z: 1 };
-  let xAxis: Vector3D = { x: 1, y: 0, z: 0 };
-  let yAxis: Vector3D = { x: 0, y: 1, z: 0 };
-
-  if (type === PlaneType.XY) {
-    finalNormal = { x: 0, y: 0, z: 1 };
-    xAxis = { x: 1, y: 0, z: 0 };
-    yAxis = { x: 0, y: 1, z: 0 };
-    finalOrigin = { x: 0, y: 0, z: offset };
-  } else if (type === PlaneType.XZ) {
-    // normal must equal xAxis × yAxis to keep the basis right-handed (matches XY/YZ below);
-    // with xAxis=+X and yAxis=+Z that cross product is -Y, not +Y.
-    finalNormal = { x: 0, y: -1, z: 0 };
-    xAxis = { x: 1, y: 0, z: 0 };
-    yAxis = { x: 0, y: 0, z: 1 };
-    finalOrigin = { x: 0, y: offset, z: 0 };
-  } else if (type === PlaneType.YZ) {
-    finalNormal = { x: 1, y: 0, z: 0 };
-    xAxis = { x: 0, y: 1, z: 0 };
-    yAxis = { x: 0, y: 0, z: 1 };
-    finalOrigin = { x: offset, y: 0, z: 0 };
-  } else if (type === PlaneType.CUSTOM && normal) {
-    // For custom planes, we need to derive xAxis and yAxis
-    // Logic similar to OCC's gp_Ax2: choose an arbitrary X direction perpendicular to normal
-    if (Math.abs(normal.x) < 0.9) {
-      // Use (1,0,0) as reference
-      const vx = 1, vy = 0, vz = 0;
-      // Cross product: xAxis = reference X normal
-      xAxis = {
-        x: vy * normal.z - vz * normal.y,
-        y: vz * normal.x - vx * normal.z,
-        z: vx * normal.y - vy * normal.x
-      };
-    } else {
-      // Use (0,1,0) as reference
-      const vx = 0, vy = 1, vz = 0;
-      xAxis = {
-        x: vy * normal.z - vz * normal.y,
-        y: vz * normal.x - vx * normal.z,
-        z: vx * normal.y - vy * normal.x
-      };
-    }
-    // Normalize xAxis
-    const len = Math.sqrt(xAxis.x ** 2 + xAxis.y ** 2 + xAxis.z ** 2);
-    xAxis = { x: xAxis.x / len, y: xAxis.y / len, z: xAxis.z / len };
-    
-    // yAxis = normal X xAxis
-    yAxis = {
-      x: normal.y * xAxis.z - normal.z * xAxis.y,
-      y: normal.z * xAxis.x - normal.x * xAxis.z,
-      z: normal.x * xAxis.y - normal.y * xAxis.x
-    };
-  }
-
-  return { origin: finalOrigin, normal: finalNormal, xAxis, yAxis };
-}
-
-const STORAGE_KEY = 'occad-project';
-
-/**
- * Smallest gap used when snapping a reordered feature to just after its
- * consumed sketch. In the epoch-ms ordering domain this is far below any real
- * timestamp granularity, so it slots the feature immediately after the sketch
- * without disturbing other items.
- */
-const REORDER_EPSILON = 1e-6;
-
-/** Migrate old persisted projects that lack isVisible on sketches and reference geometry */
-function migrateProject(raw: CADProject): CADProject {
-  const needsMigration = raw.sketches.some(
-    (s) => (s as any).isVisible === undefined || s.points === undefined || s.constraints === undefined
-  );
-
-  if (!needsMigration) return raw;
-
-  const sketchIdsUsedByFeatures = new Set(
-    raw.features.flatMap((f) => (f.sketchId ? [f.sketchId] : []))
-  );
-
-  return {
-    ...raw,
-    sketches: raw.sketches.map((sketch) => {
-      const newSketch = { ...sketch };
-      if (newSketch.points === undefined) {
-        newSketch.points = [];
-      }
-      if (newSketch.constraints === undefined) {
-        newSketch.constraints = [];
-      }
-      if ((newSketch as any).isVisible === undefined) {
-        // Respect legacy `visible` property if it exists
-        if ((newSketch as any).visible !== undefined) {
-          (newSketch as any).isVisible = !!(newSketch as any).visible;
-        } else {
-          // Default: consumed sketches hidden, standalone visible
-          const isConsumed = sketchIdsUsedByFeatures.has(sketch.id);
-          (newSketch as any).isVisible = !isConsumed;
-        }
-      }
-      return newSketch;
-    }),
-    referenceGeometry: raw.referenceGeometry.map((ref) => {
-      if ((ref as any).isVisible !== undefined) return ref;
-      // Respect legacy `visible` property if it exists
-      if ((ref as any).visible !== undefined) {
-        return { ...ref, isVisible: !!(ref as any).visible };
-      }
-      // Default: reference geometry hidden
-      return { ...ref, isVisible: false };
-    }),
-  };
-}
-
 export function useCADState() {
-  const [rawProject, setProject] = useLocalStorage<CADProject>(STORAGE_KEY, createNewProject());
-  const project = useMemo(() => migrateProject(rawProject), [rawProject]);
-  // Ephemeral UI state is backed by viewportStore (not local useState) so any
-  // component can read it directly without threading it through props at every
-  // depth. This hook delegates its mutating helpers to the store's actions.
+  const project = useProjectStore((s) => s.project);
+  const dispatch = useProjectStore((s) => s.dispatch);
+  const undo = useProjectStore((s) => s.undo);
+  const redo = useProjectStore((s) => s.redo);
+  const canUndo = useProjectStore((s) => s.canUndo);
+  const canRedo = useProjectStore((s) => s.canRedo);
+
+  // Ephemeral UI state (viewportStore). See ViewportState for the rationale.
   const activeTab = useViewportStore((s) => s.activeTab);
   const activeOperation = useViewportStore((s) => s.activeOperation);
   const selectedTreeItem = useViewportStore((s) => s.selectedTreeItem);
@@ -178,381 +42,97 @@ export function useCADState() {
   const isSidebarOpen = useViewportStore((s) => s.isSidebarOpen);
   const activeSketchId = useViewportStore((s) => s.activeSketchId);
   const setActiveSketchId = useViewportStore((s) => s.setActiveSketchId);
-  const itemErrors = useViewportStore((s) => s.itemErrors);
-
-  // --- Snapshot undo/redo (step 4) -----------------------------------------
-  // Every model edit funnels through the single immutable `setProject` and bumps
-  // `version`. We observe committed project transitions and record one snapshot
-  // per version change — so derived, no-version-bump updates (fingerprint
-  // enrichments) are invisible to undo — then replay whole `CADProject` states.
-  // Cheap: the state is fully serializable and each edit already produces a fresh
-  // immutable object, so snapshots are just retained references. See ROADMAP.md (Deterministic topology).
-  const MAX_HISTORY = 100;
-  const undoStack = useRef<CADProject[]>([]);
-  const redoStack = useRef<CADProject[]>([]);
-  const lastProjectRef = useRef<CADProject>(rawProject);
-  const skipRecordRef = useRef(false);
-  const [historyAvail, setHistoryAvail] = useState({ canUndo: false, canRedo: false });
-
-  const syncHistoryAvail = useCallback(() => {
-    setHistoryAvail({ canUndo: undoStack.current.length > 0, canRedo: redoStack.current.length > 0 });
-  }, []);
-
-  useEffect(() => {
-    const prev = lastProjectRef.current;
-    if (rawProject === prev) return;
-    lastProjectRef.current = rawProject;
-    if (skipRecordRef.current) {
-      skipRecordRef.current = false; // this transition was an undo/redo replay — don't re-record
-      return;
-    }
-    // Record only model edits; derived updates (enrichments) keep `version`.
-    if (rawProject.version !== prev.version) {
-      undoStack.current.push(prev);
-      if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift();
-      redoStack.current = [];
-      syncHistoryAvail();
-    }
-  }, [rawProject, syncHistoryAvail]);
-
-  // Restore the previous snapshot (current state moves to the redo stack). The
-  // replay flag stops the recorder from logging the restore as a new edit.
-  const undo = useCallback(() => {
-    if (undoStack.current.length === 0) return;
-    const previous = undoStack.current.pop()!;
-    redoStack.current.push(lastProjectRef.current);
-    skipRecordRef.current = true;
-    setProject(previous);
-    syncHistoryAvail();
-  }, [setProject, syncHistoryAvail]);
-
-  // Re-apply the most recently undone snapshot (current state moves back to undo).
-  const redo = useCallback(() => {
-    if (redoStack.current.length === 0) return;
-    const next = redoStack.current.pop()!;
-    undoStack.current.push(lastProjectRef.current);
-    skipRecordRef.current = true;
-    setProject(next);
-    syncHistoryAvail();
-  }, [setProject, syncHistoryAvail]);
-
-  // Build the feature tree structure (chronological order)
-  const featureTree = useMemo((): FeatureTreeItem[] => {
-    const tree: FeatureTreeItem[] = [];
-
-    // Reference Geometry items always pinned at top
-    project.referenceGeometry.forEach((ref) => {
-      tree.push({
-        id: ref.id,
-        name: ref.name,
-        type: FeatureTreeItemType.REFERENCE_GEOMETRY,
-        visible: ref.isVisible,
-        data: ref,
-      });
-    });
-
-    // Collect standalone sketches and features into one array, sorted by createdAt
-    const sketchIdsUsedByFeatures = new Set(
-      project.features.flatMap((f) => (f.sketchId ? [f.sketchId] : []))
-    );
-
-    const chronologicalItems: { createdAt: number; item: FeatureTreeItem }[] = [];
-
-    // Add standalone sketches (not attached to any feature)
-    for (const sketch of project.sketches) {
-      if (sketchIdsUsedByFeatures.has(sketch.id)) continue;
-      chronologicalItems.push({
-        createdAt: sketch.createdAt,
-        item: {
-          id: sketch.id,
-          name: sketch.name,
-          type: FeatureTreeItemType.SKETCH,
-          visible: sketch.isVisible !== false,
-          rolledBack: isRolledBack(sketch, project.rollbackBar),
-          error: itemErrors[sketch.id],
-          data: sketch,
-        },
-      });
-    }
-
-    // Add features (with their sketches as children)
-    project.features.forEach((feature) => {
-      const associatedSketch = project.sketches.find((s) => s.id === feature.sketchId);
-      const featureRolledBack = isRolledBack(feature, project.rollbackBar);
-      const featureItem: FeatureTreeItem = {
-        id: feature.id,
-        name: feature.name,
-        type: FeatureTreeItemType.FEATURE,
-        isExpanded: feature.isExpanded,
-        visible: feature.isVisible !== false,
-        rolledBack: featureRolledBack,
-        error: itemErrors[feature.id],
-        data: feature,
-      };
-
-      if (associatedSketch) {
-        featureItem.children = [
-          {
-            id: associatedSketch.id,
-            name: associatedSketch.name,
-            type: FeatureTreeItemType.SKETCH,
-            visible: associatedSketch.isVisible !== false,
-            // A consumed sketch greys out with its owning feature.
-            rolledBack: featureRolledBack || isRolledBack(associatedSketch, project.rollbackBar),
-            error: itemErrors[associatedSketch.id],
-            data: associatedSketch,
-          },
-        ];
-      }
-
-      chronologicalItems.push({
-        createdAt: feature.createdAt,
-        item: featureItem,
-      });
-    });
-
-    // Sort by the shared deterministic build order (sequence ?? createdAt, then
-    // id) so the tree matches the worker's rebuild order exactly and never
-    // depends on Array.sort stability. `item.data` is the sketch/feature.
-    chronologicalItems.sort((a, b) => compareBuildOrder(a.item.data as any, b.item.data as any));
-    chronologicalItems.forEach(({ item }) => tree.push(item));
-
-    return tree;
-  }, [project, itemErrors]);
-
-  // Build-order keys of the top-level tree rows the rollback bar sits between
-  // (standalone sketches + features; reference geometry is pinned above and not
-  // part of the build order). Used to convert the bar's index ↔ its threshold.
-  const orderedTopLevelKeys = useMemo(() => {
-    const sketchIdsUsedByFeatures = new Set(
-      project.features.flatMap((f) => (f.sketchId ? [f.sketchId] : []))
-    );
-    return [
-      ...project.sketches.filter((s) => !sketchIdsUsedByFeatures.has(s.id)),
-      ...project.features,
-    ]
-      .sort(compareBuildOrder)
-      .map(orderKey);
-  }, [project]);
-
-  // The rollback bar's current position as an index into the top-level rows
-  // (0 = above everything, N = below everything / nothing rolled back).
-  const rollbackBarIndex = useMemo(
-    () => rollbackIndexForThreshold(orderedTopLevelKeys, project.rollbackBar),
-    [orderedTopLevelKeys, project.rollbackBar]
-  );
-
-  // Move the rollback bar to sit *before* top-level row `newIndex`, rebuilding
-  // with only the rows above it. Bumps version so the worker replays the gated
-  // history. `newIndex >= rows` clears the bar (full fast-forward).
-  const moveRollbackBar = useCallback((newIndex: number) => {
-    setProject((prev) => {
-      const sketchIdsUsedByFeatures = new Set(
-        prev.features.flatMap((f) => (f.sketchId ? [f.sketchId] : []))
-      );
-      const keys = [
-        ...prev.sketches.filter((s) => !sketchIdsUsedByFeatures.has(s.id)),
-        ...prev.features,
-      ]
-        .sort(compareBuildOrder)
-        .map(orderKey);
-      const rollbackBar = rollbackThresholdForIndex(keys, newIndex);
-      if (rollbackBar === prev.rollbackBar) return prev;
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        rollbackBar,
-      };
-    });
-  }, [setProject]);
-
-  // Operation selection / tab switching — delegate to viewportStore.
+  const setActiveTab = useViewportStore((s) => s.setActiveTab);
+  const setActiveOperation = useViewportStore((s) => s.setActiveOperation);
   const selectOperation = useViewportStore((s) => s.selectOperation);
   const switchTab = useViewportStore((s) => s.switchTab);
+  const toggleSidebar = useViewportStore((s) => s.toggleSidebar);
+  const setItemError = useViewportStore((s) => s.setItemError);
+  const clearAllItemErrors = useViewportStore((s) => s.clearAllItemErrors);
+  const itemErrors = useViewportStore((s) => s.itemErrors);
 
-  // Tree item selection
+  // --- Derived selectors ---------------------------------------------------
+  const featureTree = useMemo(() => buildFeatureTree(project, itemErrors), [project, itemErrors]);
+  const rollbackBarIndex = useMemo(() => rollbackBarIndexOf(project), [project]);
+
+  // --- Tree ----------------------------------------------------------------
   const toggleSelectedTreeItem = useViewportStore((s) => s.toggleSelectedTreeItem);
   const selectTreeItem = useCallback((id: string | null) => {
     toggleSelectedTreeItem(id);
   }, [toggleSelectedTreeItem]);
 
-  // Toggle tree item expansion
   const toggleTreeItemExpansion = useCallback((id: string) => {
-    // Only features can be expanded/collapsed
-    setProject((prev) => ({
-      ...prev,
-      updatedAt: Date.now(),
-      features: prev.features.map((f) =>
-        f.id === id ? { ...f, isExpanded: !f.isExpanded } : f
-      ),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'TOGGLE_TREE_ITEM_EXPANSION', id });
+  }, [dispatch]);
 
-  // Add a new sketch
+  const toggleTreeItemVisibility = useCallback((id: string) => {
+    dispatch({ type: 'TOGGLE_TREE_ITEM_VISIBILITY', id });
+  }, [dispatch]);
+
+  const editTreeItem = useCallback((id: string) => {
+    setSelectedTreeItem(id);
+    // TODO: Add edit modal or inline editing
+    console.log('Edit item:', id);
+  }, [setSelectedTreeItem]);
+
+  const deleteTreeItem = useCallback((id: string) => {
+    dispatch({ type: 'DELETE_TREE_ITEM', id });
+    // Clear selection if the deleted item was selected
+    if (useViewportStore.getState().selectedTreeItem === id) setSelectedTreeItem(null);
+  }, [dispatch, setSelectedTreeItem]);
+
+  // --- Rollback bar --------------------------------------------------------
+  const moveRollbackBar = useCallback((newIndex: number) => {
+    dispatch({ type: 'MOVE_ROLLBACK_BAR', newIndex });
+  }, [dispatch]);
+
+  // --- Sketches ------------------------------------------------------------
   const addSketch = useCallback((name: string, plane: SketchPlane) => {
-    const workplane = createWorkplane(plane.type, plane.origin, plane.normal, plane.offset || 0);
+    const sketch = makeSketch(name, plane);
+    dispatch({ type: 'ADD_SKETCH', sketch });
+    return sketch;
+  }, [dispatch]);
 
-    const newSketch: Sketch = {
-      id: crypto.randomUUID(),
-      name,
-      workplane,
-      primitives: [],
-      elements: [],
-      constraints: [],
-      visualMetadata: {},
-      isClosed: false,
-      isVisible: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-
-    setProject((prev) => ({
-      ...prev,
-      version: prev.version + 1,
-      updatedAt: Date.now(),
-      // If the history is rolled back, slot the new sketch at the bar so it
-      // stays "present" rather than landing past the bar (hidden).
-      sketches: [...prev.sketches, { ...newSketch, sequence: sequenceAtBar(prev) }],
-    }));
-
-    return newSketch;
-  }, [setProject]);
-
-  // Update sketch elements
   const updateSketchElements = useCallback((sketchId: string, elements: SketchElement[]) => {
-    setProject((prev) => {
-      const sketch = prev.sketches.find((s) => s.id === sketchId);
-      if (!sketch) return prev;
+    dispatch({ type: 'UPDATE_SKETCH_ELEMENTS', sketchId, elements });
+  }, [dispatch]);
 
-      const isClosed = checkIfSketchClosed(elements);
-
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        sketches: prev.sketches.map((s) =>
-          s.id === sketchId
-            ? {
-                ...s,
-                elements,
-                isClosed,
-                updatedAt: Date.now(),
-              }
-            : s
-        ),
-      };
-    });
-  }, [setProject]);
-
-  // Update full sketch state (including solved primitives/constraints)
   const updateSketchState = useCallback((sketchId: string, updatedSketch: Sketch) => {
-    // Derive isClosed from the elements rather than trusting the round-tripped
-    // value: the worker's solver spreads back the sketch it received (which may
-    // carry a stale isClosed), and replacing the sketch wholesale would otherwise
-    // clobber the closure flag computed in updateSketchElements.
-    const isClosed = checkIfSketchClosed(updatedSketch.elements);
-    setProject((prev) => ({
-      ...prev,
-      updatedAt: Date.now(),
-      sketches: prev.sketches.map((s) =>
-        s.id === sketchId ? { ...updatedSketch, isClosed, updatedAt: Date.now() } : s
-      ),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'UPDATE_SKETCH_STATE', sketchId, sketch: updatedSketch });
+  }, [dispatch]);
 
-  // Add a constraint to a sketch (planegcs-format object, e.g. from createConstraint()).
-  // Bumps version so a rebuild re-runs the solver with the new constraint.
   const addConstraint = useCallback((sketchId: string, constraint: PlanegcsConstraint) => {
-    setProject((prev) => {
-      const sketch = prev.sketches.find((s) => s.id === sketchId);
-      if (!sketch) return prev;
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        sketches: prev.sketches.map((s) =>
-          s.id === sketchId
-            ? { ...s, constraints: [...(s.constraints || []), constraint], updatedAt: Date.now() }
-            : s
-        ),
-      };
-    });
-  }, [setProject]);
+    dispatch({ type: 'ADD_CONSTRAINT', sketchId, constraint });
+  }, [dispatch]);
 
-  // Remove a constraint from a sketch by id. Bumps version to re-solve.
   const removeConstraint = useCallback((sketchId: string, constraintId: string) => {
-    setProject((prev) => {
-      const sketch = prev.sketches.find((s) => s.id === sketchId);
-      if (!sketch) return prev;
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        sketches: prev.sketches.map((s) =>
-          s.id === sketchId
-            ? { ...s, constraints: (s.constraints || []).filter((c: any) => c.id !== constraintId), updatedAt: Date.now() }
-            : s
-        ),
-      };
-    });
-  }, [setProject]);
+    dispatch({ type: 'REMOVE_CONSTRAINT', sketchId, constraintId });
+  }, [dispatch]);
 
-  // Update sketch geometry reference (after OpenCascade builds it)
   const updateSketchGeometry = useCallback((sketchId: string, geometry: ShapeReference) => {
-    setProject((prev) => ({
-      ...prev,
-      updatedAt: Date.now(),
-      sketches: prev.sketches.map((sketch) =>
-        sketch.id === sketchId ? { ...sketch, geometry, updatedAt: Date.now() } : sketch
-      ),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'UPDATE_SKETCH_GEOMETRY', sketchId, geometry });
+  }, [dispatch]);
 
-  // Start editing a sketch (enters sketch mode)
-  const setActiveTab = useViewportStore((s) => s.setActiveTab);
   const startSketchEdit = useCallback((sketchId: string) => {
     setActiveSketchId(sketchId);
     setActiveTab(OperationCategory.SKETCH);
   }, [setActiveSketchId, setActiveTab]);
 
-  // Stop editing sketch (exits sketch mode)
-  // If the sketch has no elements, remove it from the project
+  // Exit sketch mode. Deletes the sketch if it's empty (handled in the reducer);
+  // always clears the ephemeral active-sketch id.
   const stopSketchEdit = useCallback(() => {
     const currentSketchId = useViewportStore.getState().activeSketchId;
     if (currentSketchId) {
-      setProject((prev) => {
-        const sketch = prev.sketches.find((s) => s.id === currentSketchId);
-        if (sketch && (!sketch.elements || sketch.elements.length === 0) && (!sketch.primitives || sketch.primitives.length === 0)) {
-          return {
-            ...prev,
-            version: prev.version + 1,
-            updatedAt: Date.now(),
-            sketches: prev.sketches.filter((s) => s.id !== currentSketchId),
-          };
-        }
-        // Increment version even if not deleted so a rebuild is triggered to build the sketch geometry
-        return {
-          ...prev,
-          version: prev.version + 1,
-          updatedAt: Date.now(),
-        };
-      });
+      dispatch({ type: 'STOP_SKETCH_EDIT', sketchId: currentSketchId });
     }
     setActiveSketchId(null);
-  }, [setProject, setActiveSketchId]);
+  }, [dispatch, setActiveSketchId]);
 
-  // Delete sketch
   const deleteSketch = useCallback((sketchId: string) => {
-    setProject((prev) => ({
-      ...prev,
-      version: prev.version + 1,
-      updatedAt: Date.now(),
-      sketches: prev.sketches.filter((s) => s.id !== sketchId),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'DELETE_SKETCH', sketchId });
+  }, [dispatch]);
 
-  // Add a new feature
+  // --- Features ------------------------------------------------------------
   const addFeature = useCallback((
     name: string,
     type: Feature['type'],
@@ -560,197 +140,45 @@ export function useCADState() {
     sketchId?: string,
     parentIds: string[] = []
   ) => {
-    const newFeature: Feature = {
-      id: crypto.randomUUID(),
-      name,
-      type,
-      sketchId,
-      parameters,
-      parentIds,
-      isSuppressed: false,
-      isVisible: true,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      isExpanded: true,
-    };
+    const feature = makeFeature(name, type, parameters, sketchId, parentIds);
+    dispatch({ type: 'ADD_FEATURE', feature });
+    return feature;
+  }, [dispatch]);
 
-    setProject((prev) => ({
-      ...prev,
-      version: prev.version + 1,
-      updatedAt: Date.now(),
-      // If the history is rolled back, slot the new feature at the bar so it
-      // stays "present" rather than landing past the bar (hidden).
-      features: [...prev.features, { ...newFeature, sequence: sequenceAtBar(prev) }],
-      // Auto-hide consumed sketch
-      sketches: sketchId
-        ? prev.sketches.map((s) =>
-            s.id === sketchId ? { ...s, isVisible: false, updatedAt: Date.now() } : s
-          )
-        : prev.sketches,
-    }));
-
-    return newFeature;
-  }, [setProject]);
-
-  // Update feature parameters
   const updateFeatureParameters = useCallback((featureId: string, parameters: OperationParams) => {
-    setProject((prev) => ({
-      ...prev,
-      version: prev.version + 1,
-      updatedAt: Date.now(),
-      features: prev.features.map((feature) =>
-        feature.id === featureId
-          ? { ...feature, parameters, updatedAt: Date.now() }
-          : feature
-      ),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'UPDATE_FEATURE_PARAMETERS', featureId, parameters });
+  }, [dispatch]);
 
-  // Apply lazily-captured fingerprint upgrades for modification selections.
-  // This is DERIVED data from a rebuild, not a user edit, so it must NOT bump
-  // `version` — doing so would retrigger the rebuild and loop. The enrichment
-  // converges after one rebuild (enrichRefs returns nothing once all refs carry
-  // a fingerprint). See ROADMAP.md (Deterministic topology).
-  const applyRefEnrichments = useCallback((enrichments: FeatureRefEnrichment[]) => {
-    if (!enrichments?.length) return;
-    setProject((prev) => {
-      let changed = false;
-      const features = prev.features.map((feature) => {
-        const ours = enrichments.filter((e) => e.featureId === feature.id);
-        if (!ours.length || !feature.parameters) return feature;
-        const parameters: any = { ...feature.parameters };
-        for (const e of ours) parameters[e.key] = e.refs;
-        changed = true;
-        return { ...feature, parameters };
-      });
-      if (!changed) return prev;
-      return { ...prev, features }; // intentionally no version / updatedAt bump
-    });
-  }, [setProject]);
-
-  // Apply lazily-captured fingerprint upgrades for sketch external-geometry refs.
-  // Like applyRefEnrichments this is DERIVED data from a rebuild, so it must NOT
-  // bump `version` (that would loop the rebuild). Converges after one rebuild
-  // (enrichSketchExternalRefs returns nothing once every external ref carries a
-  // sourceRef). See ROADMAP.md (Deterministic topology).
-  const applySketchRefEnrichments = useCallback((enrichments: SketchRefEnrichment[]) => {
-    if (!enrichments?.length) return;
-    setProject((prev) => {
-      let changed = false;
-      const sketches = prev.sketches.map((sketch) => {
-        const ours = enrichments.filter((e) => e.sketchId === sketch.id);
-        if (!ours.length) return sketch;
-        const byPrimitive = new Map(ours.map((e) => [e.primitiveId, e.ref]));
-        let sketchChanged = false;
-        const primitives = sketch.primitives.map((primitive) => {
-          const ref = byPrimitive.get(primitive.id);
-          if (!ref) return primitive;
-          sketchChanged = true;
-          return { ...primitive, sourceRef: ref };
-        });
-        if (!sketchChanged) return sketch;
-        changed = true;
-        return { ...sketch, primitives };
-      });
-      if (!changed) return prev;
-      return { ...prev, sketches }; // intentionally no version / updatedAt bump
-    });
-  }, [setProject]);
-
-  // Update feature geometry reference (after OpenCascade builds it)
   const updateFeatureGeometry = useCallback((featureId: string, geometry: ShapeReference) => {
-    setProject((prev) => ({
-      ...prev,
-      updatedAt: Date.now(),
-      features: prev.features.map((feature) =>
-        feature.id === featureId ? { ...feature, geometry, updatedAt: Date.now() } : feature
-      ),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'UPDATE_FEATURE_GEOMETRY', featureId, geometry });
+  }, [dispatch]);
 
-  // Toggle feature suppression (exclude from rebuild)
+  const applyRefEnrichments = useCallback((enrichments: FeatureRefEnrichment[]) => {
+    dispatch({ type: 'APPLY_REF_ENRICHMENTS', enrichments });
+  }, [dispatch]);
+
+  const applySketchRefEnrichments = useCallback((enrichments: SketchRefEnrichment[]) => {
+    dispatch({ type: 'APPLY_SKETCH_REF_ENRICHMENTS', enrichments });
+  }, [dispatch]);
+
   const toggleFeatureSuppression = useCallback((featureId: string) => {
-    setProject((prev) => ({
-      ...prev,
-      version: prev.version + 1,
-      updatedAt: Date.now(),
-      features: prev.features.map((feature) =>
-        feature.id === featureId
-          ? { ...feature, isSuppressed: !feature.isSuppressed, updatedAt: Date.now() }
-          : feature
-      ),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'TOGGLE_FEATURE_SUPPRESSION', featureId });
+  }, [dispatch]);
 
-  // Toggle feature visibility
   const toggleFeatureVisibility = useCallback((featureId: string) => {
-    setProject((prev) => ({
-      ...prev,
-      updatedAt: Date.now(),
-      features: prev.features.map((feature) =>
-        feature.id === featureId ? { ...feature, isVisible: !feature.isVisible } : feature
-      ),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'TOGGLE_FEATURE_VISIBILITY', featureId });
+  }, [dispatch]);
 
-  // Delete feature
   const deleteFeature = useCallback((featureId: string) => {
-    setProject((prev) => ({
-      ...prev,
-      version: prev.version + 1,
-      updatedAt: Date.now(),
-      features: prev.features.filter((f) => f.id !== featureId),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'DELETE_FEATURE', featureId });
+  }, [dispatch]);
 
-  // Reorder a feature to position `newIndex` within the deterministic feature
-  // sequence. Rather than reordering the array (which both the tree and the
-  // worker ignore — they sort by orderKey), we assign the moved feature an
-  // explicit `sequence` slotted between its new neighbours' keys. The same
-  // (sequence ?? createdAt, id) order then reflects the move in both layers.
   const reorderFeature = useCallback((featureId: string, newIndex: number) => {
-    setProject((prev) => {
-      const ordered = [...prev.features].sort(compareBuildOrder);
-      const moved = ordered.find((f) => f.id === featureId);
-      if (!moved) return prev;
+    dispatch({ type: 'REORDER_FEATURE', featureId, newIndex });
+  }, [dispatch]);
 
-      const without = ordered.filter((f) => f.id !== featureId);
-      const clamped = Math.max(0, Math.min(newIndex, without.length));
-      const before = without[clamped - 1];
-      const after = without[clamped];
-
-      let sequence: number;
-      if (!before && !after) sequence = orderKey(moved);          // only feature
-      else if (!before) sequence = orderKey(after) - 1;            // to the front
-      else if (!after) sequence = orderKey(before) + 1;            // to the back
-      else sequence = (orderKey(before) + orderKey(after)) / 2;    // between two
-
-      // Invariant: a feature must build after its consumed sketch, so its key
-      // must stay strictly greater than that sketch's key. A feature can never
-      // be moved before its own sketch; if the requested slot would do so, snap
-      // it to immediately after the sketch instead.
-      if (moved.sketchId) {
-        const sketch = prev.sketches.find((s) => s.id === moved.sketchId);
-        if (sketch) {
-          const sketchKey = orderKey(sketch);
-          if (sequence <= sketchKey) sequence = sketchKey + REORDER_EPSILON;
-        }
-      }
-
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        features: prev.features.map((f) =>
-          f.id === featureId ? { ...f, sequence, updatedAt: Date.now() } : f
-        ),
-      };
-    });
-  }, [setProject]);
-
-  // Reorder a feature relative to another feature (drag-and-drop in the tree).
-  // Drops the dragged feature immediately before/after the target in build order,
-  // translating to the index-based `reorderFeature` against the ordered feature list.
+  // Drop the dragged feature immediately before/after the target in build order,
+  // translating to the index-based reorderFeature against the ordered list.
   const reorderFeatureRelative = useCallback((draggedId: string, targetId: string, place: 'before' | 'after') => {
     if (draggedId === targetId) return;
     const ordered = [...project.features].sort(compareBuildOrder);
@@ -761,23 +189,17 @@ export function useCADState() {
     reorderFeature(draggedId, newIndex);
   }, [project.features, reorderFeature]);
 
-  // Save project
+  // --- Project-level -------------------------------------------------------
   const saveProject = useCallback(() => {
-    setProject((prev) => ({
-      ...prev,
-      updatedAt: Date.now(),
-    }));
-  }, [setProject]);
+    dispatch({ type: 'TOUCH' });
+  }, [dispatch]);
 
-  // Create new project
-  const setActiveOperation = useViewportStore((s) => s.setActiveOperation);
   const newProject = useCallback(() => {
-    setProject(createNewProject());
+    dispatch({ type: 'REPLACE', project: createNewProject() });
     setSelectedTreeItem(null);
     setActiveOperation(null);
-  }, [setProject, setSelectedTreeItem, setActiveOperation]);
+  }, [dispatch, setSelectedTreeItem, setActiveOperation]);
 
-  // Export project as JSON
   const exportProject = useCallback(() => {
     const dataStr = JSON.stringify(project, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
@@ -789,87 +211,18 @@ export function useCADState() {
     linkElement.click();
   }, [project]);
 
-  // Import project from JSON
   const importProject = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const imported = JSON.parse(e.target?.result as string) as CADProject;
-        setProject(imported);
+        const imported = JSON.parse(e.target?.result as string);
+        dispatch({ type: 'REPLACE', project: imported });
       } catch (error) {
         console.error('Failed to import project:', error);
       }
     };
     reader.readAsText(file);
-  }, [setProject]);
-
-  // Toggle sidebar / item-error tracking — delegate to viewportStore.
-  const toggleSidebar = useViewportStore((s) => s.toggleSidebar);
-  const setItemError = useViewportStore((s) => s.setItemError);
-  const clearAllItemErrors = useViewportStore((s) => s.clearAllItemErrors);
-
-  const toggleTreeItemVisibility = useCallback((id: string) => {
-    setProject((prev) => {
-      const updatedSketches = prev.sketches.map((sketch) =>
-        sketch.id === id ? { ...sketch, isVisible: !sketch.isVisible } : sketch
-      );
-
-      const updatedFeatures = prev.features.map((feature) =>
-        feature.id === id ? { ...feature, isVisible: !feature.isVisible } : feature
-      );
-
-      const updatedRefGeom = prev.referenceGeometry.map((ref) =>
-        ref.id === id ? { ...ref, isVisible: !ref.isVisible } : ref
-      );
-
-      return {
-        ...prev,
-        sketches: updatedSketches,
-        features: updatedFeatures,
-        referenceGeometry: updatedRefGeom,
-        updatedAt: Date.now(),
-      };
-    });
-  }, [setProject]);
-
-  const editTreeItem = useCallback((id: string) => {
-    // For now, just select the item - you can add more edit logic later
-    setSelectedTreeItem(id);
-    // TODO: Add edit modal or inline editing
-    console.log('Edit item:', id);
-  }, [setSelectedTreeItem]);
-
-  const deleteTreeItem = useCallback((id: string) => {
-    setProject((prev) => {
-      // Try to delete from sketches
-      const filteredSketches = prev.sketches.filter((s) => s.id !== id);
-      if (filteredSketches.length !== prev.sketches.length) {
-        return {
-          ...prev,
-          sketches: filteredSketches,
-          version: prev.version + 1,
-          updatedAt: Date.now(),
-        };
-      }
-
-      // Try to delete from features
-      const filteredFeatures = prev.features.filter((f) => f.id !== id);
-      if (filteredFeatures.length !== prev.features.length) {
-        return {
-          ...prev,
-          features: filteredFeatures,
-          version: prev.version + 1,
-          updatedAt: Date.now(),
-        };
-      }
-
-      // Reference geometry cannot be deleted
-      return prev;
-    });
-
-    // Clear selection if deleted item was selected
-    if (useViewportStore.getState().selectedTreeItem === id) setSelectedTreeItem(null);
-  }, [setProject, setSelectedTreeItem]);
+  }, [dispatch]);
 
   return {
     // State
@@ -927,48 +280,11 @@ export function useCADState() {
     // Undo / redo (snapshot history)
     undo,
     redo,
-    canUndo: historyAvail.canUndo,
-    canRedo: historyAvail.canRedo,
+    canUndo,
+    canRedo,
 
     // Item error tracking
     setItemError,
     clearAllItemErrors,
   };
-}
-
-// Helper function to check if sketch elements form a closed wire
-function checkIfSketchClosed(elements: SketchElement[]): boolean {
-  if (elements.length === 0) {
-    return false;
-  }
-
-  // For now, implement simple check: see if we have enough elements to form a closed shape
-  // TODO: Implement proper wire closure check (first point == last point)
-
-  // Rectangles and polygons are always closed
-  const hasClosedElement = elements.some(
-    (el) => el.type === SketchElementType.RECTANGLE || el.type === SketchElementType.CIRCLE || el.type === SketchElementType.ELLIPSE
-  );
-
-  if (hasClosedElement) return true;
-
-  // For line-based sketches, check if first and last points match
-  // This is a simplified check - in reality we'd need to properly trace the wire
-  if (elements.length >= 3) {
-    const firstElement = elements[0];
-    const lastElement = elements[elements.length - 1];
-
-    if (firstElement.type === SketchElementType.LINE && lastElement.type === SketchElementType.LINE) {
-      const firstStart = firstElement.start;
-      const lastEnd = lastElement.end;
-      const tolerance = 0.001;
-
-      return (
-        Math.abs(firstStart.x - lastEnd.x) < tolerance &&
-        Math.abs(firstStart.y - lastEnd.y) < tolerance
-      );
-    }
-  }
-
-  return false;
 }
