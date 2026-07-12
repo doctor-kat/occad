@@ -10,7 +10,7 @@ export interface FeatureTreeActions {
 }
 
 // TreeItem recurses through the feature tree and needs the same CRUD/reorder
-// callbacks (owned by useCADState) at every level. A plain Context — provided
+// callbacks (projectApi functions) at every level. A plain Context — provided
 // once by CADSidebar around <FeatureTree> — avoids re-threading them as props
 // through TreeItem's recursive call without pulling in a module-level Zustand
 // store for what's a single-provider, single-consumer-tree relationship

@@ -22,12 +22,12 @@ import type { useViewportSelection } from './hooks/useViewportSelection';
 import type { useProjectIO } from './hooks/useProjectIO';
 import type { useOperationPanel } from './hooks/useOperationPanel';
 
-// Distributes the singleton-hook data and handler bags CADLayout.tsx already
-// computes once (useCADState/useOpenCascade must each only be instantiated
-// once — see CLAUDE.md) to CADHeader/CADSidebar/CADMainCanvas without prop
-// drilling. Plain UI state (sidebar tab, measurement, operation-panel
-// open/edit) lives in cadLayoutUiStore.ts (Zustand) instead, so it isn't here —
-// components that need it subscribe to that store directly.
+// Distributes the per-render handler bags CADLayout.tsx assembles once (the OCC
+// bridge and the orchestrated sub-hooks) to CADHeader/CADSidebar/CADMainCanvas
+// without prop drilling. Durable project state lives in projectStore (read via
+// useProjectState selectors / mutated via projectApi) and ephemeral UI state in
+// viewportStore / cadLayoutUiStore, so none of that is here — components that
+// need it subscribe to those stores directly.
 /** Shape of the `occ` context field — worker-output state (from occStore) plus
  * imperative ops/wrappers (from occWorkerClient), assembled once in CADLayout.tsx. */
 export interface OccBridgeValue {

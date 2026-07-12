@@ -55,123 +55,98 @@ export type ProjectAction =
   | { type: 'TOGGLE_TREE_ITEM_VISIBILITY'; id: string }
   | { type: 'DELETE_TREE_ITEM'; id: string };
 
+/** Apply `patch` as a model edit: bump `version` (triggers a rebuild) + `updatedAt`. */
+const withBump = (prev: CADProject, patch: Partial<CADProject>): CADProject =>
+  ({ ...prev, ...patch, version: prev.version + 1, updatedAt: Date.now() });
+
+/** Apply `patch` as a non-model edit (derived data / pure UI): touch `updatedAt` only. */
+const touched = (prev: CADProject, patch: Partial<CADProject>): CADProject =>
+  ({ ...prev, ...patch, updatedAt: Date.now() });
+
 export function projectReducer(prev: CADProject, action: ProjectAction): CADProject {
   switch (action.type) {
     case 'REPLACE':
       return action.project;
 
     case 'TOUCH':
-      return { ...prev, updatedAt: Date.now() };
+      return touched(prev, {});
 
     case 'ADD_SKETCH':
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        // If the history is rolled back, slot the new sketch at the bar so it
-        // stays "present" rather than landing past the bar (hidden).
+      // If the history is rolled back, slot the new sketch at the bar so it
+      // stays "present" rather than landing past the bar (hidden).
+      return withBump(prev, {
         sketches: [...prev.sketches, { ...action.sketch, sequence: sequenceAtBar(prev) }],
-      };
+      });
 
     case 'UPDATE_SKETCH_ELEMENTS': {
       const sketch = prev.sketches.find((s) => s.id === action.sketchId);
       if (!sketch) return prev;
       const isClosed = checkIfSketchClosed(action.elements);
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
+      return withBump(prev, {
         sketches: prev.sketches.map((s) =>
           s.id === action.sketchId
             ? { ...s, elements: action.elements, isClosed, updatedAt: Date.now() }
             : s
         ),
-      };
+      });
     }
 
     case 'UPDATE_SKETCH_STATE': {
       // Derive isClosed from the elements rather than trusting the round-tripped
       // value (the solver may carry a stale isClosed).
       const isClosed = checkIfSketchClosed(action.sketch.elements);
-      return {
-        ...prev,
-        updatedAt: Date.now(),
+      return touched(prev, {
         sketches: prev.sketches.map((s) =>
           s.id === action.sketchId ? { ...action.sketch, isClosed, updatedAt: Date.now() } : s
         ),
-      };
+      });
     }
 
     case 'ADD_CONSTRAINT': {
       const sketch = prev.sketches.find((s) => s.id === action.sketchId);
       if (!sketch) return prev;
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
+      return withBump(prev, {
         sketches: prev.sketches.map((s) =>
           s.id === action.sketchId
             ? { ...s, constraints: [...(s.constraints || []), action.constraint], updatedAt: Date.now() }
             : s
         ),
-      };
+      });
     }
 
     case 'REMOVE_CONSTRAINT': {
       const sketch = prev.sketches.find((s) => s.id === action.sketchId);
       if (!sketch) return prev;
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
+      return withBump(prev, {
         sketches: prev.sketches.map((s) =>
           s.id === action.sketchId
             ? { ...s, constraints: (s.constraints || []).filter((c: any) => c.id !== action.constraintId), updatedAt: Date.now() }
             : s
         ),
-      };
+      });
     }
 
     case 'UPDATE_SKETCH_GEOMETRY':
-      return {
-        ...prev,
-        updatedAt: Date.now(),
+      return touched(prev, {
         sketches: prev.sketches.map((sketch) =>
           sketch.id === action.sketchId ? { ...sketch, geometry: action.geometry, updatedAt: Date.now() } : sketch
         ),
-      };
+      });
 
     case 'STOP_SKETCH_EDIT': {
       const sketch = prev.sketches.find((s) => s.id === action.sketchId);
       if (sketch && (!sketch.elements || sketch.elements.length === 0) && (!sketch.primitives || sketch.primitives.length === 0)) {
-        return {
-          ...prev,
-          version: prev.version + 1,
-          updatedAt: Date.now(),
-          sketches: prev.sketches.filter((s) => s.id !== action.sketchId),
-        };
+        return withBump(prev, { sketches: prev.sketches.filter((s) => s.id !== action.sketchId) });
       }
-      // Increment version even if not deleted so a rebuild is triggered to build the sketch geometry
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-      };
+      // Bump version even if not deleted so a rebuild builds the sketch geometry.
+      return withBump(prev, {});
     }
 
     case 'DELETE_SKETCH':
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        sketches: prev.sketches.filter((s) => s.id !== action.sketchId),
-      };
+      return withBump(prev, { sketches: prev.sketches.filter((s) => s.id !== action.sketchId) });
 
     case 'ADD_FEATURE':
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
+      return withBump(prev, {
         // If the history is rolled back, slot the new feature at the bar so it
         // stays "present" rather than landing past the bar (hidden).
         features: [...prev.features, { ...action.feature, sequence: sequenceAtBar(prev) }],
@@ -181,28 +156,23 @@ export function projectReducer(prev: CADProject, action: ProjectAction): CADProj
               s.id === action.feature.sketchId ? { ...s, isVisible: false, updatedAt: Date.now() } : s
             )
           : prev.sketches,
-      };
+      });
 
     case 'UPDATE_FEATURE_PARAMETERS':
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
+      return withBump(prev, {
         features: prev.features.map((feature) =>
           feature.id === action.featureId
             ? { ...feature, parameters: action.parameters, updatedAt: Date.now() }
             : feature
         ),
-      };
+      });
 
     case 'UPDATE_FEATURE_GEOMETRY':
-      return {
-        ...prev,
-        updatedAt: Date.now(),
+      return touched(prev, {
         features: prev.features.map((feature) =>
           feature.id === action.featureId ? { ...feature, geometry: action.geometry, updatedAt: Date.now() } : feature
         ),
-      };
+      });
 
     case 'APPLY_REF_ENRICHMENTS': {
       // DERIVED data from a rebuild — must NOT bump `version` (that would loop the
@@ -244,33 +214,23 @@ export function projectReducer(prev: CADProject, action: ProjectAction): CADProj
     }
 
     case 'TOGGLE_FEATURE_SUPPRESSION':
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
+      return withBump(prev, {
         features: prev.features.map((feature) =>
           feature.id === action.featureId
             ? { ...feature, isSuppressed: !feature.isSuppressed, updatedAt: Date.now() }
             : feature
         ),
-      };
+      });
 
     case 'TOGGLE_FEATURE_VISIBILITY':
-      return {
-        ...prev,
-        updatedAt: Date.now(),
+      return touched(prev, {
         features: prev.features.map((feature) =>
           feature.id === action.featureId ? { ...feature, isVisible: !feature.isVisible } : feature
         ),
-      };
+      });
 
     case 'DELETE_FEATURE':
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        features: prev.features.filter((f) => f.id !== action.featureId),
-      };
+      return withBump(prev, { features: prev.features.filter((f) => f.id !== action.featureId) });
 
     case 'REORDER_FEATURE': {
       const ordered = [...prev.features].sort(compareBuildOrder);
@@ -298,14 +258,11 @@ export function projectReducer(prev: CADProject, action: ProjectAction): CADProj
         }
       }
 
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
+      return withBump(prev, {
         features: prev.features.map((f) =>
           f.id === action.featureId ? { ...f, sequence, updatedAt: Date.now() } : f
         ),
-      };
+      });
     }
 
     case 'MOVE_ROLLBACK_BAR': {
@@ -320,28 +277,19 @@ export function projectReducer(prev: CADProject, action: ProjectAction): CADProj
         .map(orderKey);
       const rollbackBar = rollbackThresholdForIndex(keys, action.newIndex);
       if (rollbackBar === prev.rollbackBar) return prev;
-      return {
-        ...prev,
-        version: prev.version + 1,
-        updatedAt: Date.now(),
-        rollbackBar,
-      };
+      return withBump(prev, { rollbackBar });
     }
 
     case 'TOGGLE_TREE_ITEM_EXPANSION':
       // Only features can be expanded/collapsed
-      return {
-        ...prev,
-        updatedAt: Date.now(),
+      return touched(prev, {
         features: prev.features.map((f) =>
           f.id === action.id ? { ...f, isExpanded: !f.isExpanded } : f
         ),
-      };
+      });
 
     case 'TOGGLE_TREE_ITEM_VISIBILITY':
-      return {
-        ...prev,
-        updatedAt: Date.now(),
+      return touched(prev, {
         sketches: prev.sketches.map((sketch) =>
           sketch.id === action.id ? { ...sketch, isVisible: !sketch.isVisible } : sketch
         ),
@@ -351,28 +299,18 @@ export function projectReducer(prev: CADProject, action: ProjectAction): CADProj
         referenceGeometry: prev.referenceGeometry.map((ref) =>
           ref.id === action.id ? { ...ref, isVisible: !ref.isVisible } : ref
         ),
-      };
+      });
 
     case 'DELETE_TREE_ITEM': {
       // Try to delete from sketches
       const filteredSketches = prev.sketches.filter((s) => s.id !== action.id);
       if (filteredSketches.length !== prev.sketches.length) {
-        return {
-          ...prev,
-          sketches: filteredSketches,
-          version: prev.version + 1,
-          updatedAt: Date.now(),
-        };
+        return withBump(prev, { sketches: filteredSketches });
       }
       // Try to delete from features
       const filteredFeatures = prev.features.filter((f) => f.id !== action.id);
       if (filteredFeatures.length !== prev.features.length) {
-        return {
-          ...prev,
-          features: filteredFeatures,
-          version: prev.version + 1,
-          updatedAt: Date.now(),
-        };
+        return withBump(prev, { features: filteredFeatures });
       }
       // Reference geometry cannot be deleted
       return prev;

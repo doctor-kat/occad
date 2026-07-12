@@ -197,6 +197,36 @@ collection, insufficient-operand no-op), `filletStrategy`/`transformStrategy` (n
 entry. Full suite (635 tests) + build pass; verified live in-browser (Entities panel: 10 faces/21 edges,
 unchanged before/after, on the same multi-feature persisted project — primitives, sketches, booleans).
 
+## State split: project reducer vs ephemeral UI (2026-07-11)
+
+Per Architecture review candidate #6 ("split `useCADState`: deep project reducer vs ephemeral UI
+state"): the 1013-line, ~40-`useCallback` `useCADState` hook is gone, split by the seam the review
+identified — durable project domain vs ephemeral UI state.
+
+- **`src/cad/state/projectReducer.ts`** — one pure `(project, action) => project` function. The ~22
+  bespoke `setProject` updaters collapse into a `ProjectAction` discriminated union; the version-bump
+  policy (model edits bump `version`; derived rebuild enrichments and pure visibility toggles don't)
+  lives in one place, per case. `projectActions.ts` holds the impure entity constructors (`makeSketch`/
+  `makeFeature`); `projectHelpers.ts` holds the shared pure helpers (`sequenceAtBar`, `createWorkplane`,
+  `checkIfSketchClosed`, `migrateProject`).
+- **`src/cad/state/history.ts`** — snapshot undo/redo as a standalone, unit-tested deep sub-module.
+- **`src/frontend/shared/projectStore.ts`** — zustand store holding `project` + history behind
+  `dispatch(action)`/`undo`/`redo`, persisted via zustand `persist` with a migration-tolerant storage
+  that still reads the legacy bare-`CADProject` `occad-project` localStorage format.
+- **`projectSelectors.ts`** (`buildFeatureTree`/`rollbackBarIndexOf`) + **`useProjectState.ts`**
+  (`useProject`/`useFeatureTree`/`useRollbackBarIndex`/`useActiveSketch`) — derived reads.
+- **`projectApi.ts`** — imperative mutations as plain, referentially-stable module functions over
+  `dispatch` (no `useCallback` forwarders, no per-method test — the reducer is tested).
+- Ephemeral UI state (`activeTab`, `activeOperation`, `isSidebarOpen`, `activeSketchId`, `itemErrors`)
+  folded into `viewportStore` alongside `selectedTreeItem`, closing the review's "selection lives in two
+  stores" leak. The dead `rebuildState`/`updateRebuildState`/`triggerRebuild` trio (superseded by
+  `occStore`) was dropped.
+
+Consumers (CADLayout, CADHeader, CADMainCanvas, CADSidebar, useOCCSync) read the stores directly; the
+`cadState` field is gone from `CADLayoutContext`. The 1114-line method-mirror `useCADState.test.ts` was
+replaced by behavior-focused `projectReducer.test.ts` / `history.test.ts` / `projectSelectors.test.ts`
+(35 tests). Full suite (615 tests) + build pass.
+
 ## Worker bridge: generic call() for correlated ops (2026-07-11)
 
 Per Architecture review candidate #1 ("collapse the worker message pipeline into a typed call

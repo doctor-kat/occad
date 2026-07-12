@@ -48,8 +48,7 @@ export function CADSidebar() {
 
   // Provide the tree's action callbacks via Context so TreeItem doesn't need
   // them threaded as props at every recursion depth. Selection itself needs no
-  // such bridge — TreeItem reads `selectedTreeItem` straight from
-  // viewportStore, the same store useCADState is backed by.
+  // such bridge — TreeItem reads `selectedTreeItem` straight from viewportStore.
   const featureTreeActions = useMemo(() => ({
     onSelectItem: onSelectTreeItem,
     onToggleExpand: toggleTreeItemExpansion,

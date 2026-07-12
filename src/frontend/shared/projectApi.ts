@@ -1,6 +1,7 @@
 import { useProjectStore } from '@/frontend/shared/projectStore.ts';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
 import { makeSketch, makeFeature } from '@/cad/state/projectActions.ts';
+import type { ProjectAction } from '@/cad/state/projectReducer.ts';
 import {
   PlanegcsConstraint,
   OperationCategory,
@@ -23,8 +24,7 @@ import {
 // referentially stable, need no per-method test (the reducer is tested), and
 // are called directly by components and event handlers. Reactive reads live in
 // useProjectState.ts; ephemeral UI actions live on viewportStore.
-const dispatch = (action: Parameters<ReturnType<typeof useProjectStore.getState>['dispatch']>[0]) =>
-  useProjectStore.getState().dispatch(action);
+const dispatch = (action: ProjectAction) => useProjectStore.getState().dispatch(action);
 
 export const projectApi = {
   // --- Sketches ----------------------------------------------------------
