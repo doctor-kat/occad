@@ -11,7 +11,7 @@
  * "Deterministic topology & stable selections" section in `ROADMAP.md`.
  */
 
-import type { SubShapeKind } from './SubShapeKind';
+import type { SubShapeKind } from './shapeRefs';
 
 export interface Fingerprint {
   kind: SubShapeKind;
@@ -30,8 +30,7 @@ export interface Fingerprint {
   obb: [number, number, number];
 }
 
-import type { StableRef } from './StableRef';
-import type { GeometryRef } from './GeometryRef';
+import type { StableRef, GeometryRef } from './shapeRefs';
 
 /** Parse a legacy `edge-N` / `face-N` / `vertex-N` string into a (fingerprint-less) StableRef. */
 export function parseRefString(ref: string): StableRef | null {
@@ -63,5 +62,35 @@ export function refLabel(ref: GeometryRef): string {
 /** True if the ref already carries a fingerprint (i.e. has been captured). */
 export function hasFingerprint(ref: GeometryRef): boolean {
   return typeof ref !== 'string' && !!ref.fingerprint;
+}
+
+/**
+ * A worker→main enrichment: the upgraded (fingerprinted) refs for one selection
+ * field of one feature, captured lazily during rebuild. The main thread persists
+ * `refs` into `feature.parameters[key]` *without bumping version* (it is derived
+ * data, not a user edit). See `ROADMAP.md` (Deterministic topology).
+ */
+export interface FeatureRefEnrichment {
+  featureId: string;
+  /** Which selection field this replaces: fillet/chamfer use 'edges', shell/offset 'faces'. */
+  key: 'edges' | 'faces';
+  refs: GeometryRef[];
+}
+
+/**
+ * A worker→main enrichment for a sketch's *external geometry* reference, captured
+ * lazily during rebuild. External sketch primitives are anchored to a solid's
+ * sub-shape by `sourceId` (a bare positional `edge-N` / `vertex-N` / `face-N`
+ * tag), which silently rebinds after an upstream edit renumbers the index map.
+ * The worker re-resolves the tag against the body where it is still valid,
+ * captures the matching {@link StableRef} (with fingerprint), and the main thread
+ * persists it into `primitive.sourceRef` *without bumping version* — the
+ * geometry-anchored ref then survives later renumbers. See `ROADMAP.md`
+ * (Deterministic topology).
+ */
+export interface SketchRefEnrichment {
+  sketchId: string;
+  primitiveId: string;
+  ref: StableRef;
 }
 

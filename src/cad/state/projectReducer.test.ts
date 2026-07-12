@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { projectReducer } from './projectReducer';
 import { makeSketch, makeFeature } from './projectActions';
 import { createNewProject, compareBuildOrder, PlaneType } from '@/cad/types';
-import { SketchElementType } from '@/cad/types/sketch/SketchElementType';
+import { SketchElementType } from '@/cad/types/sketch/sketchElements';
 import type { SketchElement } from '@/cad/types/sketch/SketchElement';
 
 const xy = { type: PlaneType.XY } as const;

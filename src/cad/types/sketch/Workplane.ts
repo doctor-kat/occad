@@ -1,5 +1,4 @@
-import { Point3D } from '../geometry/Point3D';
-import { Vector3D } from '../geometry/Vector3D';
+import { Point3D, Vector3D } from '../geometry/primitives';
 
 /**
  * Represents a coordinate system in 3D space, similar to OpenCascade's gp_Ax3.

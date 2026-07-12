@@ -1,21 +1,23 @@
-import { ExtrudeParams } from './ExtrudeParams';
-import { RevolveParams } from './RevolveParams';
-import { PrimitiveBoxParams } from './PrimitiveBoxParams';
-import { PrimitiveSphereParams } from './PrimitiveSphereParams';
-import { PrimitiveCylinderParams } from './PrimitiveCylinderParams';
-import { PrimitiveConeParams } from './PrimitiveConeParams';
-import { PrimitiveTorusParams } from './PrimitiveTorusParams';
-import { PrimitiveWedgeParams } from './PrimitiveWedgeParams';
-import { BooleanParams } from './BooleanParams';
-import { FilletParams } from './FilletParams';
-import { ChamferParams } from './ChamferParams';
-import { ShellParams } from './ShellParams';
-import { OffsetParams } from './OffsetParams';
-import { SweepParams } from './SweepParams';
-import { LoftParams } from './LoftParams';
+import { ExtrudeParams, RevolveParams, SweepParams, LoftParams } from './sketchFeatureParams';
+import {
+  PrimitiveBoxParams,
+  PrimitiveSphereParams,
+  PrimitiveCylinderParams,
+  PrimitiveConeParams,
+  PrimitiveTorusParams,
+  PrimitiveWedgeParams,
+} from './primitiveParams';
+import { FilletParams, ChamferParams, ShellParams, OffsetParams } from './modificationParams';
 import { TransformParams } from './TransformParams';
-import { MeasureParams } from './MeasureParams';
-import { ImportParams } from './ImportParams';
+import { MeasureParams } from './measureTypes';
+import { ImportParams } from './ioTypes';
+
+export interface BooleanParams {
+  /** IDs of features to combine */
+  featureIds: string[];
+  /** Operation type */
+  operation: 'union' | 'intersect' | 'subtract';
+}
 
 export type OperationParams =
   | ExtrudeParams

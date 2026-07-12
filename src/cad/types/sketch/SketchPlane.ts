@@ -1,6 +1,12 @@
-import { Point3D } from '../../geometry/Point3D';
-import { Vector3D } from '../../geometry/Vector3D';
-import { PlaneType } from './PlaneType';
+import { Point3D, Vector3D } from '../geometry/primitives';
+
+export enum PlaneType {
+  XY = 'xy',
+  YZ = 'yz',
+  XZ = 'xz',
+  FACE = 'face',
+  CUSTOM = 'custom'
+}
 
 /** Sketch plane definition */
 export interface SketchPlane {

@@ -1,4 +1,4 @@
-import { Point2D } from '../geometry/Point2D';
+import { Point2D } from '../geometry/primitives';
 
 export interface SketchVisualMetadata {
   /** User-dragged label offset in 2D sketch units */

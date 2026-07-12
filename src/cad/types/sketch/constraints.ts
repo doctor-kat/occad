@@ -1,4 +1,19 @@
-import type { ConstraintKind } from './ConstraintKind';
+export enum ConstraintKind {
+  Horizontal = 'horizontal',
+  Vertical = 'vertical',
+  Coincident = 'coincident',
+  Parallel = 'parallel',
+  Perpendicular = 'perpendicular',
+  Distance = 'distance',
+  HorizontalDistance = 'horizontal-distance',
+  VerticalDistance = 'vertical-distance',
+  PointLineDistance = 'point-line-distance',
+  Radius = 'radius',
+  Equal = 'equal',
+  Tangent = 'tangent',
+  Angle = 'angle',
+  Midpoint = 'midpoint',
+}
 
 /** Discriminated input describing which entities a constraint applies to. */
 export type ConstraintInput =
@@ -18,3 +33,6 @@ export type ConstraintInput =
   // Point `midId` is the midpoint of the segment between endpoints `p1Id`/`p2Id`
   // (the two endpoints are symmetric about it). See createConstraint.
   | { kind: 'midpoint'; p1Id: string; p2Id: string; midId: string };
+
+/** A planegcs constraint object (loose — planegcs uses a structural union). */
+export type PlanegcsConstraint = Record<string, any> & { id: string; type: string };

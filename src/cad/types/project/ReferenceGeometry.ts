@@ -1,4 +1,7 @@
-import { ReferenceGeometryType } from './ReferenceGeometryType';
+export enum ReferenceGeometryType {
+  PLANE = 'plane',
+  ORIGIN = 'origin'
+}
 
 export interface ReferenceGeometry {
   id: string;

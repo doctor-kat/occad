@@ -1,7 +1,11 @@
-import { Vector3D } from '../geometry/Vector3D';
-import { Point3D } from '../geometry/Point3D';
-import { Axis } from '../geometry/Axis';
-import { TransformOperation } from './TransformOperation';
+import { Vector3D, Point3D, Axis } from '../geometry/primitives';
+
+export enum TransformOperation {
+  MOVE = 'move',
+  ROTATE = 'rotate',
+  MIRROR = 'mirror',
+  SCALE = 'scale'
+}
 
 export interface TransformParams {
   type: TransformOperation;

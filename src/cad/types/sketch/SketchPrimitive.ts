@@ -1,5 +1,5 @@
 import { SketchPrimitiveType } from './Sketch';
-import { StableRef } from '../geometry/StableRef';
+import { StableRef } from '../geometry/shapeRefs';
 
 export interface SketchPrimitive {
   id: string;

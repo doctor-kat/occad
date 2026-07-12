@@ -646,3 +646,57 @@ since that part of the state remains a module-level singleton), and `bun run lin
 456 on `main` — one new fast-refresh warning on `FeatureTreeActionsContext.tsx`, identical in kind to
 the pre-existing one on `CADLayoutContext.tsx`; also fixed two pre-existing missing-dependency
 warnings while touching `useCADState.ts`'s `useCallback`s along the way).
+
+## Consolidate one-type-per-file `src/cad/types/` (2026-07-12)
+
+Per Architecture review candidate #7 ("consolidate the 32 one-type-per-file params into grouped
+modules") plus the same pattern found repeated across the rest of `src/cad/types/`: 88 files → 36,
+all pure zero-behavior moves grouped by cohesion (things that change together), consumed entirely
+through the `@/cad/types` barrel (only 5 deep-imports existed repo-wide, all repointed):
+
+- `operations/` 32 → 10: `primitiveParams.ts` (6 primitives), `modificationParams.ts` (Fillet/
+  Chamfer/Shell/Offset), `sketchFeatureParams.ts` (Extrude/Revolve/Sweep/Loft), `measureTypes.ts`
+  (MeasureType/Params/Selection/Between/Data + EvaluateOperation), `ioTypes.ts` (Import/Export
+  format+params+IOOperation); `TransformParams.ts` absorbed `TransformOperation.ts`;
+  `OperationParams.ts` absorbed `BooleanParams.ts`; `Operation.ts` absorbed `OperationCategory.ts`.
+- `sketch/` 23 → 10: `sketchElements.ts` (Line/Circle/Arc/Rectangle/Polygon/Ellipse/Bezier/Point +
+  the `SketchElementType` enum they discriminate on, with matching merged `sketchElements.test.ts`),
+  `SketchGroup.ts` absorbed `SketchGroupType.ts`, `constraints.ts` (ConstraintKind/Input +
+  PlanegcsConstraint), `SketchPlane.ts` (was a 2-file subdirectory, flattened), `Sketch.ts` absorbed
+  `SketchEdgeData.ts`.
+- `geometry/` 12 → 3: `primitives.ts` (Point2D/Point3D/Vector3D/Axis), `shapeRefs.ts` (ShapeType/
+  ShapeReference/SubShapeKind/StableRef/GeometryRef — core selection-reference vocabulary only);
+  `Fingerprint.ts` left alone — it holds real functions (`parseRefString`, `toStableRef`, …), and
+  now also owns `FeatureRefEnrichment`/`SketchRefEnrichment` (moved out of `shapeRefs.ts` — they're
+  worker→main enrichment DTOs for the fingerprint-rebind rebuild pathway, a narrower concern than
+  the base ref vocabulary, and the move let `shapeRefs.ts` drop its `Fingerprint` import).
+- `project/` 9 → 5: `projectShapes.ts` (Feature/CADProject/RebuildState/CADState/FeatureTreeItem(Type)),
+  `ReferenceGeometry.ts` (was a 2-file subdirectory, flattened); `buildOrder.ts` and
+  `createNewProject.ts` left alone — both hold real logic.
+
+Considered folding params like `ExtrudeParams` into their engine strategy file (e.g.
+`rebuild/strategies/extrude.ts`) instead of grouping within `types/` — rejected: each param type
+crosses the worker boundary and is imported by UI panels too (`ExtrudePanel.tsx`), so co-locating it
+in the engine layer would violate the UI→engine layer boundary in `CLAUDE.md`, and several params
+(Extrude, Revolve, …) are read from ≥2 engine files anyway, so there's no single "the" owner file.
+
+Left `worker/types/requests|responses` (27 DTO files) untouched — `src/worker/types/messages.ts`
+(landed under candidate #1, the typed call registry) explicitly documents those DTOs as "the source
+of truth for each message's shape" for its in-flight `call()` registry; grouping them now would
+conflict with that ongoing work.
+
+A `/simplify` pass (4 parallel review agents: reuse, simplification, efficiency, altitude) on the
+first cut of this refactor found no duplication and confirmed the type-only `shapeRefs.ts`↔
+`Fingerprint.ts` cycle is bundler-erased (benign), but flagged several leftover single-declaration
+files that survived the merge (`BooleanParams.ts`, `OperationCategory.ts`, `SketchElementType.ts`,
+`SketchEdgeData.ts`) and one concern-mixing group (`shapeRefs.ts` bolting core ref types onto two
+narrow rebuild-enrichment DTOs) — all folded in as described above. `CADState`'s UI-altitude fields
+living alongside the persisted domain model in `projectShapes.ts` was flagged as worth watching but
+left as-is (not an active problem, no clear better home yet).
+
+Verified with `tsc --noEmit` (clean), `bun run build`, `bun run test` (71 files / 615 tests, all
+pass), `bun run lint` (449 problems vs. 450 on `main` baseline — no new issues, one incidentally
+fixed), and live in-browser: Front Plane → Sketch mode → Corner Rectangle → Finish Sketch → Extrude
+Boss → Apply produced a real 6-face/12-edge box (Entities panel), no console errors (an earlier
+transient "conflicting star exports for OperationCategory" was caused by testing against a
+mid-edit tree and does not reproduce on the finished, stationary code).

@@ -2,13 +2,9 @@ import type { OpenCascadeInstance, TopoDS_Shape, TopoDS_Edge, TopoDS_Vertex } fr
 import { Sketch } from '../../types/sketch/Sketch';
 import { SketchPrimitive } from '../../types/sketch/SketchPrimitive';
 import { Workplane } from '../../types/sketch/Workplane';
-import { Point2D } from '../../types/geometry/Point2D';
-import { Point3D } from '../../types/geometry/Point3D';
-import { GeometryRef } from '../../types/geometry/GeometryRef';
-import { StableRef } from '../../types/geometry/StableRef';
-import { SketchRefEnrichment } from '../../types/geometry/SketchRefEnrichment';
-import { SubShapeKind } from '../../types/geometry/SubShapeKind';
-import { toStableRef, parseRefString } from '../../types/geometry/Fingerprint';
+import { Point2D, Point3D } from '../../types/geometry/primitives';
+import { GeometryRef, StableRef, SubShapeKind } from '../../types/geometry/shapeRefs';
+import { toStableRef, parseRefString, SketchRefEnrichment } from '../../types/geometry/Fingerprint';
 import { project } from './coordinateSystem';
 import { WorkerContext } from '../workerContext';
 import { fingerprintAll, resolveAgainst } from '../fingerprint';

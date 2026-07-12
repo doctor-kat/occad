@@ -1,8 +1,13 @@
-import { ShapeReference } from '../geometry/ShapeReference';
+import { ShapeReference } from '../geometry/shapeRefs';
 import { Workplane } from './Workplane';
 import { SketchElement } from './SketchElement';
 import type { SketchPrimitive } from './SketchPrimitive';
 import type { SketchVisualMetadata } from './SketchVisualMetadata';
+
+/** Per-sketch edge vertex data for wireframe rendering */
+export interface SketchEdgeData {
+  edgeVertices: Float32Array;
+}
 
 export interface Sketch {
   id: string;
