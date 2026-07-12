@@ -13,6 +13,9 @@ import { OperationCategory } from '@/cad/types';
 import type { FeatureOperation, TransformOperation, SketchOperation } from '@/cad/types';
 import { useCADLayoutContext } from '../CADLayoutContext';
 import { useCadLayoutUiStore } from '../cadLayoutUiStore';
+import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { useProject, useFeatureTree, useRollbackBarIndex } from '@/frontend/shared/useProjectState';
+import { projectApi } from '@/frontend/shared/projectApi';
 
 // Left Sidebar: OperationPanel (when a non-sketch operation is active) stacked
 // above a Feature Tree / Entities / Measure tab set. Reads its own UI state
@@ -21,13 +24,17 @@ import { useCadLayoutUiStore } from '../cadLayoutUiStore';
 // everything else (project, handlers) from CADLayoutContext.
 export function CADSidebar() {
   const {
-    theme, cadState, activeSketch, occ, sketchEditing, viewportSelection, operationPanel, onSelectTreeItem,
+    theme, activeSketch, occ, sketchEditing, viewportSelection, operationPanel, onSelectTreeItem,
   } = useCADLayoutContext();
-  const {
-    project, isSidebarOpen, toggleSidebar, selectedTreeItem, activeSketchId, activeOperation, featureTree,
-    toggleTreeItemExpansion, toggleTreeItemVisibility, deleteTreeItem, reorderFeatureRelative,
-    rollbackBarIndex, moveRollbackBar,
-  } = cadState;
+  const project = useProject();
+  const featureTree = useFeatureTree();
+  const rollbackBarIndex = useRollbackBarIndex();
+  const isSidebarOpen = useViewportStore((s) => s.isSidebarOpen);
+  const toggleSidebar = useViewportStore((s) => s.toggleSidebar);
+  const selectedTreeItem = useViewportStore((s) => s.selectedTreeItem);
+  const activeSketchId = useViewportStore((s) => s.activeSketchId);
+  const activeOperation = useViewportStore((s) => s.activeOperation);
+  const { toggleTreeItemExpansion, toggleTreeItemVisibility, deleteTreeItem, reorderFeatureRelative, moveRollbackBar } = projectApi;
 
   const activeSidebarTab = useCadLayoutUiStore((s) => s.activeSidebarTab);
   const setActiveSidebarTab = useCadLayoutUiStore((s) => s.setActiveSidebarTab);

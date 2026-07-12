@@ -1,40 +1,30 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { notifications } from '@mantine/notifications';
 import * as occClient from '@/worker/bridge/occWorkerClient';
 import { useOccStore } from '@/frontend/shared/occStore';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { projectApi } from '@/frontend/shared/projectApi';
 import { syncElementsFromPrimitives } from '@/cad/engine/sketch/syncElementsFromPrimitives';
 import { resolveTessellationQuality } from '@/cad/types';
 import { shouldRebuild, type RebuildInputs } from '@/cad/engine/rebuild/rebuildScheduler';
 import type {
   CADProject,
-  Sketch,
   SketchPlane,
   TessellationLevel,
-  FeatureRefEnrichment,
-  SketchRefEnrichment,
 } from '@/cad/types';
 import { PlaneType } from '@/cad/types';
 
 interface UseOCCSyncArgs {
   project: CADProject;
   tessellationLevel: TessellationLevel;
-  addSketch: (name: string, plane: SketchPlane) => Sketch;
-  startSketchEdit: (sketchId: string) => void;
-  selectTreeItem: (id: string | null) => void;
-  updateSketchState: (sketchId: string, sketch: Sketch) => void;
-  applyRefEnrichments: (enrichments: FeatureRefEnrichment[]) => void;
-  applySketchRefEnrichments: (enrichments: SketchRefEnrichment[]) => void;
-  setItemError: (id: string, message: string) => void;
-  clearAllItemErrors: () => void;
 }
 
 /**
  * The remaining irreducible glue between the OCC worker client (occWorkerClient +
- * occStore) and useCADState: forwards worker orchestration events into app state,
- * and drives rebuild/remesh/clear via the pure rebuildScheduler policy. Components
- * read worker output state directly from useOccStore and call occWorkerClient
- * functions imperatively — this hook returns nothing.
+ * occStore) and app state: forwards worker orchestration events into projectApi /
+ * viewportStore, and drives rebuild/remesh/clear via the pure rebuildScheduler
+ * policy. Components read worker output state directly from useOccStore and call
+ * occWorkerClient functions imperatively — this hook returns nothing.
  */
 export function useOCCSync(args: UseOCCSyncArgs): void {
   // Keep a ref to the latest args so the event subscribers (registered once on
@@ -55,7 +45,7 @@ export function useOCCSync(args: UseOCCSyncArgs): void {
             ...solvedSketch,
             elements: syncElementsFromPrimitives(solvedSketch.elements, solvedSketch.primitives),
           };
-          argsRef.current.updateSketchState(sketchId, synced);
+          projectApi.updateSketchState(sketchId, synced);
         }
       }),
 
@@ -71,7 +61,7 @@ export function useOCCSync(args: UseOCCSyncArgs): void {
         const { pendingSketchOnFace, setPendingSketchOnFace } = useViewportStore.getState();
         if (pendingSketchOnFace !== faceId) return;
 
-        const { project, addSketch, startSketchEdit, selectTreeItem, updateSketchState } = argsRef.current;
+        const { project } = argsRef.current;
 
         const plane: SketchPlane = {
           type: PlaneType.CUSTOM,
@@ -81,7 +71,7 @@ export function useOCCSync(args: UseOCCSyncArgs): void {
           normal,
         };
 
-        const newSketch = addSketch(`Sketch ${project.sketches.length + 1}`, plane);
+        const newSketch = projectApi.addSketch(`Sketch ${project.sketches.length + 1}`, plane);
 
         // Import boundary edges as external fixed primitives
         if (boundaryEdges && boundaryEdges.length > 0) {
@@ -94,12 +84,12 @@ export function useOCCSync(args: UseOCCSyncArgs): void {
             sourceId: edgeTag,
           }));
           const updatedSketch = { ...newSketch, primitives: externalPrims };
-          updateSketchState(newSketch.id, updatedSketch);
+          projectApi.updateSketchState(newSketch.id, updatedSketch);
           occClient.buildSketch(updatedSketch);
         }
 
-        startSketchEdit(newSketch.id);
-        selectTreeItem(newSketch.id);
+        projectApi.startSketchEdit(newSketch.id);
+        projectApi.selectTreeItem(newSketch.id);
         notifications.show({
           color: 'blue',
           message: `Sketch created on Face ${faceId + 1} with ${boundaryEdges?.length || 0} imported edges`,
@@ -109,17 +99,17 @@ export function useOCCSync(args: UseOCCSyncArgs): void {
 
       occClient.on('refsEnriched', (enrichments) => {
         // Persist lazily-captured fingerprints (no version bump -> no rebuild loop).
-        argsRef.current.applyRefEnrichments(enrichments);
+        projectApi.applyRefEnrichments(enrichments);
       }),
 
       occClient.on('sketchRefsEnriched', (enrichments) => {
         // Persist external-geometry fingerprints (no version bump). See step 3c.
-        argsRef.current.applySketchRefEnrichments(enrichments);
+        projectApi.applySketchRefEnrichments(enrichments);
       }),
 
       occClient.on('error', (message, featureId) => {
         if (featureId) {
-          argsRef.current.setItemError(featureId, message);
+          useViewportStore.getState().setItemError(featureId, message);
         } else {
           notifications.show({ color: 'red', title: 'Error', message });
           useViewportStore.getState().setPendingSketchOnFace(null);
@@ -151,12 +141,12 @@ export function useOCCSync(args: UseOCCSyncArgs): void {
       case 'clear':
         occClient.clearMesh();
         if (next.version !== 0) {
-          args.clearAllItemErrors();
+          useViewportStore.getState().clearAllItemErrors();
           occClient.rebuild(args.project, resolveTessellationQuality(next.tessellationLevel));
         }
         break;
       case 'rebuild':
-        args.clearAllItemErrors();
+        useViewportStore.getState().clearAllItemErrors();
         occClient.rebuild(args.project, resolveTessellationQuality(next.tessellationLevel));
         break;
       case 'remesh':

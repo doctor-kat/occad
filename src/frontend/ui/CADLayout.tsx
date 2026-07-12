@@ -1,6 +1,7 @@
 import { AppShell, useMantineTheme } from '@mantine/core';
-import { useCADState } from '@/frontend/shared/useCADState';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { projectApi } from '@/frontend/shared/projectApi';
+import { useProject, useActiveSketch } from '@/frontend/shared/useProjectState';
 import { DEFAULT_TESSELLATION_LEVEL } from '@/cad/types';
 import type { TessellationLevel } from '@/cad/types';
 import { useLocalStorage } from '@/frontend/shared/useLocalStorage';
@@ -28,42 +29,26 @@ export function CADLayout() {
   const theme = useMantineTheme();
   const activeSidebarTab = useCadLayoutUiStore((s) => s.activeSidebarTab);
 
-  const cadState = useCADState();
+  // Durable project + derived reads from projectStore; ephemeral UI from
+  // viewportStore; imperative mutations from projectApi. (useCADState is gone —
+  // consumers read the stores directly.)
+  const project = useProject();
+  const activeOperation = useViewportStore((state) => state.activeOperation);
+  const selectedTreeItem = useViewportStore((state) => state.selectedTreeItem);
+  const isSidebarOpen = useViewportStore((state) => state.isSidebarOpen);
+  const activeSketchId = useViewportStore((state) => state.activeSketchId);
+  const selectOperation = useViewportStore((state) => state.selectOperation);
+  const toggleSidebar = useViewportStore((state) => state.toggleSidebar);
   const {
-    project,
-    activeOperation,
-    selectedTreeItem,
-    isSidebarOpen,
-    activeSketchId,
-    selectOperation,
-    selectTreeItem,
-    addSketch,
-    addFeature,
-    updateSketchElements,
-    updateSketchState,
-    addConstraint,
-    removeConstraint,
-    startSketchEdit,
-    stopSketchEdit,
-    updateFeatureParameters,
-    deleteFeature,
-    applyRefEnrichments,
-    applySketchRefEnrichments,
-    undo,
-    redo,
-    toggleSidebar,
-    setItemError,
-    clearAllItemErrors,
-    editTreeItem,
-    importProject,
-    newProject,
-    saveProject,
-    exportProject,
-  } = cadState;
+    selectTreeItem, addSketch, addFeature, updateSketchElements, updateSketchState,
+    addConstraint, removeConstraint, startSketchEdit, stopSketchEdit,
+    updateFeatureParameters, deleteFeature, editTreeItem,
+    importProject, newProject, saveProject, exportProject, undo, redo,
+  } = projectApi;
 
   // The currently-edited sketch, if any — looked up once and reused wherever the
   // active sketch's data (not just its id) is needed.
-  const activeSketch = activeSketchId ? project.sketches.find((s) => s.id === activeSketchId) : undefined;
+  const activeSketch = useActiveSketch();
 
   // Viewport interaction state (from Zustand store)
   const selectedFaceId = useViewportStore((state) => state.selectedFaceId);
@@ -81,18 +66,7 @@ export function CADLayout() {
     DEFAULT_TESSELLATION_LEVEL
   );
 
-  useOCCSync({
-    project,
-    tessellationLevel,
-    addSketch,
-    startSketchEdit,
-    selectTreeItem,
-    updateSketchState,
-    applyRefEnrichments,
-    applySketchRefEnrichments,
-    setItemError,
-    clearAllItemErrors,
-  });
+  useOCCSync({ project, tessellationLevel });
 
   const occStatus = useOccStore((s) => s.status);
   const occProgress = useOccStore((s) => s.progress);
@@ -206,7 +180,6 @@ export function CADLayout() {
     theme,
     headerRef,
     headerHeight,
-    cadState,
     activeSketch,
     viewportSelection2D: {
       selectedFaceId,

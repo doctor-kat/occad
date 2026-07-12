@@ -2,11 +2,23 @@ import { AppShell, Box } from '@mantine/core';
 import { Toolbar } from '../../Toolbar';
 import { OperationsBar } from '../../operations/OperationsBar';
 import { useCADLayoutContext } from '../CADLayoutContext';
+import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { useProjectStore } from '@/frontend/shared/projectStore';
+import { useProject } from '@/frontend/shared/useProjectState';
+import { projectApi } from '@/frontend/shared/projectApi';
 
 // Combined Header: Toolbar (file/undo-redo) + OperationsBar (tabs/operation icons).
 export function CADHeader() {
-  const { theme, headerRef, cadState, tessellationLevel, setTessellationLevel, sketchPlaneSelection, projectIO } = useCADLayoutContext();
-  const { project, activeTab, activeOperation, selectedTreeItem, activeSketchId, switchTab, undo, redo, canUndo, canRedo } = cadState;
+  const { theme, headerRef, tessellationLevel, setTessellationLevel, sketchPlaneSelection, projectIO } = useCADLayoutContext();
+  const project = useProject();
+  const activeTab = useViewportStore((s) => s.activeTab);
+  const activeOperation = useViewportStore((s) => s.activeOperation);
+  const selectedTreeItem = useViewportStore((s) => s.selectedTreeItem);
+  const activeSketchId = useViewportStore((s) => s.activeSketchId);
+  const switchTab = useViewportStore((s) => s.switchTab);
+  const canUndo = useProjectStore((s) => s.canUndo);
+  const canRedo = useProjectStore((s) => s.canRedo);
+  const { undo, redo } = projectApi;
 
   return (
     <AppShell.Header

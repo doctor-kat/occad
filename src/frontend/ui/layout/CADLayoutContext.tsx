@@ -15,7 +15,6 @@ import type {
   TessellationQuality,
 } from '@/cad/types';
 import type { OCCStatus, MeshData } from '@/frontend/shared/occStore';
-import type { useCADState } from '@/frontend/shared/useCADState';
 import type { useMeasurement } from './hooks/useMeasurement';
 import type { useSketchEditing } from './hooks/useSketchEditing';
 import type { useSketchPlaneSelection } from './hooks/useSketchPlaneSelection';
@@ -55,7 +54,6 @@ export interface CADLayoutContextValue {
   theme: MantineTheme;
   headerRef: RefObject<HTMLDivElement>;
   headerHeight: number;
-  cadState: ReturnType<typeof useCADState>;
   activeSketch: Sketch | undefined;
   viewportSelection2D: {
     selectedFaceId: number | null;

@@ -6,15 +6,22 @@ import { SketchConstraintList } from '../../operations/SketchConstraintList';
 import { ViewportContextMenu } from '@/frontend/canvas/contextMenu/ViewportContextMenu';
 import type { SketchOperation } from '@/cad/types';
 import { useCADLayoutContext } from '../CADLayoutContext';
+import { useViewportStore } from '@/frontend/shared/viewportStore';
+import { useProject } from '@/frontend/shared/useProjectState';
+import { projectApi } from '@/frontend/shared/projectApi';
 
 // Main Canvas Area: the 3D viewport, the sketch constraint toolbar/list overlay
 // (shown while sketching), and the right-click viewport context menu.
 export function CADMainCanvas() {
   const {
-    cadState, activeSketch, occ, sketchEditing, sketchPlaneSelection, viewportSelection, operationPanel,
+    activeSketch, occ, sketchEditing, sketchPlaneSelection, viewportSelection, operationPanel,
     onPlaneClick, onSketchClick,
   } = useCADLayoutContext();
-  const { project, activeSketchId, activeOperation, selectedTreeItem, toggleFeatureSuppression } = cadState;
+  const project = useProject();
+  const activeSketchId = useViewportStore((s) => s.activeSketchId);
+  const activeOperation = useViewportStore((s) => s.activeOperation);
+  const selectedTreeItem = useViewportStore((s) => s.selectedTreeItem);
+  const toggleFeatureSuppression = projectApi.toggleFeatureSuppression;
   const occMeshFaceOwners = useOccStore((s) => s.mesh?.faceOwners);
 
   return (
