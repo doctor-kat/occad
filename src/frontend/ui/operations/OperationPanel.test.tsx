@@ -77,6 +77,6 @@ describe("OperationPanel — selector-rule input (ROADMAP §9.1 Phase 3)", () =>
     await waitFor(() => expect(screen.getByText(/Matched/i)).toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "Apply" }));
-    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ selector: "|Z" }));
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ selector: "|Z" }), undefined);
   });
 });

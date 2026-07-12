@@ -1,23 +1,17 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { useState } from 'react';
 import { NumberInput } from '@mantine/core';
 import { TransformOperation, type TransformParams } from '@/cad/types';
-import type { OperationPanelHandle, OperationPanelProps } from './types';
+import { useReportDraft } from './shared/useReportDraft';
+import type { OperationPanelProps } from './types';
 
-export const MovePanel = forwardRef<OperationPanelHandle, OperationPanelProps>(function MovePanel(
-  { onConfirm, onValidChange },
-  ref,
-) {
+export function MovePanel({ onChange }: OperationPanelProps) {
   const [x, setX] = useState(0);
   const [y, setY] = useState(0);
   const [z, setZ] = useState(0);
 
-  useEffect(() => onValidChange(true), [onValidChange]);
-
-  useImperativeHandle(ref, () => ({
-    submit: () => {
-      onConfirm({ type: TransformOperation.MOVE, translation: { x, y, z } } as TransformParams);
-    },
-  }));
+  useReportDraft(onChange, {
+    params: { type: TransformOperation.MOVE, translation: { x, y, z } } as TransformParams,
+  });
 
   return (
     <>
@@ -26,4 +20,4 @@ export const MovePanel = forwardRef<OperationPanelHandle, OperationPanelProps>(f
       <NumberInput label="Z" value={z} onChange={(val) => setZ(Number(val))} size="sm" />
     </>
   );
-});
+}

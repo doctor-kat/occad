@@ -1,31 +1,25 @@
-import { forwardRef, useEffect, useImperativeHandle } from 'react';
 import { Stack, Text } from '@mantine/core';
 import { TransformOperation, type Point3D, type TransformParams, type Vector3D } from '@/cad/types';
-import type { OperationPanelHandle, OperationPanelProps } from './types';
+import { useReportDraft } from './shared/useReportDraft';
+import type { OperationPanelProps } from './types';
 
-export const MirrorPanel = forwardRef<OperationPanelHandle, OperationPanelProps>(function MirrorPanel(
-  { project, ctx, onConfirm, onValidChange },
-  ref,
-) {
+export function MirrorPanel({ project, ctx, onChange }: OperationPanelProps) {
   const plane = project.referenceGeometry.find((r) => r.id === ctx.selectedTreeItem && r.type === 'plane');
-  const isValid = !!plane;
-  useEffect(() => onValidChange(isValid), [isValid, onValidChange]);
 
-  useImperativeHandle(ref, () => ({
-    submit: () => {
-      if (!plane) return;
-      let origin: Point3D = { x: 0, y: 0, z: 0 };
-      let normal: Vector3D = { x: 0, y: 0, z: 1 };
-      if (plane.id === 'front-plane') normal = { x: 0, y: 0, z: 1 };
-      else if (plane.id === 'top-plane') normal = { x: 0, y: 1, z: 0 };
-      else if (plane.id === 'right-plane') normal = { x: 1, y: 0, z: 0 };
+  const origin: Point3D = { x: 0, y: 0, z: 0 };
+  let normal: Vector3D = { x: 0, y: 0, z: 1 };
+  if (plane?.id === 'front-plane') normal = { x: 0, y: 0, z: 1 };
+  else if (plane?.id === 'top-plane') normal = { x: 0, y: 1, z: 0 };
+  else if (plane?.id === 'right-plane') normal = { x: 1, y: 0, z: 0 };
 
-      onConfirm({
-        type: TransformOperation.MIRROR,
-        mirrorPlane: { origin, direction: normal },
-      } as TransformParams);
-    },
-  }));
+  useReportDraft(onChange, plane
+    ? {
+        params: {
+          type: TransformOperation.MIRROR,
+          mirrorPlane: { origin, direction: normal },
+        } as TransformParams,
+      }
+    : null);
 
   return (
     <Stack gap="xs">
@@ -37,4 +31,4 @@ export const MirrorPanel = forwardRef<OperationPanelHandle, OperationPanelProps>
       )}
     </Stack>
   );
-});
+}

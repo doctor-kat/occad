@@ -1,28 +1,20 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Select, Text } from '@mantine/core';
 import type { SweepParams } from '@/cad/types';
-import type { OperationPanelHandle, OperationPanelProps } from './types';
+import { useReportDraft } from './shared/useReportDraft';
+import type { OperationPanelProps } from './types';
 
-export const SweepPanel = forwardRef<OperationPanelHandle, OperationPanelProps>(function SweepPanel(
-  { project, initialParams, onConfirm, onValidChange },
-  ref,
-) {
+export function SweepPanel({ project, initialParams, onChange }: OperationPanelProps) {
   const p = initialParams as SweepParams | undefined;
   const closedSketches = project.sketches.filter((s) => s.isClosed);
 
   const [profileSketchId, setProfileSketchId] = useState(p?.profileSketchId ?? '');
   const [pathSketchId, setPathSketchId] = useState(p?.pathSketchId ?? '');
 
-  const isValid = !!profileSketchId && !!pathSketchId;
-  useEffect(() => onValidChange(isValid), [isValid, onValidChange]);
-
-  useImperativeHandle(ref, () => ({
-    submit: () => {
-      if (!isValid) return;
-      // Pass the profile as the feature's primary sketch (parentIds/edit-resume).
-      onConfirm({ profileSketchId, pathSketchId } as SweepParams, profileSketchId);
-    },
-  }));
+  // Pass the profile as the feature's primary sketch (parentIds/edit-resume).
+  useReportDraft(onChange, profileSketchId && pathSketchId
+    ? { params: { profileSketchId, pathSketchId } as SweepParams, sketchId: profileSketchId }
+    : null);
 
   if (closedSketches.length === 0) {
     return (
@@ -53,4 +45,4 @@ export const SweepPanel = forwardRef<OperationPanelHandle, OperationPanelProps>(
       <Text size="xs" c="dimmed">Sweeps the profile along the path.</Text>
     </>
   );
-});
+}

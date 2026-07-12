@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Button, Stack, Group, Text, Box, useMantineTheme, ActionIcon, Title } from '@mantine/core';
 import { X, Check } from '@phosphor-icons/react';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
 import { OPERATION_PANEL_REGISTRY } from './strategies/registry';
-import type { OperationPanelHandle } from './strategies/types';
+import type { PanelDraft } from './strategies/types';
 import type {
   OperationParams,
   CADProject,
@@ -30,10 +30,12 @@ interface OperationPanelProps {
 /**
  * Thin shell: looks up the operation's self-contained Strategy component in
  * the registry-factory (src/frontend/ui/operations/strategies/) and renders
- * it inside shared header/footer chrome, driving Apply/Cancel through the
- * Strategy's imperative handle. Every FeatureOperation/TransformOperation
- * that can reach this panel is registered; anything missing (e.g. IMPORT,
- * which has no parametric params UI) falls back to a "not implemented" panel.
+ * it inside shared header/footer chrome. The Strategy pushes its current
+ * draft up via `onChange`; the shell just holds the latest draft and drives
+ * Apply/Cancel from it — there is no imperative handle to pull state out of
+ * the Strategy. Every FeatureOperation/TransformOperation that can reach this
+ * panel is registered; anything missing (e.g. IMPORT, which has no
+ * parametric params UI) falls back to a "not implemented" panel.
  */
 export function OperationPanel({
   title,
@@ -53,10 +55,11 @@ export function OperationPanel({
   const selectedVertexIndex = useViewportStore((state) => state.selectedVertexIndex);
 
   const RegisteredPanel = OPERATION_PANEL_REGISTRY[operation];
-  const panelRef = useRef<OperationPanelHandle>(null);
-  const [isValid, setIsValid] = useState(false);
+  const [draft, setDraft] = useState<PanelDraft | null>(null);
 
-  const handleApply = () => panelRef.current?.submit();
+  const handleApply = () => {
+    if (draft) onConfirm(draft.params, draft.sketchId);
+  };
 
   return (
     <Stack gap={0} style={{ backgroundColor: theme.other.colors.background }}>
@@ -77,7 +80,7 @@ export function OperationPanel({
             <ActionIcon variant="subtle" color="gray" onClick={onCancel}>
               <X size={16} />
             </ActionIcon>
-            <ActionIcon variant="filled" color="blue" onClick={handleApply} disabled={!RegisteredPanel || !isValid}>
+            <ActionIcon variant="filled" color="blue" onClick={handleApply} disabled={!RegisteredPanel || !draft}>
               <Check size={16} />
             </ActionIcon>
           </Group>
@@ -88,16 +91,16 @@ export function OperationPanel({
       <Box p={16} style={{ overflowY: 'auto' }}>
         <Stack gap="md">
           {RegisteredPanel ? (
+            // key resets the draft on operation switch: the remounted panel's first report overwrites it.
             <RegisteredPanel
-              ref={panelRef}
+              key={operation}
               operation={operation}
               project={project}
               ctx={{ selectedFaceId, selectedEdgeIndex, selectedVertexIndex, selectedTreeItem }}
               initialParams={initialParams}
               initialSketchId={initialSketchId}
               onResolveSelector={onResolveSelector}
-              onConfirm={onConfirm}
-              onValidChange={setIsValid}
+              onChange={setDraft}
             />
           ) : (
             <Text size="sm">Operation parameters for {operation} not yet implemented.</Text>
@@ -111,7 +114,7 @@ export function OperationPanel({
           <Button variant="subtle" size="sm" onClick={onCancel}>
             Cancel
           </Button>
-          <Button size="sm" onClick={handleApply} disabled={!RegisteredPanel || !isValid}>
+          <Button size="sm" onClick={handleApply} disabled={!RegisteredPanel || !draft}>
             Apply
           </Button>
         </Group>

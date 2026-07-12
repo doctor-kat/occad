@@ -1,27 +1,19 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Checkbox, MultiSelect, Text } from '@mantine/core';
 import type { LoftParams } from '@/cad/types';
-import type { OperationPanelHandle, OperationPanelProps } from './types';
+import { useReportDraft } from './shared/useReportDraft';
+import type { OperationPanelProps } from './types';
 
-export const LoftPanel = forwardRef<OperationPanelHandle, OperationPanelProps>(function LoftPanel(
-  { project, initialParams, onConfirm, onValidChange },
-  ref,
-) {
+export function LoftPanel({ project, initialParams, onChange }: OperationPanelProps) {
   const p = initialParams as LoftParams | undefined;
   const closedSketches = project.sketches.filter((s) => s.isClosed);
 
   const [sketchIds, setSketchIds] = useState<string[]>(p?.sketchIds ?? []);
   const [ruled, setRuled] = useState(!!p?.ruled);
 
-  const isValid = sketchIds.length >= 2;
-  useEffect(() => onValidChange(isValid), [isValid, onValidChange]);
-
-  useImperativeHandle(ref, () => ({
-    submit: () => {
-      if (!isValid) return;
-      onConfirm({ sketchIds, ruled } as LoftParams, sketchIds[0]);
-    },
-  }));
+  useReportDraft(onChange, sketchIds.length >= 2
+    ? { params: { sketchIds, ruled } as LoftParams, sketchId: sketchIds[0] }
+    : null);
 
   if (closedSketches.length < 2) {
     return (
@@ -45,4 +37,4 @@ export const LoftPanel = forwardRef<OperationPanelHandle, OperationPanelProps>(f
       <Text size="xs" c="dimmed">Lofts a solid through the profiles in the selected order.</Text>
     </>
   );
-});
+}

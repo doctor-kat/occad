@@ -1,15 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { useState } from 'react';
 import { MultiSelect, NumberInput, Text } from '@mantine/core';
 import { refLabel, SubShapeKind, type FilletParams } from '@/cad/types';
 import { useEdgeSelection } from './shared/useSubShapeSelection';
 import { SelectorRuleInput } from './shared/SelectorRuleInput';
 import { EDGE_SELECTOR_PRESETS } from './shared/selectorPresets';
-import type { OperationPanelHandle, OperationPanelProps } from './types';
+import { useReportDraft } from './shared/useReportDraft';
+import type { OperationPanelProps } from './types';
 
-export const FilletPanel = forwardRef<OperationPanelHandle, OperationPanelProps>(function FilletPanel(
-  { ctx, initialParams, onResolveSelector, onConfirm, onValidChange },
-  ref,
-) {
+export function FilletPanel({ ctx, initialParams, onResolveSelector, onChange }: OperationPanelProps) {
   const p = initialParams as FilletParams | undefined;
   const [radius, setRadius] = useState(p?.radius ?? 25);
   const [selectedEdges, setSelectedEdges] = useEdgeSelection(
@@ -18,15 +16,9 @@ export const FilletPanel = forwardRef<OperationPanelHandle, OperationPanelProps>
   );
   const [liveSelector, setLiveSelector] = useState<string | undefined>(p?.selector);
 
-  const isValid = selectedEdges.length > 0;
-  useEffect(() => onValidChange(isValid), [isValid, onValidChange]);
-
-  useImperativeHandle(ref, () => ({
-    submit: () => {
-      if (!isValid) return;
-      onConfirm({ radius, edges: selectedEdges, selector: liveSelector } as FilletParams);
-    },
-  }));
+  useReportDraft(onChange, selectedEdges.length > 0
+    ? { params: { radius, edges: selectedEdges, selector: liveSelector } as FilletParams }
+    : null);
 
   return (
     <>
@@ -52,4 +44,4 @@ export const FilletPanel = forwardRef<OperationPanelHandle, OperationPanelProps>
       <Text size="xs" c="dimmed">Click edges in the viewport to add them.</Text>
     </>
   );
-});
+}

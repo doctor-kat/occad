@@ -1,15 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, NumberInput, Select } from '@mantine/core';
 import { FeatureOperation, type ExtrudeParams } from '@/cad/types';
 import { useViewportStore } from '@/frontend/shared/viewportStore.ts';
 import { useDefaultSketchId } from './shared/useDefaultSketchId';
-import type { OperationPanelHandle, OperationPanelProps } from './types';
+import { useReportDraft } from './shared/useReportDraft';
+import type { OperationPanelProps } from './types';
 
 /** Serves both EXTRUDE_BOSS and EXTRUDED_CUT — `isCut` is derived from `operation`. */
-export const ExtrudePanel = forwardRef<OperationPanelHandle, OperationPanelProps>(function ExtrudePanel(
-  { operation, project, ctx, initialParams, initialSketchId, onConfirm, onValidChange },
-  ref,
-) {
+export function ExtrudePanel({ operation, project, ctx, initialParams, initialSketchId, onChange }: OperationPanelProps) {
   const p = initialParams as ExtrudeParams | undefined;
   const closedSketches = project.sketches.filter((s) => s.isClosed);
 
@@ -18,8 +16,10 @@ export const ExtrudePanel = forwardRef<OperationPanelHandle, OperationPanelProps
   const [direction, setDirection] = useState<'normal' | 'reverse'>(p ? (p.distance >= 0 ? 'normal' : 'reverse') : 'normal');
 
   const isCut = operation === FeatureOperation.EXTRUDED_CUT;
-  const isValid = !!sketchId;
-  useEffect(() => onValidChange(isValid), [isValid, onValidChange]);
+
+  useReportDraft(onChange, sketchId
+    ? { params: { distance: direction === 'reverse' ? -distance : distance, isCut } as ExtrudeParams, sketchId }
+    : null);
 
   // Live extrude preview in the viewport, cleared on unmount/param change.
   const setExtrudePreview = useViewportStore((state) => state.setExtrudePreview);
@@ -31,13 +31,6 @@ export const ExtrudePanel = forwardRef<OperationPanelHandle, OperationPanelProps
     }
     return () => setExtrudePreview(null);
   }, [sketchId, distance, direction, setExtrudePreview]);
-
-  useImperativeHandle(ref, () => ({
-    submit: () => {
-      if (!isValid) return;
-      onConfirm({ distance: direction === 'reverse' ? -distance : distance, isCut } as ExtrudeParams, sketchId);
-    },
-  }));
 
   if (closedSketches.length === 0) {
     return (
@@ -70,4 +63,4 @@ export const ExtrudePanel = forwardRef<OperationPanelHandle, OperationPanelProps
       />
     </>
   );
-});
+}

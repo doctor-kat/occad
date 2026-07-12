@@ -1,15 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { useState } from 'react';
 import { MultiSelect, NumberInput, Text } from '@mantine/core';
 import { refLabel, SubShapeKind, type ChamferParams } from '@/cad/types';
 import { useEdgeSelection } from './shared/useSubShapeSelection';
 import { SelectorRuleInput } from './shared/SelectorRuleInput';
 import { EDGE_SELECTOR_PRESETS } from './shared/selectorPresets';
-import type { OperationPanelHandle, OperationPanelProps } from './types';
+import { useReportDraft } from './shared/useReportDraft';
+import type { OperationPanelProps } from './types';
 
-export const ChamferPanel = forwardRef<OperationPanelHandle, OperationPanelProps>(function ChamferPanel(
-  { ctx, initialParams, onResolveSelector, onConfirm, onValidChange },
-  ref,
-) {
+export function ChamferPanel({ ctx, initialParams, onResolveSelector, onChange }: OperationPanelProps) {
   const p = initialParams as ChamferParams | undefined;
   const [distance, setDistance] = useState(p?.distance ?? 10);
   const [selectedEdges, setSelectedEdges] = useEdgeSelection(
@@ -18,15 +16,9 @@ export const ChamferPanel = forwardRef<OperationPanelHandle, OperationPanelProps
   );
   const [liveSelector, setLiveSelector] = useState<string | undefined>(p?.selector);
 
-  const isValid = selectedEdges.length > 0;
-  useEffect(() => onValidChange(isValid), [isValid, onValidChange]);
-
-  useImperativeHandle(ref, () => ({
-    submit: () => {
-      if (!isValid) return;
-      onConfirm({ distance, edges: selectedEdges, selector: liveSelector } as ChamferParams);
-    },
-  }));
+  useReportDraft(onChange, selectedEdges.length > 0
+    ? { params: { distance, edges: selectedEdges, selector: liveSelector } as ChamferParams }
+    : null);
 
   return (
     <>
@@ -52,4 +44,4 @@ export const ChamferPanel = forwardRef<OperationPanelHandle, OperationPanelProps
       <Text size="xs" c="dimmed">Click edges in the viewport to add them.</Text>
     </>
   );
-});
+}

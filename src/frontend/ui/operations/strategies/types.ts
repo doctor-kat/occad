@@ -1,4 +1,4 @@
-import type { ForwardRefExoticComponent, RefAttributes } from 'react';
+import type { FC } from 'react';
 import type {
   CADProject,
   FeatureOperation,
@@ -17,12 +17,21 @@ export interface SelectionContext {
   selectedTreeItem?: string | null;
 }
 
+/** The panel's current complete params, reported to the shell via `onChange`. */
+export interface PanelDraft {
+  params: OperationParams;
+  sketchId?: string;
+}
+
 /**
  * Props every operation-panel Strategy component receives. Each Strategy owns
  * its own local state (lazy-initialized from `initialParams`/`ctx`) and is
- * responsible for its own field rendering, validation, and params construction
- * — the shell (`OperationPanel`) only renders it and drives Apply/Cancel
- * through the imperative handle below.
+ * responsible for its own field rendering and validation — the shell
+ * (`OperationPanel`) only renders it and drives Apply/Cancel through a
+ * push-based contract: the Strategy calls `onChange` with a `PanelDraft`
+ * whenever its internal state produces a complete, valid set of params, or
+ * with `null` while invalid/incomplete. There is no imperative handle; the
+ * shell never reaches into the Strategy to pull state out.
  */
 export interface OperationPanelProps {
   /** Exact enum variant being rendered — needed by Strategies that serve more than one
@@ -33,16 +42,8 @@ export interface OperationPanelProps {
   initialParams?: OperationParams;
   initialSketchId?: string;
   onResolveSelector?: (kind: SubShapeKind, selector: string) => Promise<StableRef[]>;
-  onConfirm: (params: OperationParams, sketchId?: string) => void;
-  /** Called whenever the panel's internal validity changes, so the shell can enable/disable Apply. */
-  onValidChange: (valid: boolean) => void;
+  /** Report the panel's current complete params (or null while invalid) whenever internal state changes. */
+  onChange: (draft: PanelDraft | null) => void;
 }
 
-export interface OperationPanelHandle {
-  /** Builds params from current internal state and calls onConfirm. No-op if invalid. */
-  submit: () => void;
-}
-
-export type OperationPanelComponent = ForwardRefExoticComponent<
-  OperationPanelProps & RefAttributes<OperationPanelHandle>
->;
+export type OperationPanelComponent = FC<OperationPanelProps>;
