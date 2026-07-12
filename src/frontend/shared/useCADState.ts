@@ -5,7 +5,6 @@ import {
   PlanegcsConstraint,
   CADProject,
   CADState,
-  Operation,
   OperationCategory,
   Sketch,
   Feature,
@@ -16,7 +15,6 @@ import {
   SketchElementType,
   OperationParams,
   ShapeReference,
-  RebuildState,
   FeatureRefEnrichment,
   SketchRefEnrichment,
   createNewProject,
@@ -170,21 +168,17 @@ function migrateProject(raw: CADProject): CADProject {
 export function useCADState() {
   const [rawProject, setProject] = useLocalStorage<CADProject>(STORAGE_KEY, createNewProject());
   const project = useMemo(() => migrateProject(rawProject), [rawProject]);
-  const [activeTab, setActiveTab] = useState<OperationCategory>(OperationCategory.PRIMITIVES);
-  const [activeOperation, setActiveOperation] = useState<Operation>(null);
-  // Backed by viewportStore (not local useState) so FeatureTree/TreeItem can read
-  // it directly without threading it through props at every recursion depth —
-  // see featureTreeUiStore.ts. This hook remains the only place that mutates it
-  // via the toggle-aware `selectTreeItem` below.
+  // Ephemeral UI state is backed by viewportStore (not local useState) so any
+  // component can read it directly without threading it through props at every
+  // depth. This hook delegates its mutating helpers to the store's actions.
+  const activeTab = useViewportStore((s) => s.activeTab);
+  const activeOperation = useViewportStore((s) => s.activeOperation);
   const selectedTreeItem = useViewportStore((s) => s.selectedTreeItem);
   const setSelectedTreeItem = useViewportStore((s) => s.setSelectedTreeItem);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeSketchId, setActiveSketchId] = useState<string | null>(null);
-  const [rebuildState, setRebuildState] = useState<RebuildState>({
-    isRebuilding: false,
-    progress: 0,
-  });
-  const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
+  const isSidebarOpen = useViewportStore((s) => s.isSidebarOpen);
+  const activeSketchId = useViewportStore((s) => s.activeSketchId);
+  const setActiveSketchId = useViewportStore((s) => s.setActiveSketchId);
+  const itemErrors = useViewportStore((s) => s.itemErrors);
 
   // --- Snapshot undo/redo (step 4) -----------------------------------------
   // Every model edit funnels through the single immutable `setProject` and bumps
@@ -373,16 +367,9 @@ export function useCADState() {
     });
   }, [setProject]);
 
-  // Operation selection
-  const selectOperation = useCallback((operation: Operation) => {
-    setActiveOperation((current) => (current === operation ? null : operation));
-  }, []);
-
-  // Tab switching
-  const switchTab = useCallback((tab: OperationCategory) => {
-    setActiveTab(tab);
-    setActiveOperation(null);
-  }, []);
+  // Operation selection / tab switching — delegate to viewportStore.
+  const selectOperation = useViewportStore((s) => s.selectOperation);
+  const switchTab = useViewportStore((s) => s.switchTab);
 
   // Tree item selection
   const toggleSelectedTreeItem = useViewportStore((s) => s.toggleSelectedTreeItem);
@@ -523,37 +510,37 @@ export function useCADState() {
   }, [setProject]);
 
   // Start editing a sketch (enters sketch mode)
+  const setActiveTab = useViewportStore((s) => s.setActiveTab);
   const startSketchEdit = useCallback((sketchId: string) => {
     setActiveSketchId(sketchId);
     setActiveTab(OperationCategory.SKETCH);
-  }, []);
+  }, [setActiveSketchId, setActiveTab]);
 
   // Stop editing sketch (exits sketch mode)
   // If the sketch has no elements, remove it from the project
   const stopSketchEdit = useCallback(() => {
-    setActiveSketchId((currentSketchId) => {
-      if (currentSketchId) {
-        setProject((prev) => {
-          const sketch = prev.sketches.find((s) => s.id === currentSketchId);
-          if (sketch && (!sketch.elements || sketch.elements.length === 0) && (!sketch.primitives || sketch.primitives.length === 0)) {
-            return {
-              ...prev,
-              version: prev.version + 1,
-              updatedAt: Date.now(),
-              sketches: prev.sketches.filter((s) => s.id !== currentSketchId),
-            };
-          }
-          // Increment version even if not deleted so a rebuild is triggered to build the sketch geometry
+    const currentSketchId = useViewportStore.getState().activeSketchId;
+    if (currentSketchId) {
+      setProject((prev) => {
+        const sketch = prev.sketches.find((s) => s.id === currentSketchId);
+        if (sketch && (!sketch.elements || sketch.elements.length === 0) && (!sketch.primitives || sketch.primitives.length === 0)) {
           return {
             ...prev,
             version: prev.version + 1,
             updatedAt: Date.now(),
+            sketches: prev.sketches.filter((s) => s.id !== currentSketchId),
           };
-        });
-      }
-      return null;
-    });
-  }, [setProject]);
+        }
+        // Increment version even if not deleted so a rebuild is triggered to build the sketch geometry
+        return {
+          ...prev,
+          version: prev.version + 1,
+          updatedAt: Date.now(),
+        };
+      });
+    }
+    setActiveSketchId(null);
+  }, [setProject, setActiveSketchId]);
 
   // Delete sketch
   const deleteSketch = useCallback((sketchId: string) => {
@@ -783,11 +770,12 @@ export function useCADState() {
   }, [setProject]);
 
   // Create new project
+  const setActiveOperation = useViewportStore((s) => s.setActiveOperation);
   const newProject = useCallback(() => {
     setProject(createNewProject());
     setSelectedTreeItem(null);
     setActiveOperation(null);
-  }, [setProject, setSelectedTreeItem]);
+  }, [setProject, setSelectedTreeItem, setActiveOperation]);
 
   // Export project as JSON
   const exportProject = useCallback(() => {
@@ -815,33 +803,10 @@ export function useCADState() {
     reader.readAsText(file);
   }, [setProject]);
 
-  // Toggle sidebar
-  const toggleSidebar = useCallback(() => {
-    setIsSidebarOpen((prev) => !prev);
-  }, []);
-
-  // Update rebuild state
-  const updateRebuildState = useCallback((state: Partial<RebuildState>) => {
-    setRebuildState((prev) => ({ ...prev, ...state }));
-  }, []);
-
-  // Trigger rebuild (this will be called when project version changes)
-  const triggerRebuild = useCallback(() => {
-    setRebuildState({
-      isRebuilding: true,
-      progress: 0,
-    });
-  }, []);
-
-  // Set an error on a specific tree item (sketch or feature)
-  const setItemError = useCallback((itemId: string, message: string) => {
-    setItemErrors((prev) => ({ ...prev, [itemId]: message }));
-  }, []);
-
-  // Clear all item errors (e.g. before a rebuild)
-  const clearAllItemErrors = useCallback(() => {
-    setItemErrors({});
-  }, []);
+  // Toggle sidebar / item-error tracking — delegate to viewportStore.
+  const toggleSidebar = useViewportStore((s) => s.toggleSidebar);
+  const setItemError = useViewportStore((s) => s.setItemError);
+  const clearAllItemErrors = useViewportStore((s) => s.clearAllItemErrors);
 
   const toggleTreeItemVisibility = useCallback((id: string) => {
     setProject((prev) => {
@@ -914,7 +879,6 @@ export function useCADState() {
     selectedTreeItem,
     isSidebarOpen,
     activeSketchId,
-    rebuildState,
     featureTree,
     rollbackBarIndex,
 
@@ -959,10 +923,6 @@ export function useCADState() {
 
     // UI actions
     toggleSidebar,
-
-    // Rebuild actions
-    updateRebuildState,
-    triggerRebuild,
 
     // Undo / redo (snapshot history)
     undo,

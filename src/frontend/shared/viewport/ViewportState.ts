@@ -2,8 +2,25 @@ import type { BoxMode } from '@/cad/engine/sketch/sketchBoxSelection';
 import type { ContextMenuState } from './ContextMenuState';
 import type { CameraCommand } from './CameraCommand';
 import type { CameraViewType } from '../viewportStore';
+import type { Operation, OperationCategory } from '@/cad/types';
 
 export interface ViewportState {
+  // --- Ephemeral UI state -------------------------------------------------
+  // Transient, non-persisted interaction state. Lives here (not in the project
+  // reducer) so any component can read it without prop-drilling — the same
+  // rationale as selectedTreeItem above.
+
+  /** Active operations-bar category tab (Primitives/Sketch/…). */
+  activeTab: OperationCategory;
+  /** Currently armed operation, or null. Toggling the same op clears it. */
+  activeOperation: Operation;
+  /** Left sidebar expanded/collapsed. */
+  isSidebarOpen: boolean;
+  /** Id of the sketch currently being edited (sketch mode), or null. */
+  activeSketchId: string | null;
+  /** Per-tree-item rebuild error messages, keyed by sketch/feature id. */
+  itemErrors: Record<string, string>;
+
   // Hover state
   hoveredTreeItem: string | null;
   hoveredFaceId: number | null;
@@ -85,4 +102,17 @@ export interface ViewportState {
   requestCameraView: (view: CameraViewType) => void;
   clearSelection: () => void;
   clearHover: () => void;
+
+  // --- Ephemeral UI actions -----------------------------------------------
+  /** Set the category tab without touching the active operation. */
+  setActiveTab: (tab: OperationCategory) => void;
+  /** Switch category tab; also disarms any active operation. */
+  switchTab: (tab: OperationCategory) => void;
+  /** Arm `operation`, or disarm if it's already the active one. */
+  selectOperation: (operation: Operation) => void;
+  setActiveOperation: (operation: Operation) => void;
+  toggleSidebar: () => void;
+  setActiveSketchId: (id: string | null) => void;
+  setItemError: (itemId: string, message: string) => void;
+  clearAllItemErrors: () => void;
 }

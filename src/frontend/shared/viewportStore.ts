@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ViewportState } from './viewport/ViewportState';
+import { OperationCategory } from '@/cad/types';
 
 /** Standard camera framings offered by the empty-space context menu. */
 export enum CameraViewType {
@@ -20,6 +21,11 @@ export function isMultiSelectClick(e: { shiftKey?: boolean; ctrlKey?: boolean; m
 
 export const useViewportStore = create<ViewportState>((set) => ({
   // Initial state
+  activeTab: OperationCategory.PRIMITIVES,
+  activeOperation: null,
+  isSidebarOpen: true,
+  activeSketchId: null,
+  itemErrors: {},
   hoveredTreeItem: null,
   hoveredFaceId: null,
   hoveredEdgeIndex: null,
@@ -84,6 +90,18 @@ export const useViewportStore = create<ViewportState>((set) => ({
     hoveredFaceId: null,
     hoveredEdgeIndex: null,
   }),
+
+  // Ephemeral UI actions
+  setActiveTab: (tab) => set({ activeTab: tab }),
+  switchTab: (tab) => set({ activeTab: tab, activeOperation: null }),
+  selectOperation: (operation) =>
+    set((state) => ({ activeOperation: state.activeOperation === operation ? null : operation })),
+  setActiveOperation: (operation) => set({ activeOperation: operation }),
+  toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+  setActiveSketchId: (id) => set({ activeSketchId: id }),
+  setItemError: (itemId, message) =>
+    set((state) => ({ itemErrors: { ...state.itemErrors, [itemId]: message } })),
+  clearAllItemErrors: () => set({ itemErrors: {} }),
 }));
 
 // Expose the store for debugging and e2e (lets tests drive sketch selection

@@ -95,9 +95,17 @@ describe("CADLayout", () => {
       measurePicks: [],
       betweenMeasurement: null,
     });
-    // selectedTreeItem now also lives in viewportStore (see useCADState.ts) —
-    // same module-level-singleton leak risk as cadLayoutUiStore above.
-    useViewportStore.setState({ selectedTreeItem: null });
+    // selectedTreeItem and the ephemeral UI state (tab/operation/sketch-edit/
+    // errors) now live in viewportStore — same module-level-singleton leak risk
+    // as cadLayoutUiStore above, so reset them between tests.
+    useViewportStore.setState({
+      selectedTreeItem: null,
+      activeTab: OperationCategory.PRIMITIVES,
+      activeOperation: null,
+      isSidebarOpen: true,
+      activeSketchId: null,
+      itemErrors: {},
+    });
   });
 
   it("should render initial project elements", () => {
