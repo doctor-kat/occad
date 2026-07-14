@@ -12,7 +12,10 @@ export * from './sketch/SketchPlane';
 export * from './sketch/Sketch';
 export * from './sketch/SketchPrimitive';
 export * from './sketch/SketchVisualMetadata';
-export * from './sketch/constraints';
+export * from './sketch/constraints/ConstraintKind';
+export * from './sketch/constraints/inputs';
+export * from './sketch/constraints/ConstraintInput';
+export * from './sketch/constraints/PlanegcsConstraint';
 
 // Operations
 export * from './operations/sketchFeatureParams';
