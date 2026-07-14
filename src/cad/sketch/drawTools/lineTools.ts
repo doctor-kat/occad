@@ -1,6 +1,6 @@
 import { SketchElementType } from '@/cad/types';
 import type { SketchElement } from '@/cad/types';
-import { buildMidpointLine } from '@/cad/engine/sketch/sketchShapeBuilders';
+import { buildMidpointLine } from '@/cad/sketch/sketchShapeBuilders';
 import type { DrawToolHandler } from './types';
 
 /** Two-click line: first click sets the start, second sets the end.

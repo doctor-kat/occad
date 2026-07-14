@@ -1,6 +1,6 @@
 import { Sphere } from '@react-three/drei';
 import { Sketch } from '@/cad/types';
-import { lift } from '@/cad/engine/sketch/coordinateSystem';
+import { lift } from '@/cad/sketch/coordinateSystem';
 import { NativePolyline } from '../NativePolyline';
 import { centerPointId } from '../dimensionGeometryUtils';
 

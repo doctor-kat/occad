@@ -1,6 +1,6 @@
 import { SketchElementType } from '@/cad/types';
 import type { SketchElement } from '@/cad/types';
-import { circleFromThreePoints } from '@/cad/engine/sketch/arcGeometry';
+import { circleFromThreePoints } from '@/cad/sketch/arcGeometry';
 import type { DrawToolHandler } from './types';
 
 /** Two-click circle: center, then a point on the circumference sets the radius. */

@@ -26,7 +26,11 @@ types/sketch/constraints/
 - Update `types/index.ts` barrel exports.
 - Verify: `bun run build` + `bun run test`.
 
-### Step 2 — `frontend/canvas/` → `frontend/viewport/`  (STATUS: not started)
+### Step 2 — `frontend/canvas/` → `frontend/viewport/`  ✅ DONE (commit landed)
+NOTE: Vite dev server locks the dir → `git mv` on the directory fails with
+"Permission denied". Workaround used: per-file `git mv` into the new tree, then
+`rm -rf` the empty old dir. Same applies to Step 3 renames while dev server runs.
+
 - `git mv src/frontend/canvas src/frontend/viewport`
 - Update all `@/frontend/canvas` imports → `@/frontend/viewport`.
 - Update CLAUDE.md architecture section.

@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { Text } from '@react-three/drei';
 import { Sketch, Point2D } from '@/cad/types';
-import { lift } from '@/cad/engine/sketch/coordinateSystem';
-import { pointPointDimensionLayout, pointLineDimensionLayout, axisDimensionLayout, type DimensionLayout } from '@/cad/engine/sketch/dimensionLayout';
+import { lift } from '@/cad/sketch/coordinateSystem';
+import { pointPointDimensionLayout, pointLineDimensionLayout, axisDimensionLayout, type DimensionLayout } from '@/cad/sketch/dimensionLayout';
 import { perpUnit, centerPointId } from '../dimensionGeometryUtils';
 import { useDimensionDrag } from '../hooks/useDimensionDrag';
 import { DimensionAnnotation } from './DimensionAnnotation';

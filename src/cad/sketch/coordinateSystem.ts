@@ -1,4 +1,4 @@
-import { Point2D, Point3D, Workplane } from '../../types';
+import { Point2D, Point3D, Workplane } from '../types';
 
 /**
  * lift({x,y}, workplane) → Point3D — computes origin + x*Xdir + y*Ydir

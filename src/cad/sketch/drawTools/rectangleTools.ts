@@ -6,7 +6,7 @@ import {
   buildThreePointCornerRectangle,
   buildThreePointCenterRectangle,
   buildParallelogram,
-} from '@/cad/engine/sketch/sketchShapeBuilders';
+} from '@/cad/sketch/sketchShapeBuilders';
 import type { DrawToolHandler } from './types';
 
 /** Two-click axis-aligned rectangle: opposite corners. */

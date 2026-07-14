@@ -1,4 +1,4 @@
-import type { BoxMode } from '@/cad/engine/sketch/sketchBoxSelection';
+import type { BoxMode } from '@/cad/sketch/sketchBoxSelection';
 import type { ContextMenuState } from './ContextMenuState';
 import type { CameraCommand } from './CameraCommand';
 import type { CameraViewType } from '../viewportStore';

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { Point2D, Sketch, SketchElement } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
-import { projectPointOntoLineSegment } from '@/cad/engine/sketch/elementHitTest';
+import { projectPointOntoLineSegment } from '@/cad/sketch/elementHitTest';
 
 const GRID_SIZE = 10;
 const SNAP_DISTANCE = 5; // Distance threshold for snapping to points/edges

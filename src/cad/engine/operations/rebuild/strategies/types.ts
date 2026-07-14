@@ -1,6 +1,6 @@
 /**
  * Per-operation rebuild strategies — mirrors the tagged-result + registry
- * pattern already used by src/cad/engine/sketch/drawTools/.
+ * pattern already used by src/cad/sketch/drawTools/.
  */
 
 type TopoDS_Shape = any;

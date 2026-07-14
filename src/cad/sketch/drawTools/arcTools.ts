@@ -1,7 +1,7 @@
 import { SketchElementType } from '@/cad/types';
 import type { SketchElement } from '@/cad/types';
-import { centerpointArc, tangentArc } from '@/cad/engine/sketch/arcGeometry';
-import { arcElementFrom, lastEndTangent } from '@/cad/engine/sketch/arcElementFactory';
+import { centerpointArc, tangentArc } from '@/cad/sketch/arcGeometry';
+import { arcElementFrom, lastEndTangent } from '@/cad/sketch/arcElementFactory';
 import type { DrawToolHandler } from './types';
 
 /** Three-point arc: start, end, then a point on the arc sets its bulge. */

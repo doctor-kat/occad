@@ -12,7 +12,7 @@ import type { OpenCascadeInstance, TopoDS_Shape } from 'opencascade.js';
 import type { WorkerRequest } from '@/worker/types';
 import type { WorkerContext } from '@/cad/engine/workerContext';
 import { post } from '@/cad/engine/workerContext';
-import { SketchSolver } from '@/cad/engine/SketchSolver';
+import { SketchSolver } from '@/cad/sketch/SketchSolver';
 import {
   handleBuildSketch,
   handleExtrudeSketch,
