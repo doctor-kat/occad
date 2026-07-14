@@ -6,7 +6,7 @@ import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { projectApi } from '@/frontend/shared/projectApi';
 import { syncElementsFromPrimitives } from '@/cad/sketch/syncElementsFromPrimitives';
 import { resolveTessellationQuality } from '@/cad/types';
-import { shouldRebuild, type RebuildInputs } from '@/cad/engine/rebuild/rebuildScheduler';
+import { shouldRebuild, type RebuildInputs } from '@/cad/solid/rebuild/rebuildScheduler';
 import type {
   CADProject,
   SketchPlane,

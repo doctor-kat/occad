@@ -36,7 +36,7 @@ NOTE: Vite dev server locks the dir → `git mv` on the directory fails with
 - Update CLAUDE.md architecture section.
 - Verify: build + test.
 
-### Step 3 — split `src/cad/engine/`  (STATUS: not started)
+### Step 3 — split `src/cad/engine/`  ✅ DONE (3a + 3b landed)
 Target:
 ```
 src/cad/
@@ -48,6 +48,16 @@ src/cad/
    dimensionHandleHitTest, ConstraintIconPlacement, sketchBoxSelection)
 ```
 Do in two commits: (3a) carve sketch/ + geometry2d/ out of engine/; (3b) rename engine/→solid/.
+
+- 3a ✅ DONE: extracted src/cad/sketch/ (solver + 2D geometry + selection math + drawTools + SketchSolver).
+  Decision: did NOT create a separate geometry2d/ — the pure-2D helpers live alongside the solver in
+  cad/sketch/ (they're the sketch domain; keeping them together is simpler and they share types).
+  Decision: did NOT move screen-space math up to viewport — ScreenPoint/ScreenRect/sketchBoxSelection/
+  constraintAnchors are pure, testable sketch-domain math and stay in cad/sketch/. (Optional future move.)
+  externalGeometry.ts(+test) stays in cad/engine/ (OCC-bound). One OCC ref remains: cad/engine imports
+  @/cad/sketch/coordinateSystem from sketchBuilders.ts + externalGeometry.ts (solid depends on sketch data — OK direction).
+- 3b: rename engine/→solid/ (per-file git mv due to vite lock), replace @/cad/engine -> @/cad/solid,
+  update CLAUDE.md. externalGeometry moves with engine into solid/sketch/ (it's the OCC bridge — fine).
 - Consider pulling constraint pipeline out of CADLayout.tsx into cad/sketch/ (CLAUDE.md debt item).
 - Verify: build + test + browser (per CLAUDE.md 3D-change rule).
 
@@ -55,4 +65,13 @@ Do in two commits: (3a) carve sketch/ + geometry2d/ out of engine/; (3b) rename 
 Separate commit per step (1, 2, 3a, 3b). Commit directly to main (per user pref).
 
 ## Notes / decisions
-- (none yet)
+- ALL THREE STEPS COMPLETE. build + 615 tests green after each.
+- One pre-existing flaky test: SketchRenderer.test.tsx "highlights the dimension … while dragging"
+  fails ~intermittently under full-suite run (viewport-store state leak between tests), passes in
+  isolation. NOT caused by this refactor (pure path renames). Candidate follow-up: reset
+  useViewportStore in that file's afterEach.
+- Optional future work (not done, low priority):
+  * Move sketch-space screen math (ScreenPoint/ScreenRect/sketchBoxSelection/constraintAnchors) up to
+    frontend/viewport/ if we want cad/ to be render-agnostic. Kept in cad/sketch/ (pure + testable).
+  * Pull constraint-solver pipeline out of CADLayout.tsx into cad/sketch/ (CLAUDE.md debt item — still open).
+  * externalGeometry.ts is the lone OCC↔sketch bridge; lives in cad/solid/sketch/.

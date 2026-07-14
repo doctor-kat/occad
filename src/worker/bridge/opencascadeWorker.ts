@@ -10,8 +10,8 @@
 
 import type { OpenCascadeInstance, TopoDS_Shape } from 'opencascade.js';
 import type { WorkerRequest } from '@/worker/types';
-import type { WorkerContext } from '@/cad/engine/workerContext';
-import { post } from '@/cad/engine/workerContext';
+import type { WorkerContext } from '@/cad/solid/workerContext';
+import { post } from '@/cad/solid/workerContext';
 import { SketchSolver } from '@/cad/sketch/SketchSolver';
 import {
   handleBuildSketch,
@@ -24,7 +24,7 @@ import {
   handleExportShape,
   handleMeasureShape,
   handleMeasureBetween,
-} from '@/cad/engine/operations';
+} from '@/cad/solid/operations';
 
 const openCascadeWasm = '/opencascade.full.wasm';
 

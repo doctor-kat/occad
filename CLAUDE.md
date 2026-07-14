@@ -57,7 +57,8 @@ The codebase is organized into four strictly separated layers to decouple the UI
     *   `src/frontend/ui/layout/cadLayoutUiStore.ts`: Zustand store for layout-scoped UI state (`activeSidebarTab`, `operationPanelOpen`/`editingFeatureId`, measurement picks).
 
 4.  **`src/cad/` (The Engine)**: Core CAD logic, data models, and the project domain reducer.
-    *   `engine/`: Pure TypeScript wrappers for OpenCascade.js operations (runs inside the worker). `operations/` is split one-operation-per-file with `index.ts` barrels (`sketch/`, `primitives/`, `boolean/`, `rebuild/strategies/`, plus `faceGeometry.ts`/`edgeLoop.ts`/`resolveSelector.ts`/`exportShape.ts`/measure handlers). `modifications/`, `transforms/`, `advancedModeling/`, `analysis/` are similarly split with barrels.
+    *   `solid/`: The OpenCascade.js kernel wrappers — 3D solid modeling only (runs inside the worker). `operations/` is split one-operation-per-file with `index.ts` barrels (`sketch/`, `primitives/`, `boolean/`, `rebuild/strategies/`, plus `faceGeometry.ts`/`edgeLoop.ts`/`resolveSelector.ts`/`exportShape.ts`/measure handlers). `modifications/`, `transforms/`, `advancedModeling/`, `analysis/` are similarly split with barrels. (Formerly `engine/`.)
+    *   `sketch/`: The 2D sketch domain — **independent of OpenCascade** (different wasm runtime). The planegcs constraint solver (`SketchSolver.ts`, `constraintFactory.ts`, `elementsToPrimitives.ts`, `syncElementsFromPrimitives.ts`, `autoConstraints.ts`), pure 2D geometry (`arcGeometry.ts`, `vec2.ts`, `coordinateSystem.ts`, `elementHitTest.ts`, `dimensionLayout.ts`), sketch-space selection/screen math (`ScreenPoint.ts`, `ScreenRect.ts`, `sketchBoxSelection.ts`, `constraintAnchors.ts`), and `drawTools/`. The one OCC-bound exception, `externalGeometry.ts` (sketch↔body reprojection), lives in `solid/sketch/`, not here.
     *   `state/`: The project domain reducer — `projectReducer.ts` (pure `(project, action) => project`), `projectActions.ts` (entity constructors), `projectHelpers.ts` (shared pure helpers), `history.ts` (snapshot undo/redo), `projectSelectors.ts` (derived reads, e.g. `buildFeatureTree`).
     *   `types/`: Foundational CAD types (`CADProject`, `Feature`, `Sketch`, `SketchElement`) and engine output formats (`MeshData`), one-type-per-file grouped into cohesive modules (36 files total), consumed via the `@/cad/types` barrel.
     *   No dependencies on UI or Rendering layers.
@@ -65,7 +66,7 @@ The codebase is organized into four strictly separated layers to decouple the UI
 5.  **`src/worker/` (The Bridge)**: Infrastructure for cross-thread communication.
     *   `bridge/opencascadeWorker.ts`: The Web Worker entry point.
     *   `bridge/occWorkerClient.ts`: Module-level singleton — spawns the Worker once, owns `onmessage`/`call()`/`pendingCalls`, writes `occStore` directly, and exposes imperative ops (`buildSketch`, `extrudeSketch`, `revolveSketch`, `rebuild`, `getFaceGeometry`, `deleteShape`, …) plus an event-subscription API (`on('sketchBuilt', …)` etc.). Being an ES module, it is naturally a singleton — no "instantiate exactly once" footgun.
-    *   `src/frontend/ui/layout/hooks/useOCCSync.ts`: The one remaining React-glue hook — subscribes to `occWorkerClient` events (ref-to-latest-args pattern) and forwards them into `projectApi` setters; drives rebuild/remesh/clear off `src/cad/engine/rebuild/rebuildScheduler.ts`'s `shouldRebuild`. Returns nothing; components read `useOccStore` selectors and call `occWorkerClient` functions directly.
+    *   `src/frontend/ui/layout/hooks/useOCCSync.ts`: The one remaining React-glue hook — subscribes to `occWorkerClient` events (ref-to-latest-args pattern) and forwards them into `projectApi` setters; drives rebuild/remesh/clear off `src/cad/solid/rebuild/rebuildScheduler.ts`'s `shouldRebuild`. Returns nothing; components read `useOccStore` selectors and call `occWorkerClient` functions directly.
     *   `types/`: Strictly defined Request/Response DTOs for message passing (`src/worker/types/messages.ts` documents `CorrelatedCallMap` for the 5 `requestId`-correlated call-style ops: `resolveSelector`/`exportShape`/`measureShape`/`measureBetween`/`getEdgeLoop`; `buildSketch`/`extrudeSketch`/`revolveSketch`/`rebuild` stay event-style).
 
 ### Core Stack
@@ -181,7 +182,7 @@ await occWorkerClient.call('measureShape', requestId, payload); // correlated ca
 
 ### Worker Architecture
 
-OpenCascade runs in a Web Worker (src/worker/bridge/opencascadeWorker.ts). The `occWorkerClient` singleton (src/worker/bridge/occWorkerClient.ts) manages the worker lifecycle and message passing — spawned once at module load, not per-component. Core CAD logic resides in `src/cad/engine/`.
+OpenCascade runs in a Web Worker (src/worker/bridge/opencascadeWorker.ts). The `occWorkerClient` singleton (src/worker/bridge/occWorkerClient.ts) manages the worker lifecycle and message passing — spawned once at module load, not per-component. Core CAD logic resides in `src/cad/solid/`.
 
 **Main Thread → Worker**: `buildSketch`, `extrudeSketch`, `revolveSketch`, `rebuild`, `getFaceGeometry`, `deleteShape` (Types in `src/worker/types/requests/`)
 
@@ -189,7 +190,7 @@ OpenCascade runs in a Web Worker (src/worker/bridge/opencascadeWorker.ts). The `
 
 All mesh data uses transferable ArrayBuffers for zero-copy performance.
 
-**Sketch Geometry → OCC Mapping (src/cad/engine/sketchBuilders.ts):**
+**Sketch Geometry → OCC Mapping (src/cad/solid/sketchBuilders.ts):**
 
 | Sketch Operation | OpenCascade API Used |
 |------------------|---------------------|
@@ -203,7 +204,7 @@ All mesh data uses transferable ArrayBuffers for zero-copy performance.
 
 All edges are combined into a `TopoDS_Wire` via `BRepBuilderAPI_MakeWire`, then converted to a `TopoDS_Face` via `BRepBuilderAPI_MakeFace` (if closed).
 
-**3D Operations → OCC Mapping (src/cad/engine/operations.ts):**
+**3D Operations → OCC Mapping (src/cad/solid/operations.ts):**
 
 | Operation | OpenCascade API |
 |-----------|----------------|
@@ -260,7 +261,7 @@ When removing a hook/import from a file, **scan the entire file for other usages
 ### Adding New Sketch Elements
 
 1. Add type to `SketchElement` union in `src/cad/types/sketch/SketchElement.ts`
-2. Implement builder in src/cad/engine/sketchBuilders.ts
+2. Implement builder in src/cad/solid/sketchBuilders.ts
 3. Add operation icon/handler to OperationsBar
 4. Add drawing logic to `SketchOverlay`
 
@@ -268,11 +269,11 @@ When removing a hook/import from a file, **scan the entire file for other usages
 
 1. Add feature type to `FeatureOperation` and parameter interface in `src/cad/types/operations/` (e.g. `sketchFeatureParams.ts`/`modificationParams.ts`/`OperationParams.ts` depending on category)
 2. Add worker message type to `src/worker/types/requests/` and `responses/`
-3. Implement handler under `src/cad/engine/operations/` (add a new file in the relevant subfolder — `sketch/`, `primitives/`, `boolean/`, or a sibling top-level module — and export it from that folder's `index.ts` barrel)
-4. Add a `FeatureStrategy` entry to `src/cad/engine/operations/rebuild/strategies/registry.ts` (`FEATURE_STRATEGY_REGISTRY`) for parametric rebuild — a missing entry fails loudly rather than silently no-opping
+3. Implement handler under `src/cad/solid/operations/` (add a new file in the relevant subfolder — `sketch/`, `primitives/`, `boolean/`, or a sibling top-level module — and export it from that folder's `index.ts` barrel)
+4. Add a `FeatureStrategy` entry to `src/cad/solid/operations/rebuild/strategies/registry.ts` (`FEATURE_STRATEGY_REGISTRY`) for parametric rebuild — a missing entry fails loudly rather than silently no-opping
 5. Add UI controls in `OperationsBar` + a new Strategy component under `src/frontend/ui/operations/strategies/`, registered in that folder's `registry.ts`
 
-### Parametric Rebuild (src/cad/engine/operations/rebuild/handleRebuild.ts)
+### Parametric Rebuild (src/cad/solid/operations/rebuild/handleRebuild.ts)
 
 1. Clear all shape storage
 2. **Pass 1**: Rebuild all sketches (wire/face construction)
@@ -283,7 +284,7 @@ When removing a hook/import from a file, **scan the entire file for other usages
 4. Tessellate final body
 5. Send mesh data to viewport
 
-Triggered by incrementing `project.version` and calling `occWorkerClient.rebuild(project)`; `src/cad/engine/rebuild/rebuildScheduler.ts`'s `shouldRebuild` decides whether a project change should trigger a full rebuild, a remesh-only, a clear, or nothing.
+Triggered by incrementing `project.version` and calling `occWorkerClient.rebuild(project)`; `src/cad/solid/rebuild/rebuildScheduler.ts`'s `shouldRebuild` decides whether a project change should trigger a full rebuild, a remesh-only, a clear, or nothing.
 
 ## OCC Features In Use
 
@@ -334,8 +335,8 @@ feature tree, undo/redo history, and a constraint-based sketch solver.
 Legend: ✅ Done & wired end-to-end · 🟡 Partial · ❌ Not started · 🚫 Won't implement
 
 > **How to read this:** a feature is only ✅ when **types + engine + rebuild + UI** all exist. "Engine" =
-> handler in the Web Worker (`src/cad/engine/*`). "Rebuild" = handled by the `FEATURE_STRATEGY_REGISTRY` in
-> `src/cad/engine/operations/rebuild/handleRebuild.ts` for parametric history replay. "UI" = button/panel in
+> handler in the Web Worker (`src/cad/solid/*`). "Rebuild" = handled by the `FEATURE_STRATEGY_REGISTRY` in
+> `src/cad/solid/operations/rebuild/handleRebuild.ts` for parametric history replay. "UI" = button/panel in
 > `OperationsBar`/`OperationPanel`.
 >
 > This section tracks *status*, not history — the detailed fix-by-fix narrative lives in git, not in this
@@ -405,7 +406,7 @@ Everything below is optional. None is started unless noted.
   the prebuilt `opencascade.full.wasm`; needs a custom WASM build.
 - **Model box/crossing select** — model faces/edges/vertices stay single-pick (sketch box/crossing is done).
 - **Shape validity check / shape healing** (`BRepCheck_Analyzer`, `ShapeFix_*`) — not planned.
-- **Boolean exact-history resolution** — `src/cad/engine/history.ts` is a ready scaffold over
+- **Boolean exact-history resolution** — `src/cad/solid/history.ts` is a ready scaffold over
   `BRepTools_History`, but for the current selection model (selection-origin == use-point) fingerprints
   already re-anchor selections across renumbers. Not being built; scaffold left in place.
 - **CadQuery / OCP kernel** — same OCCT kernel we already wrap, no client-side runtime, and we already beat

@@ -2,7 +2,7 @@
  * CAD Operation Handlers
  *
  * Barrel re-exporting the per-operation handlers, primitive builder, and
- * boolean dispatcher. Preserves the historical `@/cad/engine/operations`
+ * boolean dispatcher. Preserves the historical `@/cad/solid/operations`
  * import path used by the worker bridge and tests.
  */
 
