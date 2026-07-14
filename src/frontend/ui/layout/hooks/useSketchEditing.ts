@@ -3,7 +3,7 @@ import { notifications } from '@mantine/notifications';
 import type { CADProject, Sketch, SketchElement, ConstraintInput } from '@/cad/types';
 import { OperationCategory } from '@/cad/types';
 import { mapElementsToPrimitives } from '@/cad/engine/sketch/elementsToPrimitives';
-import { withMidpointPoint } from '@/frontend/canvas/contextMenu/sketchMidpoint';
+import { withMidpointPoint } from '@/frontend/viewport/contextMenu/sketchMidpoint';
 import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/engine/sketch/originPoint';
 import { inferAutoConstraints } from '@/cad/engine/sketch/autoConstraints';
 import { createConstraint } from '@/cad/engine/sketch/constraintFactory';

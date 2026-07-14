@@ -42,7 +42,7 @@ The codebase is organized into four strictly separated layers to decouple the UI
     *   React components, application layout.
     *   Depends on: `src/cad/types` (for data models), `src/worker/bridge` (for engine communication), and `src/frontend/shared`.
 
-2.  **`src/frontend/canvas/` (The Visuals)**: Visualization and rendering layer.
+2.  **`src/frontend/viewport/` (The Visuals)**: Visualization and rendering layer.
     *   Three.js components (`OpenCascadeViewport`) and React-Three-Fiber overlays (`SketchOverlay`).
     *   Depends on: `src/cad/types` (for mesh/edge data formats) and `src/frontend/shared`.
 
@@ -218,8 +218,8 @@ All edges are combined into a `TopoDS_Wire` via `BRepBuilderAPI_MakeWire`, then 
 - **App.tsx**: Providers (src/frontend/ui/App.tsx)
 - **CADLayout**: Thin orchestrator; calls layout hooks (src/frontend/ui/layout/hooks/) in dependency order then composes three layout components (src/frontend/ui/CADLayout.tsx)
   - **CADHeader**, **CADSidebar**, **CADMainCanvas** (src/frontend/ui/layout/components/): zero-prop components reading `CADLayoutContext` + `cadLayoutUiStore`. `CADMainCanvas` renders `OpenCascadeViewport` directly (no `CADViewport` pass-through — that component was deleted).
-- **OpenCascadeViewport**: Three.js viewport orchestrator; reads `mesh`/`status`/`error`/`progress`/`sketchEdges` from `useOccStore` itself (src/frontend/canvas/opencascade/OpenCascadeViewport.tsx), composed from sibling overlay components (`SketchModeControls`, `SketchPlanePrompt`, `SketchConstraintsMenu`, `SketchSelectionBox`, `ViewportEmptyState`) and `OCCModel.tsx`'s scene-graph pieces (`FaceMesh`, `EdgeWireframe`, `EdgeHoverCylinders`, `VertexPoints`).
-- **SketchOverlay**: 3D sketch overlay orchestrator, composed from `canvas/sketch/hooks/` (snapping, dimension tool, box selection, keyboard actions) and `canvas/sketch/components/` (src/frontend/canvas/sketch/SketchOverlay.tsx)
+- **OpenCascadeViewport**: Three.js viewport orchestrator; reads `mesh`/`status`/`error`/`progress`/`sketchEdges` from `useOccStore` itself (src/frontend/viewport/opencascade/OpenCascadeViewport.tsx), composed from sibling overlay components (`SketchModeControls`, `SketchPlanePrompt`, `SketchConstraintsMenu`, `SketchSelectionBox`, `ViewportEmptyState`) and `OCCModel.tsx`'s scene-graph pieces (`FaceMesh`, `EdgeWireframe`, `EdgeHoverCylinders`, `VertexPoints`).
+- **SketchOverlay**: 3D sketch overlay orchestrator, composed from `viewport/sketch/hooks/` (snapping, dimension tool, box selection, keyboard actions) and `viewport/sketch/components/` (src/frontend/viewport/sketch/SketchOverlay.tsx)
 - **FeatureTree**: Hierarchical tree; CRUD/reorder callbacks provided via `FeatureTreeActionsContext`, not prop drilling (src/frontend/ui/FeatureTree/FeatureTree.tsx)
 - **OperationsBar**: Top operations bar (src/frontend/ui/operations/OperationsBar.tsx)
 - **Toolbar**: File/View toolbar (src/frontend/ui/Toolbar.tsx)

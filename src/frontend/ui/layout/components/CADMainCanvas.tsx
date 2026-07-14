@@ -1,9 +1,9 @@
 import { AppShell, Box } from '@mantine/core';
-import { OpenCascadeViewport } from '@/frontend/canvas/opencascade/OpenCascadeViewport';
+import { OpenCascadeViewport } from '@/frontend/viewport/opencascade/OpenCascadeViewport';
 import { useOccStore } from '@/frontend/shared/occStore';
 import { SketchConstraintToolbar } from '../../operations/SketchConstraintToolbar';
 import { SketchConstraintList } from '../../operations/SketchConstraintList';
-import { ViewportContextMenu } from '@/frontend/canvas/contextMenu/ViewportContextMenu';
+import { ViewportContextMenu } from '@/frontend/viewport/contextMenu/ViewportContextMenu';
 import type { SketchOperation } from '@/cad/types';
 import { useCADLayoutContext } from '../CADLayoutContext';
 import { useViewportStore } from '@/frontend/shared/viewportStore';

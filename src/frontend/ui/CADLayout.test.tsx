@@ -37,7 +37,7 @@ vi.mock("@/worker/bridge/occWorkerClient", () => ({
   getEdgeLoop: (...args: any[]) => mockClient.getEdgeLoop(...args),
 }));
 
-vi.mock("@/frontend/canvas/opencascade/OpenCascadeViewport", () => ({
+vi.mock("@/frontend/viewport/opencascade/OpenCascadeViewport", () => ({
   OpenCascadeViewport: (props: any) => (
     <div data-testid="mock-viewport">
       <span data-testid="awaiting-plane">{String(props.awaitingSketchPlane)}</span>
