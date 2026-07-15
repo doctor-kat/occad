@@ -1,4 +1,4 @@
-import type { Point2D } from '@/cad/types';
+import type { Point2D } from '@/cad/types/geometry/primitives';
 
 export interface ResolvedEdge {
   dir: Point2D;

@@ -1,6 +1,6 @@
 import { Html } from '@react-three/drei';
 import { DotsThree } from '@phosphor-icons/react';
-import type { ConstraintIconPlacement } from '@/cad/sketch/ConstraintIconPlacement';
+import type { ConstraintIconPlacement } from '@/cad/types';
 import { CONSTRAINT_ICONS } from '../sketchOverlayConstants';
 
 export interface SketchConstraintBadgesProps {

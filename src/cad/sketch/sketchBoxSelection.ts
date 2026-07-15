@@ -16,8 +16,7 @@ export enum BoxMode {
   Crossing = 'crossing',
 }
 
-import type { ScreenRect } from './ScreenRect';
-import type { ScreenPoint } from './ScreenPoint';
+import type { ScreenRect, ScreenPoint } from '@/cad/types';
 
 /**
  * Drag direction decides the mode (SolidWorks): dragging to the right

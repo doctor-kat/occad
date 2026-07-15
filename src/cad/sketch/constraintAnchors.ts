@@ -1,8 +1,7 @@
 import type { Point2D, SketchElement } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
 import { sub, mid } from './vec2';
-import type { ResolvedEdge } from './ResolvedEdge';
-import type { ConstraintIconPlacement } from './ConstraintIconPlacement';
+import type { ResolvedEdge, ConstraintIconPlacement } from '@/cad/types';
 
 /**
  * Screen anchors for constraint badges. Each sketch constraint (a planegcs object
