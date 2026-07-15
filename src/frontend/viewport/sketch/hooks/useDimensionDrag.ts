@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Sketch, Point2D } from '@/cad/types';
-import { project } from '@/cad/sketch/coordinateSystem';
+import { project } from '@/cad/sketch/geometry';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { DEFAULT_LABEL_DISTANCE } from '../dimensionGeometryUtils';
 

@@ -1,6 +1,6 @@
 import type { OpenCascadeInstance, TopoDS_Shape, TopoDS_Edge, TopoDS_Wire } from 'opencascade.js';
 import { Sketch, SketchPrimitive, Workplane, Point2D, Point3D } from '../types';
-import { lift } from '@/cad/sketch/coordinateSystem';
+import { lift } from '@/cad/sketch/geometry';
 import { WorkerContext } from './workerContext';
 
 /**

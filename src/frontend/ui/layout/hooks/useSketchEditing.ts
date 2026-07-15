@@ -2,12 +2,12 @@ import { useEffect } from 'react';
 import { notifications } from '@mantine/notifications';
 import type { CADProject, Sketch, SketchElement, ConstraintInput } from '@/cad/types';
 import { OperationCategory } from '@/cad/types';
-import { mapElementsToPrimitives } from '@/cad/sketch/elementsToPrimitives';
+import { mapElementsToPrimitives } from '@/cad/sketch/solver';
 import { withMidpointPoint } from '@/frontend/viewport/contextMenu/sketchMidpoint';
-import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/sketch/originPoint';
-import { inferAutoConstraints } from '@/cad/sketch/autoConstraints';
-import { createConstraint } from '@/cad/sketch/constraintFactory';
-import { removeUnit } from '@/cad/sketch/sketchGroups';
+import { withOriginPrimitive, inferOriginCoincidence } from '@/cad/sketch/geometry';
+import { inferAutoConstraints } from '@/cad/sketch/solver';
+import { createConstraint } from '@/cad/sketch/solver';
+import { removeUnit } from '@/cad/sketch/interaction';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { useCadLayoutUiStore } from '../cadLayoutUiStore';
 

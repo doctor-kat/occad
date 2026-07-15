@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SketchElement, SketchOperation } from '@/cad/types';
-import { boxMode, rectFromCorners, selectElementsInBox } from '@/cad/sketch/sketchBoxSelection';
-import { hitsDimensionHandle } from '@/cad/sketch/dimensionHandleHitTest';
+import { boxMode, rectFromCorners, selectElementsInBox } from '@/cad/sketch/interaction';
+import { hitsDimensionHandle } from '@/cad/sketch/interaction';
 
 /**
  * Left-button rubber-band box / crossing selection of sketch entities — active

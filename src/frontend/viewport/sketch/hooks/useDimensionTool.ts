@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ConstraintInput, Sketch } from '@/cad/types';
-import { projectPointOntoLineSegment } from '@/cad/sketch/elementHitTest';
+import { projectPointOntoLineSegment } from '@/cad/sketch/interaction';
 
 export type DimTarget = { id: string; kind: 'point' | 'line' };
 

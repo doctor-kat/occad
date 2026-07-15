@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { SketchSolver } from './SketchSolver';
-import { Sketch, Workplane, PlaneType } from '../types';
+import { Sketch, Workplane, PlaneType } from '@/cad/types';
 
 // Mock the planegcs module
 vi.mock('@salusoft89/planegcs', () => {

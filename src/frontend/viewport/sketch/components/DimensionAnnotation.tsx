@@ -1,8 +1,8 @@
 import { Text } from '@react-three/drei';
 import { Sketch, Point2D } from '@/cad/types';
-import { lift } from '@/cad/sketch/coordinateSystem';
-import { type DimensionLayout } from '@/cad/sketch/dimensionLayout';
-import { DIMENSION_HANDLE_USERDATA_KEY } from '@/cad/sketch/dimensionHandleHitTest';
+import { lift } from '@/cad/sketch/geometry';
+import { type DimensionLayout } from '@/cad/sketch/interaction';
+import { DIMENSION_HANDLE_USERDATA_KEY } from '@/cad/sketch/interaction';
 import { NativePolyline } from '../NativePolyline';
 
 const DIMENSION_HANDLE_USERDATA = { [DIMENSION_HANDLE_USERDATA_KEY]: true };

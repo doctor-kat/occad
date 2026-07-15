@@ -2,7 +2,7 @@
  * Shared helpers and state for the operation handlers.
  */
 
-import { SketchSolver } from '@/cad/sketch/SketchSolver';
+import { SketchSolver } from '@/cad/sketch/solver';
 
 /** Single sketch constraint solver instance shared by all handlers. */
 export const solver = new SketchSolver();

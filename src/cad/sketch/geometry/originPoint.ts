@@ -1,6 +1,6 @@
 import type { SketchElement, Point2D, PlanegcsConstraint } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
-import type { SketchPrimitiveDTO } from './elementsToPrimitives';
+import type { SketchPrimitiveDTO } from '@/cad/sketch/solver';
 
 /**
  * The sketch origin — the (0,0) point of every sketch's workplane, mirroring the

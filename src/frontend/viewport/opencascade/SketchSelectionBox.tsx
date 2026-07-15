@@ -1,6 +1,6 @@
 import { Box, useMantineTheme } from "@mantine/core";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
-import { BoxMode } from "@/cad/sketch/sketchBoxSelection";
+import { BoxMode } from "@/cad/sketch/interaction";
 
 /**
  * Rubber-band overlay for sketch box/crossing selection (screen-space px).

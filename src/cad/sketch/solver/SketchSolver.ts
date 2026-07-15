@@ -1,5 +1,5 @@
 import { init_planegcs_module, GcsWrapper } from '@salusoft89/planegcs';
-import { Sketch, SketchVisualMetadata } from '../types';
+import { Sketch, SketchVisualMetadata } from '@/cad/types';
 
 /**
  * Parametric sketch solver using planegcs.

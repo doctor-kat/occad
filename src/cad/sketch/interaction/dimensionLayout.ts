@@ -1,5 +1,5 @@
 import type { Point2D } from '@/cad/types';
-import { add, sub, scale, length as len, normalize, perp } from './vec2';
+import { add, sub, scale, length as len, normalize, perp } from '@/cad/sketch/geometry';
 
 /**
  * Pure 2D geometry for rendering a CAD-style dimension: two extension (witness)

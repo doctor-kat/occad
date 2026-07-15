@@ -1,6 +1,6 @@
 import type { Point2D, SketchElement } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
-import { sub, mid } from './vec2';
+import { sub, mid } from '@/cad/sketch/geometry';
 import type { ResolvedEdge, ConstraintIconPlacement } from '@/cad/types';
 
 /**

@@ -15,7 +15,7 @@ import {
 import type { ComponentType } from 'react';
 import type { Sketch } from '@/cad/types';
 import { SketchElementType } from '@/cad/types';
-import { buildEntityList, isGroupSelected } from '@/cad/sketch/sketchGroups';
+import { buildEntityList, isGroupSelected } from '@/cad/sketch/interaction';
 import { useViewportStore, isMultiSelectClick } from '@/frontend/shared/viewportStore.ts';
 
 interface SketchEntitiesPanelProps {

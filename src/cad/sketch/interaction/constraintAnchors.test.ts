@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveEntityPoint, constraintAnchor, constraintIconPlacements } from './constraintAnchors';
-import { inferAutoConstraints } from './autoConstraints';
+import { inferAutoConstraints } from '@/cad/sketch/solver';
 import { SketchElementType } from '@/cad/types';
 import type { SketchElement } from '@/cad/types';
 

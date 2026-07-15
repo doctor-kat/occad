@@ -5,7 +5,7 @@ import { Workplane } from '../../types/sketch/Workplane';
 import { Point2D, Point3D } from '../../types/geometry/primitives';
 import { GeometryRef, StableRef, SubShapeKind } from '../../types/geometry/shapeRefs';
 import { toStableRef, parseRefString, SketchRefEnrichment } from '../../types/geometry/Fingerprint';
-import { project } from '@/cad/sketch/coordinateSystem';
+import { project } from '@/cad/sketch/geometry';
 import { WorkerContext } from '../workerContext';
 import { fingerprintAll, resolveAgainst } from '../fingerprint';
 
