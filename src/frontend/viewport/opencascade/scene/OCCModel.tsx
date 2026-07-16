@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { MeshData } from "@/cad/types";
-import { buildFaceGeometry } from "./occGeometry.ts";
+import { buildFaceGeometry } from "../geometry/occGeometry.ts";
 import { FaceMesh } from "./FaceMesh.tsx";
 import { EdgeWireframe } from "./EdgeWireframe.tsx";
 import { EdgeHoverCylinders } from "./EdgeHoverCylinders.tsx";

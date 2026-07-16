@@ -6,16 +6,16 @@ import { useOccStore } from "@/frontend/shared/occStore";
 import { retry as occRetry } from "@/worker/bridge/occWorkerClient";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
 import { useViewportContextMenu } from "../contextMenu/useViewportContextMenu";
-import { Scene } from "./Scene";
-import { SelectionDisplay } from "./SelectionDisplay";
-import { LoadingOverlay } from "./LoadingOverlay";
-import { ErrorOverlay } from "./ErrorOverlay";
+import { Scene } from "./scene/Scene";
+import { SelectionDisplay } from "./scene/SelectionDisplay";
+import { LoadingOverlay } from "./overlays/LoadingOverlay";
+import { ErrorOverlay } from "./overlays/ErrorOverlay";
 import { SketchRenderer } from "../sketch/SketchRenderer";
-import { SketchModeControls } from "./SketchModeControls";
-import { SketchPlanePrompt } from "./SketchPlanePrompt";
-import { SketchConstraintsMenu, type ConstraintType } from "./SketchConstraintsMenu";
-import { SketchSelectionBox } from "./SketchSelectionBox";
-import { ViewportEmptyState } from "./ViewportEmptyState";
+import { SketchModeControls } from "./overlays/SketchModeControls";
+import { SketchPlanePrompt } from "./overlays/SketchPlanePrompt";
+import { SketchConstraintsMenu, type ConstraintType } from "./overlays/SketchConstraintsMenu";
+import { SketchSelectionBox } from "./overlays/SketchSelectionBox";
+import { ViewportEmptyState } from "./overlays/ViewportEmptyState";
 
 export interface OpenCascadeViewportProps {
   /** CAD project to render (if provided, enables parametric mode) */

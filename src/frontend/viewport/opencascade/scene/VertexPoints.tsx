@@ -2,7 +2,7 @@ import { useRef, useMemo, useState } from "react";
 import * as THREE from "three";
 import { ThreeEvent } from "@react-three/fiber";
 import type { MeshData } from "@/cad/types";
-import { useDisableRaycastInSketchMode } from "./useDisableRaycastInSketchMode.ts";
+import { useDisableRaycastInSketchMode } from "../geometry/useDisableRaycastInSketchMode.ts";
 
 export interface VertexPointsProps {
   mesh: MeshData;

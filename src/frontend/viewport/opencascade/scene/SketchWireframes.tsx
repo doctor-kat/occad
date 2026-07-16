@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import type { CADProject, SketchEdgeData } from "@/cad/types";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
-import { computeEdgeSegments } from "./edgeSegments";
+import { computeEdgeSegments } from "../geometry/edgeSegments";
 
 // ---------------------------------------------------------------------------
 // Sketch wireframe — renders a single sketch's edge data as purple lines,

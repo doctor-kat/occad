@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import * as THREE from 'three';
 import { SketchWireframes } from './SketchWireframes';
-import { computeEdgeSegments } from './edgeSegments';
+import { computeEdgeSegments } from '../geometry/edgeSegments';
 import type { CADProject, SketchEdgeData } from '@/cad/types';
 
 describe('computeEdgeSegments', () => {

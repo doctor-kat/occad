@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import * as THREE from "three";
 import type { MeshData } from "@/cad/types";
 import { useViewportStore } from "@/frontend/shared/viewportStore.ts";
-import { groupEdgeSegmentsByEdge } from "./occGeometry.ts";
+import { groupEdgeSegmentsByEdge } from "../geometry/occGeometry.ts";
 
 export interface EdgeWireframeProps {
   mesh: MeshData;

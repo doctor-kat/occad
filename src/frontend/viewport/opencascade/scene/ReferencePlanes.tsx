@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import * as THREE from "three";
 import { ThreeEvent } from "@react-three/fiber";
 import { Text as Text3D } from "@react-three/drei";
-import { PLANE_SIZE, createPlaneCrosshair, createPlaneEdges, isPlaneVisible } from "./referencePlaneGeometry";
+import { PLANE_SIZE, createPlaneCrosshair, createPlaneEdges, isPlaneVisible } from "../geometry/referencePlaneGeometry";
 
 export interface ReferencePlanesProps {
   selectedPlaneId: string | null;
