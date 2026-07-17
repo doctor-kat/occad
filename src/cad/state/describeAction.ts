@@ -153,7 +153,8 @@ function diffParams(prevParams: unknown, nextParams: unknown): string | null {
   }
 
   if (!changes.length) return null;
-  const unit = isPlainObject(nextParams) && typeof (nextParams as any).unit === 'string' ? ` ${(nextParams as any).unit}` : ' mm';
+  // nextParams is already narrowed to a plain object by the guard above.
+  const unit = typeof nextParams.unit === 'string' ? ` ${nextParams.unit}` : ' mm';
   return `${changes.join(', ')}${unit}`;
 }
 

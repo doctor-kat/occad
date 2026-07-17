@@ -30,7 +30,9 @@ function UsageRow({ label, value }: { label: string; value: string }) {
  */
 export function SettingsModal({ opened, onClose }: SettingsModalProps) {
   const projectId = useProjectStore((s) => s.project.id);
-  const historyEntryCount = useProjectStore((s) => s.timeline.entries.length);
+  // The modal is always mounted but the count only matters while it's open —
+  // gating the selector keeps it from re-rendering on every model edit.
+  const historyEntryCount = useProjectStore((s) => (opened ? s.timeline.entries.length : 0));
   const [usage, setUsage] = useState<StorageUsage | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
 
@@ -45,11 +47,10 @@ export function SettingsModal({ opened, onClose }: SettingsModalProps) {
     }
   }, [opened, refresh]);
 
-  const handleClear = () => {
-    projectApi.clearHistory();
+  const handleClear = async () => {
     setConfirmingClear(false);
-    // Give the debounced delete/save a moment, then re-read.
-    setTimeout(refresh, 500);
+    await projectApi.clearHistory();
+    refresh();
   };
 
   return (
@@ -106,7 +107,7 @@ export function SettingsModal({ opened, onClose }: SettingsModalProps) {
                 unchanged. This can't be undone.
               </Text>
               <Group>
-                <Button color="red" onClick={handleClear}>
+                <Button color="red" onClick={() => void handleClear()}>
                   Delete history
                 </Button>
                 <Button variant="default" onClick={() => setConfirmingClear(false)}>

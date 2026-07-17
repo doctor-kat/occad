@@ -56,18 +56,13 @@ async function versionHistoryBytes(projectId: string): Promise<number> {
 
 /** Gather storage usage for the current project. Never throws. */
 export async function getStorageUsage(projectId: string): Promise<StorageUsage> {
-  let totalUsage: number | null = null;
-  let quota: number | null = null;
-  try {
-    if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
-      const est = await navigator.storage.estimate();
-      totalUsage = typeof est.usage === 'number' ? est.usage : null;
-      quota = typeof est.quota === 'number' ? est.quota : null;
-    }
-  } catch {
-    // leave as null
-  }
+  // The origin estimate and the timeline read are independent — run them concurrently.
+  const [estimate, versionHistory] = await Promise.all([
+    estimateOrigin(),
+    versionHistoryBytes(projectId),
+  ]);
 
+  const { totalUsage, quota } = estimate;
   const percentUsed =
     totalUsage != null && quota != null && quota > 0
       ? Math.min(100, (totalUsage / quota) * 100)
@@ -79,9 +74,25 @@ export async function getStorageUsage(projectId: string): Promise<StorageUsage> 
     percentUsed,
     buckets: {
       project: projectBytes(),
-      versionHistory: await versionHistoryBytes(projectId),
+      versionHistory,
     },
   };
+}
+
+/** Origin usage/quota from the Storage API; nulls when unavailable. */
+async function estimateOrigin(): Promise<{ totalUsage: number | null; quota: number | null }> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage?.estimate) {
+      const est = await navigator.storage.estimate();
+      return {
+        totalUsage: typeof est.usage === 'number' ? est.usage : null,
+        quota: typeof est.quota === 'number' ? est.quota : null,
+      };
+    }
+  } catch {
+    // fall through to nulls
+  }
+  return { totalUsage: null, quota: null };
 }
 
 /** Format a byte count as a human-readable string, e.g. "1.4 MB". */

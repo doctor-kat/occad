@@ -26,6 +26,7 @@ import {
 } from '@/cad/state/versionTimeline';
 import {
   loadTimeline,
+  saveTimeline,
   createDebouncedSaver,
   deleteTimeline,
 } from '@/frontend/shared/versionStorage';
@@ -33,17 +34,52 @@ import {
 const STORAGE_KEY = 'occad-project';
 
 /**
- * Actions that represent an in-progress sketch edit. While a sketch session is
- * active these route to the ephemeral Tier-2 stack (live undo/redo) instead of
- * the persistent Tier-1 version timeline, and collapse into a single timeline
- * entry when the sketch is committed (STOP_SKETCH_EDIT).
+ * Which history tier an action belongs to.
+ *
+ * - `sketch`  — an in-progress sketch edit. While a sketch session is active
+ *   these route to the ephemeral Tier-2 stack (live undo/redo) instead of the
+ *   persistent Tier-1 timeline, and collapse into a single timeline entry when
+ *   the sketch is committed (`STOP_SKETCH_EDIT`, which is itself `model`).
+ * - `model`   — a feature-level milestone; appends to the Tier-1 timeline.
+ * - `derived` — never historic (rebuild enrichments, pure UI toggles). These
+ *   don't bump `version`, so they're filtered out before the tier is consulted;
+ *   the entry documents the intent and keeps this map exhaustive.
  */
-const SKETCH_EDIT_ACTIONS = new Set<ProjectAction['type']>([
-  'UPDATE_SKETCH_ELEMENTS',
-  'UPDATE_SKETCH_STATE',
-  'ADD_CONSTRAINT',
-  'REMOVE_CONSTRAINT',
-]);
+type HistoryTier = 'sketch' | 'model' | 'derived';
+
+/**
+ * Exhaustive by construction: this is a `Record` over the action union rather
+ * than a list of "special" types, so adding a `ProjectAction` fails to compile
+ * until its tier is chosen. A missing entry would otherwise silently land a
+ * timeline entry per sketch drag frame.
+ */
+const ACTION_TIER: Record<ProjectAction['type'], HistoryTier> = {
+  UPDATE_SKETCH_ELEMENTS: 'sketch',
+  UPDATE_SKETCH_STATE: 'sketch',
+  ADD_CONSTRAINT: 'sketch',
+  REMOVE_CONSTRAINT: 'sketch',
+
+  ADD_SKETCH: 'model',
+  DELETE_SKETCH: 'model',
+  STOP_SKETCH_EDIT: 'model',
+  ADD_FEATURE: 'model',
+  DELETE_FEATURE: 'model',
+  DELETE_TREE_ITEM: 'model',
+  UPDATE_FEATURE_PARAMETERS: 'model',
+  TOGGLE_FEATURE_SUPPRESSION: 'model',
+  TOGGLE_FEATURE_VISIBILITY: 'model',
+  REORDER_FEATURE: 'model',
+  MOVE_ROLLBACK_BAR: 'model',
+  REPLACE: 'model',
+  TOUCH: 'model',
+
+  UPDATE_SKETCH_GEOMETRY: 'derived',
+  UPDATE_FEATURE_GEOMETRY: 'derived',
+  APPLY_REF_ENRICHMENTS: 'derived',
+  APPLY_SKETCH_REF_ENRICHMENTS: 'derived',
+  TOGGLE_TREE_ITEM_EXPANSION: 'derived',
+  TOGGLE_TREE_ITEM_VISIBILITY: 'derived',
+};
 
 export interface ProjectStore {
   /** The durable, migrated project. The single source of truth for model state. */
@@ -64,7 +100,7 @@ export interface ProjectStore {
   /** Jump the timeline to a version (branch-appends). Ignores in-sketch state. */
   restoreVersion: (id: string) => void;
   /** Clear the version history and start a fresh timeline from the current project. */
-  clearHistory: () => void;
+  clearHistory: () => Promise<void>;
   /** Begin/end an in-sketch editing session (Tier 2 lifecycle). */
   beginSketchSession: () => void;
   endSketchSession: () => void;
@@ -115,20 +151,22 @@ export const useProjectStore = create<ProjectStore>()(
           const next = projectReducer(s.project, action);
           if (next === s.project) return {}; // reducer no-op
 
-          // Non-model edits (derived enrichments, pure UI toggles) keep `version`;
-          // they stay out of history entirely.
-          if (next.version === s.project.version) return { project: next };
-
-          // REPLACE (new project / import) starts a fresh timeline — a restored or
-          // imported project shouldn't inherit the previous project's history.
+          // REPLACE (new project / import) starts a fresh timeline — a new or
+          // imported project must never inherit the previous project's history.
+          // This is checked before the version guard below: a replacement project
+          // can coincidentally carry the same `version` as the outgoing one.
           if (action.type === 'REPLACE') {
             const timeline = createTimeline<CADProject>(next, describeAction(action, s.project, next) || 'Imported project');
             saveTimelineDebounced(next.id, timeline);
             return { project: next, timeline, sketchHistory: emptyHistory<CADProject>(), canUndo: false, canRedo: false };
           }
 
+          // Non-model edits (derived enrichments, pure UI toggles) keep `version`;
+          // they stay out of history entirely.
+          if (next.version === s.project.version) return { project: next };
+
           // In-sketch edits feed the ephemeral Tier-2 stack only.
-          if (s.sketchSessionActive && SKETCH_EDIT_ACTIONS.has(action.type)) {
+          if (s.sketchSessionActive && ACTION_TIER[action.type] === 'sketch') {
             const sketchHistory = record(s.sketchHistory, s.project);
             return { project: next, sketchHistory, canUndo: histCanUndo(sketchHistory), canRedo: histCanRedo(sketchHistory) };
           }
@@ -203,12 +241,15 @@ export const useProjectStore = create<ProjectStore>()(
           };
         }),
 
-      clearHistory: () => {
+      // Awaits the write rather than going through the debouncer: this is an
+      // explicit, one-off user action, and callers (the settings panel) need to
+      // re-read storage usage once it has actually landed.
+      clearHistory: async () => {
         const s = get();
         const timeline = createTimeline<CADProject>(s.project, 'Initial version');
-        void deleteTimeline(s.project.id);
-        saveTimelineDebounced(s.project.id, timeline);
         set({ timeline, canUndo: false, canRedo: false });
+        await deleteTimeline(s.project.id);
+        await saveTimeline(s.project.id, timeline);
       },
 
       beginSketchSession: () =>
@@ -226,11 +267,18 @@ export const useProjectStore = create<ProjectStore>()(
         const projectId = get().project.id;
         const loaded = (await loadTimeline(projectId)) as Timeline<CADProject> | null;
         if (loaded && Array.isArray(loaded.entries) && loaded.entries.length > 0) {
-          set((s) => ({
-            timeline: loaded,
-            canUndo: s.sketchSessionActive ? s.canUndo : canStepBack(loaded),
-            canRedo: s.sketchSessionActive ? s.canRedo : canStepForward(loaded),
-          }));
+          set((s) => {
+            // `merge()` seeds a throwaway single-entry timeline synchronously, then
+            // this lands async. If an edit arrived in between, the in-memory
+            // timeline has already grown past its root and is the newer truth —
+            // adopting the stored copy would discard that edit.
+            if (s.timeline.entries.length > 1) return {};
+            return {
+              timeline: loaded,
+              canUndo: s.sketchSessionActive ? s.canUndo : canStepBack(loaded),
+              canRedo: s.sketchSessionActive ? s.canRedo : canStepForward(loaded),
+            };
+          });
         }
       },
     }),

@@ -123,6 +123,21 @@ describe('projectStore two-tier history', () => {
     expect(s().project.features).toHaveLength(0);
   });
 
+  it('REPLACE starts a fresh timeline even when the new project has the same version', () => {
+    const s = () => useProjectStore.getState();
+    s().dispatch({ type: 'ADD_FEATURE', feature: makeFeature('f1', 'Extrude 1') });
+    expect(s().timeline.entries.length).toBeGreaterThan(1);
+
+    // A replacement project can coincidentally carry the current version number;
+    // it must still not inherit the outgoing project's history.
+    const incoming = { ...createNewProject(), version: s().project.version };
+    s().dispatch({ type: 'REPLACE', project: incoming });
+
+    expect(s().timeline.entries).toHaveLength(1);
+    expect(s().canUndo).toBe(false);
+    expect(s().project.features).toHaveLength(0);
+  });
+
   it('clearHistory resets to a single-entry timeline', () => {
     const s = () => useProjectStore.getState();
     s().dispatch({ type: 'ADD_FEATURE', feature: makeFeature('f1', 'Extrude 1') });

@@ -1,13 +1,19 @@
+import { useMemo } from 'react';
 import { Drawer, Box, Text, Stack, UnstyledButton, Group, Badge, ScrollArea } from '@mantine/core';
 import { ClockCounterClockwise } from '@phosphor-icons/react';
 import { useProjectStore } from '@/frontend/shared/projectStore';
 import { projectApi } from '@/frontend/shared/projectApi';
-import { current as timelineCurrent } from '@/cad/state/versionTimeline';
+import type { Timeline } from '@/cad/state/versionTimeline';
+import type { CADProject } from '@/cad/types';
 
 interface VersionHistoryDrawerProps {
   opened: boolean;
   onClose: () => void;
 }
+
+/** Stable stand-in selected while the drawer is closed, so the selector's
+ *  reference never changes and closed-drawer renders don't fire. */
+const EMPTY_TIMELINE: Timeline<CADProject> = { entries: [], currentId: '' };
 
 /** Relative time like "2 min ago" / "just now". */
 function relativeTime(ts: number): string {
@@ -28,10 +34,12 @@ function relativeTime(ts: number): string {
  * the timeline straight from projectStore.
  */
 export function VersionHistoryDrawer({ opened, onClose }: VersionHistoryDrawerProps) {
-  const timeline = useProjectStore((s) => s.timeline);
+  // The drawer is always mounted, but the timeline changes on every model edit.
+  // Subscribing only while open keeps closed-drawer renders off the edit path.
+  const timeline = useProjectStore((s) => (opened ? s.timeline : EMPTY_TIMELINE));
   const currentId = timeline.currentId;
   // Newest first.
-  const entries = [...timeline.entries].reverse();
+  const entries = useMemo(() => [...timeline.entries].reverse(), [timeline.entries]);
 
   return (
     <Drawer

@@ -174,7 +174,7 @@ export function CADLayout() {
     addFeature,
   });
 
-  useUndoRedoShortcut(activeSketchId, undo, redo);
+  useUndoRedoShortcut(undo, redo);
 
   const contextValue: CADLayoutContextValue = {
     theme,

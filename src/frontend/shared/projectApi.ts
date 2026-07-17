@@ -188,7 +188,9 @@ export const projectApi = {
     if (useViewportStore.getState().activeSketchId) projectApi.stopSketchEdit();
     useProjectStore.getState().restoreVersion(id);
   },
-  clearHistory() {
-    useProjectStore.getState().clearHistory();
+  // Resolves once the cleared timeline has actually been written to IndexedDB,
+  // so callers can re-read storage usage without guessing at a delay.
+  clearHistory(): Promise<void> {
+    return useProjectStore.getState().clearHistory();
   },
 };

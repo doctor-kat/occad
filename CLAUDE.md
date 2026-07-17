@@ -50,7 +50,7 @@ The codebase is organized into four strictly separated layers to decouple the UI
     *   Depends on: `src/cad/types` (for mesh/edge data formats) and `src/frontend/shared`.
 
 3.  **`src/frontend/shared/` (Common State & Utilities)**: Zustand stores and shared logic.
-    *   `projectStore.ts`: Zustand store holding the persisted `CADProject` + undo/redo history behind `dispatch(action)`/`undo`/`redo`; persisted via zustand `persist` (see below).
+    *   `projectStore.ts`: Zustand store holding the persisted `CADProject` + two-tier history behind `dispatch(action)`/`undo`/`redo`/`restoreVersion`; persisted via zustand `persist` (see below).
     *   `occStore.ts`: Zustand store holding worker-output state (`status`/`progress`/`error`/`mesh`/`currentShapeId`/`currentFeatureShapeId`/`sketchEdges`), written directly by `occWorkerClient`.
     *   `viewportStore.ts`: Zustand store for camera, selection, hover state, and ephemeral UI state (`activeTab`, `activeOperation`, `isSidebarOpen`, `activeSketchId`, `selectedTreeItem`, `itemErrors`, etc.).
     *   `useProjectState.ts`: Derived-read hooks over `projectStore` (`useProject`/`useFeatureTree`/`useRollbackBarIndex`/`useActiveSketch`), backed by `src/cad/state/projectSelectors.ts`.
@@ -98,11 +98,35 @@ Cross-Origin-Embedder-Policy: require-corp
 
 Zustand stores, split by durable-vs-ephemeral concern (no Redux, no single mega-hook):
 
-- **`projectStore.ts`** (`src/frontend/shared/`): the durable domain model — `CADProject` (feature history, sketches, reference geometry, version tracking) behind `dispatch(action)` into the pure `src/cad/state/projectReducer.ts`, plus undo/redo (`src/cad/state/history.ts`). Persisted to localStorage under key `'occad-project'` via zustand `persist`, with a migration-tolerant storage layer that still reads the legacy bare-`CADProject` format.
+- **`projectStore.ts`** (`src/frontend/shared/`): the durable domain model — `CADProject` (feature history, sketches, reference geometry, version tracking) behind `dispatch(action)` into the pure `src/cad/state/projectReducer.ts`, plus **two-tier history** (below). Persisted to localStorage under key `'occad-project'` via zustand `persist`, with a migration-tolerant storage layer that still reads the legacy bare-`CADProject` format.
 - **`occStore.ts`** (`src/frontend/shared/`): worker-output state (`status`, `mesh`, `currentShapeId`, `currentFeatureShapeId`, `sketchEdges`, rebuild progress/error), written directly by `occWorkerClient`.
 - **`viewportStore.ts`** (`src/frontend/shared/`): camera, selection, hover, and ephemeral UI state (active tab/operation, sidebar open, active sketch id, selected/hovered tree item).
 - **`cadLayoutUiStore.ts`** (`src/frontend/ui/layout/`): layout-scoped UI state (active sidebar tab, operation panel open/editing feature, measurement picks) — kept local to the layout subtree rather than global.
 - Reads go through `useProjectState.ts` selector hooks and `useOccStore`/`useViewportStore` selectors; writes go through `projectApi.ts` functions or `occWorkerClient` calls — components don't dispatch raw actions or reach into the worker client's internals directly.
+
+#### Two-tier history
+
+Only actions that bump `project.version` are historic at all; derived/rebuild enrichments and pure UI
+toggles keep the version and are invisible to history. Version-bumping actions then split by tier:
+
+- **Tier 1 — version timeline** (`src/cad/state/versionTimeline.ts`, pure + generic): the persistent,
+  Google-Docs-style record. Every feature-level edit appends a `VersionEntry` labelled by
+  `src/cad/state/describeAction.ts` (e.g. `Extrude 1: depth 10 → 22 mm`). **Nothing is ever destroyed** —
+  `restore(id)` branch-appends a `Restored to <label>` entry rather than truncating. Retention is
+  unlimited; the escape hatch is Settings → Clear version history. Persisted per `project.id` to
+  IndexedDB (`src/frontend/shared/versionStorage.ts`, DB `occad-versions`) via a debounced save, and
+  hydrated on load. localStorage is deliberately *not* used for this — it's synchronous and ~5 MB.
+- **Tier 2 — in-sketch stack** (`src/cad/state/history.ts`, in-memory): while a sketch session is open
+  (`beginSketchSession`/`endSketchSession`), the actions in `SKETCH_EDIT_ACTIONS` feed an ephemeral
+  undo/redo stack and do **not** touch the timeline. Exiting the sketch commits the whole session as a
+  single `STOP_SKETCH_EDIT` timeline entry and discards the stack — in-sketch steps are not recoverable
+  afterwards, by design.
+
+`undo`/`redo` and `canUndo`/`canRedo` are context-aware: they drive the sketch stack inside a session and
+the timeline outside one. Gotchas: `STOP_SKETCH_EDIT` is deliberately **not** in `SKETCH_EDIT_ACTIONS`
+(it *is* the commit); `REPLACE` is handled **before** the version-equality guard in `dispatch`, since an
+imported project can coincidentally share the outgoing project's version number and must never inherit
+its history.
 
 ### Data Types (src/cad/types/...)
 
@@ -359,7 +383,9 @@ Legend: ✅ Done & wired end-to-end · 🟡 Partial · ❌ Not started · 🚫 W
 | Import / Export          |   ✅   | STEP/IGES import, STEP/IGES/STL export. glTF export + OBJ import 🚫          |
 | Measurement / Analysis   |   ✅   | Volume, Bounding Box, Centroid+Inertia, Between distance/angle (Measure tab) |
 | Feature tree             |   ✅   | Tree, drag-and-drop reorder, suppress, visibility, edit                      |
-| Undo / Redo              |   ✅   | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds                                 |
+| Undo / Redo              |   ✅   | Two-tier: in-sketch stack + version timeline; Ctrl/⌘+Z·Y; undo rebuilds      |
+| Version history          |   ✅   | Google-Docs-style timeline w/ labelled diffs, persisted to IndexedDB         |
+| Settings / storage usage |   ✅   | Modal w/ Storage API meter, per-bucket breakdown, clear-history action       |
 | History rollback bar     |   ✅   | Drag-to-rewind marker; insert-at-bar; skips rolled-back features on rebuild  |
 | Mouse model (SolidWorks) |   ✅   | Camera on MMB (orbit, Ctrl+MMB pan, Shift+MMB zoom); RMB context menu        |
 | Selection / picking      |   ✅   | Single-pick model entities; sketch box/crossing + multi-select              |
@@ -393,6 +419,9 @@ Everything below is optional. None is started unless noted.
   no-op without a multi-body selection model.
 - ❌ **Measurement readout panel** — the Measure *tab* (volume / bounding box / between) is done; an
   always-visible readout panel is not.
+- 🟡 **Version history polish** — the timeline, labels, restore, persistence and storage meter all ship.
+  Deferred: user-named/starred versions, grouping entries by day, a preview-before-restore step, and
+  branch visualisation (restores currently appear as a flat "Restored to X" entry rather than a tree).
 
 ### Testing
 - 🟡 **Golden-sample drift detection** — the *oracle* is built: `measureShape` now returns centroid +
@@ -437,7 +466,8 @@ for this app's op set. What shipped:
 3. **Stable refs + lazy capture** — selections persist as `GeometryRef = string | StableRef`; bare
    `edge-N` still works. `resolveSubShapes` re-finds by geometry, falls back to ordinal, and reports
    unresolved refs loudly. Captures ship in `rebuildComplete` and persist without bumping `version`.
-4. **Snapshot undo/redo** — one `CADProject` snapshot per `version` change; `undo`/`redo` across two stacks.
+4. **Snapshot undo/redo** — one `CADProject` snapshot per `version` change, routed to whichever history
+   tier is active (see "Two-tier history" above).
 
 **Gotchas for whoever extends this**
 - `occWorkerClient` is a module-level singleton spawning **one** Worker — do not add a second
