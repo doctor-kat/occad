@@ -14,12 +14,38 @@ function pnt(x: number, y: number, z: number) {
   return { X: () => x, Y: () => y, Z: () => z, delete() {} };
 }
 
-function mockCtx(rec: any = {}, opts: { volume?: number; min?: [number, number, number]; max?: [number, number, number] } = {}) {
-  const { volume = 1000, min = [0, 0, 0], max = [10, 20, 30] } = opts;
+function mockCtx(
+  rec: any = {},
+  opts: {
+    volume?: number;
+    min?: [number, number, number];
+    max?: [number, number, number];
+    com?: [number, number, number];
+    inertia?: [number, number, number, number, number, number]; // xx,yy,zz,xy,xz,yz
+  } = {},
+) {
+  const {
+    volume = 1000,
+    min = [0, 0, 0],
+    max = [10, 20, 30],
+    com = [5, 10, 15],
+    inertia = [1, 2, 3, 4, 5, 6],
+  } = opts;
+
+  // Symmetric 3x3 laid out for gp_Mat.Value(row, col) (1-indexed).
+  const [ixx, iyy, izz, ixy, ixz, iyz] = inertia;
+  const inertiaMat: Record<string, number> = {
+    '1,1': ixx, '2,2': iyy, '3,3': izz,
+    '1,2': ixy, '2,1': ixy, '1,3': ixz, '3,1': ixz, '2,3': iyz, '3,2': iyz,
+  };
 
   const oc: any = {
     GProp_GProps_1: class {
       Mass() { return volume; }
+      CentreOfMass() { return pnt(com[0], com[1], com[2]); }
+      MatrixOfInertia() {
+        return { Value: (r: number, c: number) => inertiaMat[`${r},${c}`], delete() {} };
+      }
       delete() {}
     },
     BRepGProp: {
@@ -51,6 +77,13 @@ describe("measureShape", () => {
     expect(boundingBox.min).toEqual({ x: 1, y: 2, z: 3 });
     expect(boundingBox.max).toEqual({ x: 11, y: 22, z: 33 });
     expect(boundingBox.size).toEqual({ x: 10, y: 20, z: 30 });
+  });
+
+  it("maps centre of mass and matrix of inertia into MeasurementData", () => {
+    const ctx = mockCtx({}, { com: [2, 4, 6], inertia: [10, 20, 30, 1, 2, 3] });
+    const { centreOfMass, inertia } = measureShape(ctx, shape());
+    expect(centreOfMass).toEqual({ x: 2, y: 4, z: 6 });
+    expect(inertia).toEqual({ xx: 10, yy: 20, zz: 30, xy: 1, xz: 2, yz: 3 });
   });
 
   it("drives both the volume and bounding-box tools with the shape", () => {

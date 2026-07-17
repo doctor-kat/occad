@@ -357,7 +357,7 @@ Legend: ✅ Done & wired end-to-end · 🟡 Partial · ❌ Not started · 🚫 W
 | Transforms               |   ✅   | Move, Rotate, Mirror, Scale                                                  |
 | Advanced modeling        |   ✅   | Sweep, Loft                                                                  |
 | Import / Export          |   ✅   | STEP/IGES import, STEP/IGES/STL export. glTF export + OBJ import 🚫          |
-| Measurement / Analysis   |   ✅   | Volume, Bounding Box, Between distance/angle (Measure tab)                   |
+| Measurement / Analysis   |   ✅   | Volume, Bounding Box, Centroid+Inertia, Between distance/angle (Measure tab) |
 | Feature tree             |   ✅   | Tree, drag-and-drop reorder, suppress, visibility, edit                      |
 | Undo / Redo              |   ✅   | Snapshot history + Ctrl/⌘+Z·Y; undo rebuilds                                 |
 | History rollback bar     |   ✅   | Drag-to-rewind marker; insert-at-bar; skips rolled-back features on rebuild  |
@@ -393,6 +393,14 @@ Everything below is optional. None is started unless noted.
   no-op without a multi-body selection model.
 - ❌ **Measurement readout panel** — the Measure *tab* (volume / bounding box / between) is done; an
   always-visible readout panel is not.
+
+### Testing
+- 🟡 **Golden-sample drift detection** — the *oracle* is built: `measureShape` now returns centroid +
+  matrix of inertia (position/orientation-sensitive, so a same-volume/same-bbox regression like a fillet on
+  the wrong edge is caught), and `src/cad/solid/analysis/measureHash.ts` reduces the four quantities
+  (volume, bbox, centroid, inertia) to one stable hash. **Next:** an e2e test that imports a committed
+  reference `.occad` project JSON (exported via `exportProject`), rebuilds, and asserts the measure hash
+  against a golden — pending a reference part (SolidWorks-tutorial shape) from the user.
 
 ### Infrastructure
 - **Custom (trimmed) WASM build** — we load the monolithic `opencascade.full.wasm`. A custom build binding

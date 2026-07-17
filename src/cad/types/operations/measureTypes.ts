@@ -39,6 +39,21 @@ export interface MeasureBetweenData {
   angle?: number;
 }
 
+/**
+ * The six unique components of a symmetric 3×3 matrix of inertia, taken about
+ * the coordinate origin in model space. Position- and orientation-sensitive:
+ * two solids of identical volume/bbox but different material distribution
+ * (e.g. a fillet on the wrong edge) have different inertia tensors.
+ */
+export interface InertiaTensor {
+  xx: number;
+  yy: number;
+  zz: number;
+  xy: number;
+  xz: number;
+  yz: number;
+}
+
 /** Volume + bounding-box readout of a body (ROADMAP §4 Measurement / Analysis). */
 export interface MeasurementData {
   /** Enclosed volume in model units³ (mm³). */
@@ -50,6 +65,19 @@ export interface MeasurementData {
     /** Per-axis extent (max − min): the box's width × height × depth. */
     size: Point3D;
   };
+  /**
+   * Centre of mass in model space. Optional so legacy readouts still type-check;
+   * `measureShape` always populates it. Position-sensitive — shifts when
+   * material is removed from a different location.
+   */
+  centreOfMass?: Point3D;
+  /**
+   * Matrix of inertia about the origin. Optional for the same reason as
+   * `centreOfMass`; always populated by `measureShape`. Together with
+   * `centreOfMass` this is what makes the measure hash catch same-volume
+   * regressions the scalar readouts miss.
+   */
+  inertia?: InertiaTensor;
 }
 
 export enum EvaluateOperation {

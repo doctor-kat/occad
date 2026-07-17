@@ -9,3 +9,5 @@
 
 export { measureShape } from './measureShape';
 export { measureBetween } from './measureBetween';
+export { measureHash, measureFingerprint } from './measureHash';
+export type { MeasureHashOptions } from './measureHash';

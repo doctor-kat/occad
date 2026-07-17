@@ -11,7 +11,7 @@
 
 type TopoDS_Shape = any;
 import type { WorkerContext } from '../workerContext';
-import type { MeasurementData } from '@/cad/types';
+import type { MeasurementData, Point3D, InertiaTensor } from '@/cad/types';
 
 /**
  * Measure a shape's volume and axis-aligned bounding box.
@@ -19,20 +19,50 @@ import type { MeasurementData } from '@/cad/types';
  * of the tightest axis-aligned box containing the shape.
  */
 export function measureShape(ctx: WorkerContext, shape: TopoDS_Shape): MeasurementData {
+  const mass = computeMassProperties(ctx, shape);
   return {
-    volume: computeVolume(ctx, shape),
+    volume: mass.volume,
     boundingBox: computeBoundingBox(ctx, shape),
+    centreOfMass: mass.centreOfMass,
+    inertia: mass.inertia,
   };
 }
 
-/** Volume via `BRepGProp.VolumeProperties` — `Mass()` is the enclosed volume. */
-function computeVolume(ctx: WorkerContext, shape: TopoDS_Shape): number {
+/**
+ * Volume, centre of mass, and matrix of inertia from a single
+ * `BRepGProp.VolumeProperties` pass. `Mass()` is the enclosed volume;
+ * `CentreOfMass()` and `MatrixOfInertia()` describe how that mass is
+ * distributed. The distribution fields are position/orientation-sensitive, so
+ * they distinguish solids that share a volume/bbox but differ in shape.
+ */
+function computeMassProperties(
+  ctx: WorkerContext,
+  shape: TopoDS_Shape,
+): { volume: number; centreOfMass: Point3D; inertia: InertiaTensor } {
   const { oc } = ctx;
   const props = new oc.GProp_GProps_1();
   try {
     // VolumeProperties_1(shape, props, onlyClosed, skipShared, useTriangulation)
     oc.BRepGProp.VolumeProperties_1(shape, props, false, false, false);
-    return props.Mass();
+
+    const com = props.CentreOfMass();
+    const centreOfMass: Point3D = { x: com.X(), y: com.Y(), z: com.Z() };
+    com.delete();
+
+    // gp_Mat is a symmetric 3x3; Value(row, col) is 1-indexed. Take the six
+    // unique components (about the origin — the GProps default location).
+    const mat = props.MatrixOfInertia();
+    const inertia: InertiaTensor = {
+      xx: mat.Value(1, 1),
+      yy: mat.Value(2, 2),
+      zz: mat.Value(3, 3),
+      xy: mat.Value(1, 2),
+      xz: mat.Value(1, 3),
+      yz: mat.Value(2, 3),
+    };
+    mat.delete();
+
+    return { volume: props.Mass(), centreOfMass, inertia };
   } finally {
     props.delete();
   }
