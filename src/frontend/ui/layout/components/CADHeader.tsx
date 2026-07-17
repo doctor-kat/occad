@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { AppShell, Box } from '@mantine/core';
 import { Toolbar } from '../../Toolbar';
 import { OperationsBar } from '../../operations/OperationsBar';
+import { VersionHistoryDrawer } from '../../history/VersionHistoryDrawer';
+import { SettingsModal } from '../../settings/SettingsModal';
 import { useCADLayoutContext } from '../CADLayoutContext';
 import { useViewportStore } from '@/frontend/shared/viewportStore';
 import { useProjectStore } from '@/frontend/shared/projectStore';
@@ -19,6 +22,8 @@ export function CADHeader() {
   const canUndo = useProjectStore((s) => s.canUndo);
   const canRedo = useProjectStore((s) => s.canRedo);
   const { undo, redo } = projectApi;
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <AppShell.Header
@@ -38,6 +43,8 @@ export function CADHeader() {
           onRedo={redo}
           canUndo={canUndo}
           canRedo={canRedo}
+          onOpenHistory={() => setHistoryOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
           tessellationLevel={tessellationLevel}
           onTessellationLevelChange={setTessellationLevel}
         />
@@ -51,6 +58,8 @@ export function CADHeader() {
           onSketchButtonClick={sketchPlaneSelection.handleSketchButtonClick}
         />
       </Box>
+      <VersionHistoryDrawer opened={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <SettingsModal opened={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </AppShell.Header>
   );
 }

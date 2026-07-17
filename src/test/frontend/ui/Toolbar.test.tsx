@@ -16,6 +16,8 @@ describe("Toolbar", () => {
     onRedo: vi.fn(),
     canUndo: false,
     canRedo: false,
+    onOpenHistory: vi.fn(),
+    onOpenSettings: vi.fn(),
     tessellationLevel: TessellationLevel.Standard,
     onTessellationLevelChange: vi.fn(),
   };
@@ -62,16 +64,30 @@ describe("Toolbar", () => {
     expect(onExport).toHaveBeenCalledTimes(1);
   });
 
-  it("opens the Settings menu and changes tessellation quality", async () => {
+  it("opens the Display quality menu and changes tessellation quality", async () => {
     const onTessellationLevelChange = vi.fn();
     renderWithProviders(
       <Toolbar {...defaultProps} onTessellationLevelChange={onTessellationLevelChange} />
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Display quality" }));
     expect(await screen.findByText("Tessellation quality")).toBeInTheDocument();
 
     await userEvent.click(screen.getByText("Fine"));
     expect(onTessellationLevelChange).toHaveBeenCalledWith(TessellationLevel.Fine);
+  });
+
+  it("calls onOpenHistory and onOpenSettings from the toolbar", async () => {
+    const onOpenHistory = vi.fn();
+    const onOpenSettings = vi.fn();
+    renderWithProviders(
+      <Toolbar {...defaultProps} onOpenHistory={onOpenHistory} onOpenSettings={onOpenSettings} />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Version history" }));
+    expect(onOpenHistory).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 });

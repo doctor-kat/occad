@@ -5,6 +5,7 @@ import {
   DownloadSimple,
   ArrowCounterClockwise,
   ArrowClockwise,
+  ClockCounterClockwise,
   MagnifyingGlassPlus,
   MagnifyingGlassMinus,
   FrameCorners,
@@ -27,6 +28,8 @@ interface ToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onOpenHistory: () => void;
+  onOpenSettings: () => void;
   tessellationLevel: TessellationLevel;
   onTessellationLevelChange: (level: TessellationLevel) => void;
 }
@@ -52,7 +55,7 @@ const fileButtonStyle = {
 
 const headerLabelStyle = { label: { fontSize: 12 } };
 
-export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, onRedo, canUndo, canRedo, tessellationLevel, onTessellationLevelChange }: ToolbarProps) {
+export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, onRedo, canUndo, canRedo, onOpenHistory, onOpenSettings, tessellationLevel, onTessellationLevelChange }: ToolbarProps) {
   const theme = useMantineTheme();
 
   return (
@@ -235,6 +238,30 @@ export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, 
             </Button>
           </Tooltip>
 
+          <Tooltip label="Version history" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={onOpenHistory}
+              aria-label="Version history"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <ClockCounterClockwise size={16} weight="regular" />
+            </Button>
+          </Tooltip>
+
+          <Tooltip label="Settings" position="bottom">
+            <Button
+              variant="subtle"
+              size="xs"
+              onClick={onOpenSettings}
+              aria-label="Settings"
+              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
+            >
+              <GearSix size={16} weight="regular" />
+            </Button>
+          </Tooltip>
+
           <Divider orientation="vertical" h={16} mx={4} />
 
           <Tooltip label="Zoom Out" position="bottom">
@@ -291,17 +318,17 @@ export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, 
 
           <Divider orientation="vertical" h={16} mx={4} />
 
-          {/* Settings */}
+          {/* Display quality (tessellation) */}
           <Menu position="bottom-end" width={260} withinPortal>
             <Menu.Target>
-              <Tooltip label="Settings" position="bottom">
+              <Tooltip label="Display quality" position="bottom">
                 <Button
                   variant="subtle"
                   size="xs"
-                  aria-label="Settings"
+                  aria-label="Display quality"
                   style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
                 >
-                  <GearSix size={16} weight="regular" />
+                  <GridFour size={16} weight="regular" />
                 </Button>
               </Tooltip>
             </Menu.Target>

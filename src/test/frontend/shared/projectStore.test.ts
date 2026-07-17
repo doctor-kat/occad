@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useProjectStore } from '@/frontend/shared/projectStore';
 import { createNewProject, type Feature, type Sketch } from '@/cad/types';
 
@@ -37,6 +37,18 @@ describe('projectStore two-tier history', () => {
     const project = createNewProject();
     useProjectStore.getState().dispatch({ type: 'REPLACE', project });
     useProjectStore.getState().endSketchSession();
+  });
+
+  // The store persists to localStorage via zustand — reset it so a project with
+  // features/sketches can't leak into other test files that expect a fresh one.
+  afterEach(() => {
+    useProjectStore.getState().dispatch({ type: 'REPLACE', project: createNewProject() });
+    useProjectStore.getState().endSketchSession();
+    try {
+      localStorage.removeItem('occad-project');
+    } catch {
+      /* jsdom always has localStorage; guard anyway */
+    }
   });
 
   it('feature edits append to the persistent timeline and are undoable', () => {
