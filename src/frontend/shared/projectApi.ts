@@ -55,13 +55,18 @@ export const projectApi = {
     const v = useViewportStore.getState();
     v.setActiveSketchId(sketchId);
     v.setActiveTab(OperationCategory.SKETCH);
+    // Open a fresh Tier-2 ephemeral undo/redo session for this sketch.
+    useProjectStore.getState().beginSketchSession();
   },
   // Exit sketch mode. The reducer deletes the sketch if it's empty; the
-  // ephemeral active-sketch id is always cleared.
+  // ephemeral active-sketch id is always cleared. STOP_SKETCH_EDIT is dispatched
+  // while the session is still active so it lands as a single timeline commit,
+  // then the session (and its live undo/redo) is closed.
   stopSketchEdit() {
     const v = useViewportStore.getState();
     const sketchId = v.activeSketchId;
     if (sketchId) dispatch({ type: 'STOP_SKETCH_EDIT', sketchId });
+    useProjectStore.getState().endSketchSession();
     v.setActiveSketchId(null);
   },
 
@@ -176,5 +181,14 @@ export const projectApi = {
   },
   redo() {
     useProjectStore.getState().redo();
+  },
+  // Jump the version timeline to a stored version. Exits any sketch session
+  // first so the restored project is authoritative.
+  restoreVersion(id: string) {
+    if (useViewportStore.getState().activeSketchId) projectApi.stopSketchEdit();
+    useProjectStore.getState().restoreVersion(id);
+  },
+  clearHistory() {
+    useProjectStore.getState().clearHistory();
   },
 };

@@ -105,9 +105,17 @@ function describeActionUnsafe(action: ProjectAction, prev: CADProject, next: CAD
     case 'MOVE_ROLLBACK_BAR':
       return 'Moved history bar';
 
+    case 'DELETE_TREE_ITEM': {
+      // A tree delete removes a sketch or feature (and bumps version), so it
+      // must be labelled — resolve the id against the pre-delete project.
+      const sketch = findSketch(prev, action.id);
+      if (sketch) return `Deleted ${nameOf(sketch, 'Sketch')}`;
+      const feature = findFeature(prev, action.id);
+      return `Deleted ${nameOf(feature, 'Feature')}`;
+    }
+
     case 'TOGGLE_TREE_ITEM_EXPANSION':
     case 'TOGGLE_TREE_ITEM_VISIBILITY':
-    case 'DELETE_TREE_ITEM':
       return '';
 
     default:
