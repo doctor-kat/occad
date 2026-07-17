@@ -10,7 +10,6 @@ import {
   MagnifyingGlassMinus,
   FrameCorners,
   GridFour,
-  Eye,
   FilePlus,
   GearSix,
   Check
@@ -303,16 +302,6 @@ export function Toolbar({ projectName, onNew, onOpen, onSave, onExport, onUndo, 
               style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
             >
               <GridFour size={16} weight="regular" />
-            </Button>
-          </Tooltip>
-
-          <Tooltip label="View Options" position="bottom">
-            <Button
-              variant="subtle"
-              size="xs"
-              style={{ ...iconButtonStyle, color: theme.other.colors.cadHeaderForeground }}
-            >
-              <Eye size={16} weight="regular" />
             </Button>
           </Tooltip>
 
